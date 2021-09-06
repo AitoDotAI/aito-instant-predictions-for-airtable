@@ -1,0 +1,12 @@
+export const HAS_SETUP_ONCE = 'hasSetupOnce' as const
+export const AITO_URL = 'aitoUrl' as const
+export const AITO_KEY = 'aitoKey' as const
+export const AITO_TABLE_NAME = 'aitoTableName' as const
+export const AIRTABLE_VIEW_ID = 'airtableViewId' as const
+export const LAST_ROW_COUNT = 'lastRowCount' as const
+export const LAST_UPDATED = 'lastUpdated' as const
+export const LAST_UPDATED_BY = 'lastUpdatedBy' as const
+export const TABLE_SETTINGS = 'tables' as const
+export const USER_SETTINGS = 'users' as const
+export const PER_TABLE_SETTINGS = 'tables' as const
+export const AUTO_FILL = 'autoFill' as const
