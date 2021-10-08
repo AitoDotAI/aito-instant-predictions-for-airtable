@@ -66,10 +66,10 @@ const TableView: React.FC<{
         </Box>
         <Box padding={1} borderTop="thick" display="flex" backgroundColor="#f0f0f0" flexGrow={0}>
           <Text variant="paragraph" flexGrow={1} size="default" padding={1} margin={0}>
-            {tableConfig && tableConfig.lastRowCount && tableConfig.lastUpdated ? (
+            {lastUpdated ? (
               <>
                 {tableConfig.lastRowCount} records from <em>{view ? view.name : 'a removed view'}</em> uploaded at{' '}
-                {new Date(tableConfig.lastUpdated).toLocaleDateString()}
+                {new Date(lastUpdated).toLocaleDateString()}
               </>
             ) : (
               'No training data has been uploaded yet.'
@@ -84,7 +84,7 @@ const TableView: React.FC<{
             variant="primary"
             disabled={!canUpdateSettings}
           >
-            Train model
+            {hasUploaded ? 'Retrain' : 'Train'} model
           </Button>
         </Box>
       </Box>
