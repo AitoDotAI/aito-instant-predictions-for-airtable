@@ -33,7 +33,8 @@ const PredictView: React.FC<{
   cursor: Cursor
   tableConfig: TableConfig
   client: AitoClient
-}> = ({ table, cursor, tableConfig, client }) => {
+  hasUploaded: boolean
+}> = ({ table, cursor, tableConfig, client, hasUploaded }) => {
   useWatchable(cursor, ['selectedFieldIds', 'selectedRecordIds'])
 
   // Use the current view for predictions, not necessarily the one used for training/upload
@@ -84,8 +85,8 @@ const PredictView: React.FC<{
     }
   }
 
-  if (!schema) {
-    if (schema === null) {
+  if (!schema || !hasUploaded) {
+    if (schema === null || !hasUploaded) {
       // No table with that name
       return (
         <Box padding={3}>
