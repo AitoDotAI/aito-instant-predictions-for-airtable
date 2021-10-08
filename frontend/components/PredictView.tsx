@@ -606,14 +606,14 @@ const FieldPrediction: React.FC<{
                         alignSelf="center"
                         disabled={!canUpdate}
                         aria-label="Toggle feature"
-                        variant={hasFeature(record, selectedField, feature) ? 'danger' : 'default'}
+                        variant={hasFeature(record, selectedField, feature) ? 'danger' : 'primary'}
                       />
                     ) : (
                       <Button
                         onClick={() => onClick(feature)}
                         size="small"
                         alignSelf="center"
-                        variant="secondary"
+                        variant="primary"
                         disabled={!canUpdate || hasFeature(record, selectedField, feature)}
                         marginX={2}
                       >
