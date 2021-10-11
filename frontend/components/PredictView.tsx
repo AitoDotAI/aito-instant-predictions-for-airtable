@@ -614,7 +614,7 @@ const FieldPrediction: React.FC<{
                         onClick={() => onClick(feature)}
                         size="small"
                         alignSelf="center"
-                        variant="primary"
+                        variant="default"
                         disabled={!canUpdate || hasFeature(record, selectedField, feature)}
                         marginX={2}
                       >
