@@ -20,7 +20,7 @@ import React, { useCallback, useEffect, useState } from 'react'
 import { useMemo } from 'react'
 import { useRef } from 'react'
 import AcceptedFields from '../AcceptedFields'
-import AitoClient from '../AitoClient'
+import AitoClient, { isAitoError } from '../AitoClient'
 import { mapColumnNames } from '../functions/inferAitoSchema'
 import { TableSchema } from '../schema/aito'
 import { TableConfig } from '../schema/config'
@@ -88,6 +88,16 @@ const PredictView: React.FC<{
     if (canUpdate) {
       await table.updateRecordAsync(record, { [field.id]: value })
     }
+  }
+
+  if (schema === 'quota-exceeded') {
+    return (
+      <Box padding={3}>
+        <Text variant="paragraph" textColor="light">
+          Query quota exceeded
+        </Text>
+      </Box>
+    )
   }
 
   if (!schema || !hasUploaded) {
@@ -192,20 +202,27 @@ const PredictView: React.FC<{
   )
 }
 
-const useAitoSchema = (aitoTableName: string, client: AitoClient): TableSchema | undefined | null => {
+const useAitoSchema = (
+  aitoTableName: string,
+  client: AitoClient,
+): TableSchema | undefined | null | 'quota-exceeded' => {
   // Load aito schema after brief delay
 
-  const [schema, setSchema] = useState<TableSchema | undefined | null>(undefined)
+  const [schema, setSchema] = useState<TableSchema | undefined | null | 'quota-exceeded'>(undefined)
   useEffect(() => {
     let cancel = false
     const loadSchema = async () => {
       try {
-        const schema = await client.getTableSchema(aitoTableName)
+        const response = await client.getTableSchema(aitoTableName)
         if (!cancel) {
-          if (!schema) {
-            setSchema(null)
+          if (isAitoError(response)) {
+            if (response === 'quota-exceeded') {
+              setSchema('quota-exceeded')
+            } else {
+              setSchema(null)
+            }
           } else {
-            setSchema(schema)
+            setSchema(response)
           }
         }
       } catch (e) {
@@ -400,6 +417,7 @@ const FieldPrediction: React.FC<{
     }
   })
 
+  const [hasQuotaExceeded, setHasQuotaExceeded] = useState<boolean>(false)
   const [prediction, setPrediction] = useState<PredictionHits | undefined | null>(undefined)
   useEffect(() => {
     if (delayedRequest.current !== undefined) {
@@ -433,8 +451,11 @@ const FieldPrediction: React.FC<{
         const prediction = await client.predict(query)
 
         if (!hasUnmounted()) {
-          if (!prediction) {
+          if (isAitoError(prediction)) {
             setPrediction(null)
+            if (prediction === 'quota-exceeded') {
+              setHasQuotaExceeded(true)
+            }
           } else {
             setPrediction(prediction)
           }
@@ -520,6 +541,10 @@ const FieldPrediction: React.FC<{
       setConfirmation(undefined)
     }
   }, [record, selectedField, confirmation, setConfirmation, setCellValue])
+
+  if (hasQuotaExceeded) {
+    return <Text variant="paragraph">Query quota exeeded</Text>
+  }
 
   if (prediction === null) {
     return <Text variant="paragraph">Unable to predict {selectedField.name}.</Text>

@@ -7,6 +7,8 @@ export type AitoValue = Value | AitoRow
 
 export interface AitoRow extends Record<string, AitoValue> {}
 
+export type AitoError = 'quota-exceeded' | 'error'
+
 export interface Hits<Hit = AitoRow> {
   total: number
   offset: number
@@ -33,6 +35,18 @@ export interface SearchQuery {
   offset?: number
 }
 
+type FetchParameters = Parameters<typeof fetch>[1]
+
+const toAitoError = (response: Response): AitoError => {
+  if (response.status === 429 && response.headers.get('x-error-cause') === 'Quota Exceeded') {
+    return 'quota-exceeded'
+  } else {
+    return 'error'
+  }
+}
+
+export const isAitoError = (value: unknown): value is AitoError => value === 'quota-exceeded' || value === 'error'
+
 export default class AitoClient {
   constructor(host: string, key: string) {
     this.host = normalizeAitoUrl(host)
@@ -50,7 +64,7 @@ export default class AitoClient {
     }
   }
 
-  async getTableSchema(tableName: string): Promise<TableSchema | undefined> {
+  async getTableSchema(tableName: string): Promise<TableSchema | AitoError> {
     const name = encodeURIComponent(tableName)
     const url = new URL(`/api/v1/schema/${name}`, this.host)
     const response = await fetch(url.toString(), {
@@ -66,9 +80,10 @@ export default class AitoClient {
         return body
       }
     }
+    return toAitoError(response)
   }
 
-  private body(method: string, body?: unknown): Parameters<typeof fetch>[1] {
+  private body(method: string, body?: unknown): FetchParameters {
     return {
       method,
       mode: 'cors',
@@ -80,53 +95,78 @@ export default class AitoClient {
     }
   }
 
-  private post(...body: [unknown] | []): Parameters<typeof fetch>[1] {
+  private post(...body: [unknown] | []): FetchParameters {
     return this.body('POST', ...body)
   }
 
-  private put(...body: [unknown] | []): Parameters<typeof fetch>[1] {
+  private put(...body: [unknown] | []): FetchParameters {
     return this.body('PUT', ...body)
   }
 
-  private delete(...body: [unknown] | []): Parameters<typeof fetch>[1] {
+  private delete(...body: [unknown] | []): FetchParameters {
     return this.body('DELETE', ...body)
   }
 
-  async predict(prediction: PredictQuery): Promise<Hits<PredictionHit> | undefined> {
+  private async send(url: URL, params: FetchParameters): Promise<Response> {
+    while (true) {
+      const response = await fetch(url.toString(), params)
+      const errorCause = response.headers.get('x-error-cause')
+      const isThrottled = response.status === 429 && errorCause == 'Throttled'
+      if (isThrottled) {
+        await new Promise((resolve) => setTimeout(() => resolve(0), Math.floor(250 + Math.random() * 500)))
+      } else {
+        return response
+      }
+    }
+  }
+
+  async predict(prediction: PredictQuery): Promise<Hits<PredictionHit> | AitoError> {
     const url = new URL(`/api/v1/_predict`, this.host)
-    const response = await fetch(url.toString(), this.post(prediction))
+    const response = await this.send(url, this.post(prediction))
     if (response.ok) {
       return await response.json()
+    } else {
+      return toAitoError(response)
     }
   }
 
-  async search(searchQuery: SearchQuery): Promise<Hits | undefined> {
+  async search(searchQuery: SearchQuery): Promise<Hits | AitoError> {
     const url = new URL(`/api/v1/_search`, this.host)
-    const response = await fetch(url.toString(), this.post(searchQuery))
+    const response = await this.send(url, this.post(searchQuery))
     if (response.ok) {
       return await response.json()
+    } else {
+      return toAitoError(response)
     }
   }
 
-  async createTable(tableName: string, tableSchema: unknown): Promise<unknown> {
+  async createTable(tableName: string, tableSchema: unknown): Promise<'ok' | AitoError> {
     const url = new URL(`/api/v1/schema/${tableName}`, this.host)
-    const response = await fetch(url.toString(), this.put(tableSchema))
+    const response = await this.send(url, this.put(tableSchema))
     if (response.ok) {
-      return await response.json()
+      return 'ok'
+    } else {
+      return toAitoError(response)
     }
   }
 
-  async uploadBatch(tableName: string, rows: unknown[]): Promise<number> {
+  async uploadBatch(tableName: string, rows: unknown[]): Promise<'ok' | AitoError> {
     const url = new URL(`/api/v1/data/${tableName}/batch`, this.host)
-    const response = await fetch(url.toString(), this.post(rows))
-    return response.status
+    const response = await this.send(url, this.post(rows))
+    if (response.ok) {
+      return 'ok'
+    } else {
+      return toAitoError(response)
+    }
   }
 
-  async deleteTable(tableName: string): Promise<unknown> {
+  async deleteTable(tableName: string): Promise<'ok' | AitoError> {
     const url = new URL(`/api/v1/schema/${tableName}`, this.host)
-    const response = await fetch(url.toString(), this.delete())
+    const response = await this.send(url, this.delete())
     if (response.ok) {
-      return await response.json()
+      return 'ok'
+    } else {
+      return toAitoError(response)
     }
   }
 }
