@@ -125,8 +125,7 @@ const PredictView: React.FC<{
     return (
       <Box padding={3}>
         <Text variant="paragraph" textColor="light">
-          Please <strong>select cells of up to 10 records</strong> to predict their value based on the fields visible in{' '}
-          <em>{view?.name || 'the current view'}</em>. Aito works best for categorical predictions.
+          Please select an empty cell
         </Text>
       </Box>
     )
