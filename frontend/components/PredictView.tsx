@@ -543,16 +543,16 @@ const FieldPrediction: React.FC<{
             )}
           >
             <Box style={{ overflowX: 'hidden', textOverflow: 'ellipsis' }}>
-              <Text display="inline" textColor="light" paddingX={1}>
+              <Text display="inline" textColor="light" paddingX={3}>
+                {selectedField.name}
                 {disclaimer && (
                   <Icon
                     name="warning"
                     aria-label="Warning"
-                    marginRight={2}
-                    style={{ verticalAlign: 'middle', width: '1em', height: '1em' }}
+                    marginLeft={2}
+                    style={{ verticalAlign: 'text-bottom', width: '1em', height: '1em' }}
                   />
                 )}
-                {selectedField.name}
               </Text>
               {!prediction && <Loader scale={0.2} />}
             </Box>
