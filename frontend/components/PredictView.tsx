@@ -649,8 +649,8 @@ const FieldPrediction: React.FC<{
                     />
                   </Box>
                 </Cell>
-                <Cell width="34px" flexGrow={0}>
-                  <Box display="flex" height="100%" justifyContent="left">
+                <Cell width="40px" flexGrow={0}>
+                  <Box display="flex" height="100%" justifyContent="right">
                     <Text textColor="light" alignSelf="center">
                       {Math.round($p * 100)}%
                     </Text>
