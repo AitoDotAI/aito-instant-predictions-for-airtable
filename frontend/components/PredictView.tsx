@@ -27,6 +27,11 @@ import { TableConfig } from '../schema/config'
 import { useLocalConfig } from '../LocalConfig'
 import { isArrayOf, isMissing, isObjectOf, isString, ValidatedType } from '../validator/validation'
 import { Cell, Row } from './table'
+import Semaphore from 'semaphore-async-await'
+
+const PARALLEL_REQUESTS = 10
+const REQUEST_TIME = 750
+const RequestLocks = new Semaphore(PARALLEL_REQUESTS)
 
 const PredictView: React.FC<{
   table: Table
@@ -316,6 +321,23 @@ const isMultipleSelectField = (field: Field): boolean =>
 
 const renderCellDefault = (cellValue: unknown): React.ReactElement => <>{String(cellValue)}</>
 
+const makeWhereClause = (selectedField: Field, fields: Field[], schema: TableSchema, record: Record) => {
+  const fieldIdToName = mapColumnNames(fields)
+  return fields.reduce<globalThis.Record<string, unknown>>((acc, field) => {
+    const conversion = AcceptedFields[field.type]
+    const columnName = fieldIdToName[field.id]
+    if (field.id !== selectedField.id && conversion && columnName in schema.columns) {
+      const aitoValue = conversion.toAitoValue(field, record)
+      return {
+        [columnName]: aitoValue === null ? null : conversion.toAitoQuery(field, aitoValue),
+        ...acc,
+      }
+    } else {
+      return acc
+    }
+  }, {})
+}
+
 const FieldPrediction: React.FC<{
   selectedField: Field
   record: Record
@@ -387,33 +409,30 @@ const FieldPrediction: React.FC<{
     // Start a new request
     const delay = 50
     const fieldIdToName = mapColumnNames(fields)
+    const hasUnmounted = () => delayedRequest.current === undefined
+
     delayedRequest.current = setTimeout(async () => {
-      const where = fields.reduce<globalThis.Record<string, unknown>>((acc, field) => {
-        const conversion = AcceptedFields[field.type]
-        const columnName = fieldIdToName[field.id]
-        if (field.id !== selectedField.id && conversion && columnName in schema.columns) {
-          const aitoValue = conversion.toAitoValue(field, record)
-          return {
-            [columnName]: aitoValue === null ? null : conversion.toAitoQuery(field, aitoValue),
-            ...acc,
-          }
-        } else {
-          return acc
-        }
-      }, {})
-
-      const query = {
-        from: aitoTableName,
-        where,
-        predict: fieldIdToName[selectedField.id],
-        limit: 5,
-      }
-
+      let start: Date | undefined
       try {
+        await RequestLocks.acquire()
+
+        if (hasUnmounted()) {
+          RequestLocks.release()
+          return
+        }
+
+        const where = makeWhereClause(selectedField, fields, schema, record)
+        const query = {
+          from: aitoTableName,
+          where,
+          predict: fieldIdToName[selectedField.id],
+          limit: 5,
+        }
+
+        start = new Date()
         const prediction = await client.predict(query)
 
-        const hasUnmounted = delayedRequest.current === undefined
-        if (!hasUnmounted) {
+        if (!hasUnmounted()) {
           if (!prediction) {
             setPrediction(null)
           } else {
@@ -425,9 +444,26 @@ const FieldPrediction: React.FC<{
         if (!hasUnmounted) {
           setPrediction(null)
         }
+      } finally {
+        // Delay releasing the request lock until
+        if (start) {
+          const elapsed = new Date().valueOf() - start.valueOf()
+          const remaining = Math.min(REQUEST_TIME, REQUEST_TIME - elapsed)
+          if (remaining > 0) {
+            await new Promise((resolve) => setTimeout(() => resolve(undefined), remaining))
+          }
+        }
+        RequestLocks.release()
       }
     }, delay)
-  })
+
+    return () => {
+      if (delayedRequest.current) {
+        clearTimeout(delayedRequest.current)
+        delayedRequest.current = undefined
+      }
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   type ConfirmParameters = [unknown, unknown]
   const [confirmation, setConfirmation] = useState<ConfirmParameters | undefined>()
