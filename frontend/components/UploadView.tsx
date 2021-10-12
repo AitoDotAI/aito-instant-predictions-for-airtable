@@ -256,6 +256,13 @@ const UploadView: React.FC<{
         <Text variant="paragraph">
           There are {uploadedRows} rows in a table called {pendingTableConfig.aitoTableName} in your Aito.ai instance.
         </Text>
+
+        <Text variant="paragraph">
+          <strong>Note:</strong> Training data is not automatically synchronized to your Aito.ai instance. If your
+          training data changes and you want your predictions to be informed by the updates then you can re-upload the
+          new training.
+        </Text>
+
         <Button onClick={goToPredict}>Click here to start predicting</Button>
       </Box>
     </>
