@@ -381,9 +381,6 @@ const FieldPrediction: React.FC<{
   const isTextField = [FieldType.RICH_TEXT, FieldType.MULTILINE_TEXT].includes(selectedField.type)
   const canUpdate = hasPermissionToUpdate && !selectedField.isComputed && !isTextField
 
-  type Disclaimer = 'text' | 'numbers' | null
-  const disclaimer: Disclaimer = isTextField ? 'text' : !isSuitablePrediction(selectedField) ? 'numbers' : null
-
   useEffect(() => {
     // This is run once when the element is unmounted
     return () => {
@@ -417,7 +414,19 @@ const FieldPrediction: React.FC<{
     }
   })
 
-  const [hasQuotaExceeded, setHasQuotaExceeded] = useState<boolean>(false)
+  type PredictionError = 'quota-exceeded' | 'unknown-field' | 'empty-field' | 'error'
+
+  const [predictionError, setPredictionError] = useState<PredictionError | null>(null)
+
+  type Disclaimer = 'text' | 'numbers' | null
+  const disclaimer: Disclaimer = predictionError
+    ? null
+    : isTextField
+    ? 'text'
+    : !isSuitablePrediction(selectedField)
+    ? 'numbers'
+    : null
+
   const [prediction, setPrediction] = useState<PredictionHits | undefined | null>(undefined)
   useEffect(() => {
     if (delayedRequest.current !== undefined) {
@@ -427,6 +436,14 @@ const FieldPrediction: React.FC<{
     // Start a new request
     const delay = 50
     const fieldIdToName = mapColumnNames(fields)
+
+    const columnName = fieldIdToName[selectedField.id]
+    if (!(columnName in schema.columns)) {
+      setPrediction(null)
+      setPredictionError('unknown-field')
+      return
+    }
+
     const hasUnmounted = () => delayedRequest.current === undefined
 
     delayedRequest.current = setTimeout(async () => {
@@ -454,9 +471,14 @@ const FieldPrediction: React.FC<{
           if (isAitoError(prediction)) {
             setPrediction(null)
             if (prediction === 'quota-exceeded') {
-              setHasQuotaExceeded(true)
+              setPredictionError('quota-exceeded')
+            } else {
+              setPredictionError('error')
             }
           } else {
+            if (prediction.hits.length === 0) {
+              setPredictionError('empty-field')
+            }
             setPrediction(prediction)
           }
         }
@@ -542,14 +564,6 @@ const FieldPrediction: React.FC<{
     }
   }, [record, selectedField, confirmation, setConfirmation, setCellValue])
 
-  if (hasQuotaExceeded) {
-    return <Text variant="paragraph">Query quota exeeded</Text>
-  }
-
-  if (prediction === null) {
-    return <Text variant="paragraph">Unable to predict {selectedField.name}.</Text>
-  }
-
   return (
     <Box paddingBottom={3}>
       {canUpdate && confirmation && (
@@ -615,12 +629,12 @@ const FieldPrediction: React.FC<{
                   />
                 )}
               </Text>
-              {!prediction && <Loader scale={0.2} />}
+              {prediction === undefined && <Loader scale={0.2} />}
             </Box>
           </Tooltip>
         </Cell>
         <Cell width="90px" flexGrow={0}>
-          {prediction && (
+          {prediction && !predictionError && (
             <Box display="flex" height="100%" justifyContent="left">
               <Text textColor="light">Confidence</Text>
             </Box>
@@ -629,7 +643,21 @@ const FieldPrediction: React.FC<{
         <Cell width="6px" flexGrow={0}></Cell>
       </Row>
       <Box>
-        {prediction &&
+        {predictionError && (
+          <Box marginX={3}>
+            {predictionError === 'empty-field' && (
+              <Text variant="paragraph">It seems there are no examples of this field in the training set.</Text>
+            )}
+            {predictionError === 'unknown-field' && (
+              <Text variant="paragraph">This field is not part of the training set and cannot be predicted.</Text>
+            )}
+            {predictionError === 'quota-exceeded' && <Text variant="paragraph">Query quota exeeded</Text>}
+            {predictionError === 'error' && <Text variant="paragraph">Unable to predict {selectedField.name}.</Text>}
+          </Box>
+        )}
+
+        {!predictionError &&
+          prediction &&
           prediction.hits.map(({ $p, feature }, i) => {
             const conversion = AcceptedFields[selectedField.type]
             const value = conversion ? conversion.toCellValue(feature) : feature
