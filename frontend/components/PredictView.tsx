@@ -91,8 +91,8 @@ const PredictView: React.FC<{
       return (
         <Box padding={3}>
           <Text variant="paragraph" textColor="light">
-            There doesn't seem to be any training data for <em>{table.name}</em> in your Aito instance. Please upload
-            training data first by clicking on the button at the bottom.
+            There doesn&apos;t seem to be any training data for <em>{table.name}</em> in your Aito instance. Please
+            upload training data first by clicking on the button at the bottom.
           </Text>
         </Box>
       )
