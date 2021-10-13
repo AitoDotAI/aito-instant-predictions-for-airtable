@@ -83,7 +83,7 @@ export default class AitoClient {
     return toAitoError(response)
   }
 
-  private body(method: string, body?: unknown): FetchParameters {
+  private body(method: string, body?: string): FetchParameters {
     return {
       method,
       mode: 'cors',
@@ -91,19 +91,19 @@ export default class AitoClient {
         'x-api-key': this.key,
         'content-type': 'application/json',
       },
-      body: JSON.stringify(body),
+      body,
     }
   }
 
-  private post(...body: [unknown] | []): FetchParameters {
+  private post(...body: [string] | []): FetchParameters {
     return this.body('POST', ...body)
   }
 
-  private put(...body: [unknown] | []): FetchParameters {
+  private put(...body: [string] | []): FetchParameters {
     return this.body('PUT', ...body)
   }
 
-  private delete(...body: [unknown] | []): FetchParameters {
+  private delete(...body: [string] | []): FetchParameters {
     return this.body('DELETE', ...body)
   }
 
@@ -120,9 +120,9 @@ export default class AitoClient {
     }
   }
 
-  async predict(prediction: PredictQuery): Promise<Hits<PredictionHit> | AitoError> {
+  async predict(predictionJSON: string): Promise<Hits<PredictionHit> | AitoError> {
     const url = new URL(`/api/v1/_predict`, this.host)
-    const response = await this.send(url, this.post(prediction))
+    const response = await this.send(url, this.post(predictionJSON))
     if (response.ok) {
       return await response.json()
     } else {
@@ -132,7 +132,7 @@ export default class AitoClient {
 
   async search(searchQuery: SearchQuery): Promise<Hits | AitoError> {
     const url = new URL(`/api/v1/_search`, this.host)
-    const response = await this.send(url, this.post(searchQuery))
+    const response = await this.send(url, this.post(JSON.stringify(searchQuery)))
     if (response.ok) {
       return await response.json()
     } else {
@@ -142,7 +142,7 @@ export default class AitoClient {
 
   async createTable(tableName: string, tableSchema: unknown): Promise<'ok' | AitoError> {
     const url = new URL(`/api/v1/schema/${tableName}`, this.host)
-    const response = await this.send(url, this.put(tableSchema))
+    const response = await this.send(url, this.put(JSON.stringify(tableSchema)))
     if (response.ok) {
       return 'ok'
     } else {
@@ -152,7 +152,7 @@ export default class AitoClient {
 
   async uploadBatch(tableName: string, rows: unknown[]): Promise<'ok' | AitoError> {
     const url = new URL(`/api/v1/data/${tableName}/batch`, this.host)
-    const response = await this.send(url, this.post(rows))
+    const response = await this.send(url, this.post(JSON.stringify(rows)))
     if (response.ok) {
       return 'ok'
     } else {

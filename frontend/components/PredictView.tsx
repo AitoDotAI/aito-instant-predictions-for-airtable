@@ -457,12 +457,21 @@ const FieldPrediction: React.FC<{
         }
 
         const where = makeWhereClause(selectedField, fields, schema, record)
-        const query = {
+        let query = JSON.stringify({
           from: aitoTableName,
-          where,
           predict: fieldIdToName[selectedField.id],
           limit: 5,
-        }
+        })
+
+        // HACK: enforce decimal points
+        let whereString = JSON.stringify(where)
+        Object.entries(schema.columns).forEach(([columnName, columnSchema]) => {
+          if (columnSchema.type.toLowerCase() === 'decimal') {
+            const fieldName = JSON.stringify(columnName)
+            whereString = whereString.replace(new RegExp(`([{,]${fieldName}:(?:{"\\$numeric":)?)(-?\\d+)([,}])`), `$1$2.0$3`)
+          }
+        });
+        query = query.replace(/}$/, `,"where":${whereString}}`)
 
         start = new Date()
         const prediction = await client.predict(query)
