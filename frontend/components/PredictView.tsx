@@ -28,6 +28,7 @@ import { useLocalConfig } from '../LocalConfig'
 import { isArrayOf, isMissing, isObjectOf, isString, ValidatedType } from '../validator/validation'
 import { Cell, Row } from './table'
 import Semaphore from 'semaphore-async-await'
+import QueryQuotaExceeded from './QueryQuotaExceeded'
 
 const PARALLEL_REQUESTS = 10
 const REQUEST_TIME = 750
@@ -93,9 +94,7 @@ const PredictView: React.FC<{
   if (schema === 'quota-exceeded') {
     return (
       <Box padding={3}>
-        <Text variant="paragraph" textColor="light">
-          Query quota exceeded
-        </Text>
+        <QueryQuotaExceeded />
       </Box>
     )
   }
@@ -468,9 +467,12 @@ const FieldPrediction: React.FC<{
         Object.entries(schema.columns).forEach(([columnName, columnSchema]) => {
           if (columnSchema.type.toLowerCase() === 'decimal') {
             const fieldName = JSON.stringify(columnName)
-            whereString = whereString.replace(new RegExp(`([{,]${fieldName}:(?:{"\\$numeric":)?)(-?\\d+)([,}])`), `$1$2.0$3`)
+            whereString = whereString.replace(
+              new RegExp(`([{,]${fieldName}:(?:{"\\$numeric":)?)(-?\\d+)([,}])`),
+              `$1$2.0$3`,
+            )
           }
-        });
+        })
         query = query.replace(/}$/, `,"where":${whereString}}`)
 
         start = new Date()
@@ -660,7 +662,7 @@ const FieldPrediction: React.FC<{
             {predictionError === 'unknown-field' && (
               <Text variant="paragraph">This field is not part of the training set and cannot be predicted.</Text>
             )}
-            {predictionError === 'quota-exceeded' && <Text variant="paragraph">Query quota exeeded</Text>}
+            {predictionError === 'quota-exceeded' && <QueryQuotaExceeded />}
             {predictionError === 'error' && <Text variant="paragraph">Unable to predict {selectedField.name}.</Text>}
           </Box>
         )}
