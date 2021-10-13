@@ -21,6 +21,7 @@ import AitoClient from '../AitoClient'
 import { UploadResult } from '../functions/uploadView'
 import { TableConfig } from '../schema/config'
 import Footer from './Footer'
+import QueryQuotaExceeded from './QueryQuotaExceeded'
 import StatusMessage from './StatusMessage'
 import { Tab } from './Tab'
 import { Cell, Row } from './table'
@@ -64,6 +65,7 @@ const UploadView: React.FC<{
   const [fieldsAreAcceptable, setFieldsAreAcceptable] = useState<boolean | undefined>(undefined)
   const [numberOfRows, setNumberOfRows] = useState<number | undefined>(undefined)
   const [uploadedRows, setUploadedRows] = useState(0)
+  const [isQuotaExceeded, setQuotaExceeded] = useState(false)
 
   const doUpload = useCallback(async () => {
     try {
@@ -72,8 +74,11 @@ const UploadView: React.FC<{
       const view = airtableViewId && table.getViewByIdIfExists(airtableViewId)
       if (view && user) {
         setUploadState('uploading')
+        setQuotaExceeded(false)
         const result = await onUpload(view, aitoTableName)
-        if (result && result.type === 'success') {
+        if (!result) {
+          setUploadState('error')
+        } else if (result.type === 'success') {
           await setTableConfig(table, {
             ...pendingTableConfig,
             lastRowCount: result.rowCount,
@@ -86,6 +91,9 @@ const UploadView: React.FC<{
           setUploadedRows(result.rowCount)
           setUploadState('done')
         } else {
+          if (result.error === 'quota-exceeded') {
+            setQuotaExceeded(true)
+          }
           setUploadState('error')
         }
       }
@@ -107,6 +115,7 @@ const UploadView: React.FC<{
   if (!isNameValid) uploadValidationStatus = 'invalid'
   if (isNameTooLong) uploadValidationStatus = 'too-long'
   if (fieldsAreAcceptable === false) uploadValidationStatus = 'unsupported'
+  if (isQuotaExceeded) uploadValidationStatus = 'quota-exceeded'
 
   useEffect(() => {
     if (uploadState === 'error') {
@@ -220,6 +229,7 @@ const UploadView: React.FC<{
               from the view before uploading. TIP: create a new view that only contains the fields you want to copy to
               Aito as training data - and hides the rest.
             </Text>
+            <QueryQuotaExceeded data-message="quota-exceeded" />
           </StatusMessage>
 
           <Box position="fixed" top={0} left={0} right={0} width="100%">
@@ -256,6 +266,13 @@ const UploadView: React.FC<{
         <Text variant="paragraph">
           There are {uploadedRows} rows in a table called {pendingTableConfig.aitoTableName} in your Aito.ai instance.
         </Text>
+
+        <Text variant="paragraph">
+          <strong>Note:</strong> Training data is not automatically synchronized to your Aito.ai instance. If your
+          training data changes and you want your predictions to be informed by the updates then you can re-upload the
+          new training.
+        </Text>
+
         <Button onClick={goToPredict}>Click here to start predicting</Button>
       </Box>
     </>

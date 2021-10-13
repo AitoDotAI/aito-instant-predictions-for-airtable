@@ -20,20 +20,27 @@ import React, { useCallback, useEffect, useState } from 'react'
 import { useMemo } from 'react'
 import { useRef } from 'react'
 import AcceptedFields from '../AcceptedFields'
-import AitoClient from '../AitoClient'
+import AitoClient, { isAitoError } from '../AitoClient'
 import { mapColumnNames } from '../functions/inferAitoSchema'
 import { TableSchema } from '../schema/aito'
 import { TableConfig } from '../schema/config'
 import { useLocalConfig } from '../LocalConfig'
 import { isArrayOf, isMissing, isObjectOf, isString, ValidatedType } from '../validator/validation'
 import { Cell, Row } from './table'
+import Semaphore from 'semaphore-async-await'
+import QueryQuotaExceeded from './QueryQuotaExceeded'
+
+const PARALLEL_REQUESTS = 10
+const REQUEST_TIME = 750
+const RequestLocks = new Semaphore(PARALLEL_REQUESTS)
 
 const PredictView: React.FC<{
   table: Table
   cursor: Cursor
   tableConfig: TableConfig
   client: AitoClient
-}> = ({ table, cursor, tableConfig, client }) => {
+  hasUploaded: boolean
+}> = ({ table, cursor, tableConfig, client, hasUploaded }) => {
   useWatchable(cursor, ['selectedFieldIds', 'selectedRecordIds'])
 
   // Use the current view for predictions, not necessarily the one used for training/upload
@@ -84,14 +91,22 @@ const PredictView: React.FC<{
     }
   }
 
-  if (!schema) {
-    if (schema === null) {
+  if (schema === 'quota-exceeded') {
+    return (
+      <Box padding={3}>
+        <QueryQuotaExceeded />
+      </Box>
+    )
+  }
+
+  if (!schema || !hasUploaded) {
+    if (schema === null || !hasUploaded) {
       // No table with that name
       return (
         <Box padding={3}>
           <Text variant="paragraph" textColor="light">
-            There doesn't seem to be any training data for <em>{table.name}</em> in your Aito instance. Please upload
-            training data first by clicking on the button at the bottom.
+            There doesn&apos;t seem to be any training data for <em>{table.name}</em> in your Aito instance. Please
+            upload training data first by clicking on the button at the bottom.
           </Text>
         </Box>
       )
@@ -124,8 +139,7 @@ const PredictView: React.FC<{
     return (
       <Box padding={3}>
         <Text variant="paragraph" textColor="light">
-          Please <strong>select cells of up to 10 records</strong> to predict their value based on the fields visible in{' '}
-          <em>{view?.name || 'the current view'}</em>. Aito works best for categorical predictions.
+          Please select an empty cell
         </Text>
       </Box>
     )
@@ -187,20 +201,27 @@ const PredictView: React.FC<{
   )
 }
 
-const useAitoSchema = (aitoTableName: string, client: AitoClient): TableSchema | undefined | null => {
+const useAitoSchema = (
+  aitoTableName: string,
+  client: AitoClient,
+): TableSchema | undefined | null | 'quota-exceeded' => {
   // Load aito schema after brief delay
 
-  const [schema, setSchema] = useState<TableSchema | undefined | null>(undefined)
+  const [schema, setSchema] = useState<TableSchema | undefined | null | 'quota-exceeded'>(undefined)
   useEffect(() => {
     let cancel = false
     const loadSchema = async () => {
       try {
-        const schema = await client.getTableSchema(aitoTableName)
+        const response = await client.getTableSchema(aitoTableName)
         if (!cancel) {
-          if (!schema) {
-            setSchema(null)
+          if (isAitoError(response)) {
+            if (response === 'quota-exceeded') {
+              setSchema('quota-exceeded')
+            } else {
+              setSchema(null)
+            }
           } else {
-            setSchema(schema)
+            setSchema(response)
           }
         }
       } catch (e) {
@@ -316,6 +337,23 @@ const isMultipleSelectField = (field: Field): boolean =>
 
 const renderCellDefault = (cellValue: unknown): React.ReactElement => <>{String(cellValue)}</>
 
+const makeWhereClause = (selectedField: Field, fields: Field[], schema: TableSchema, record: Record) => {
+  const fieldIdToName = mapColumnNames(fields)
+  return fields.reduce<globalThis.Record<string, unknown>>((acc, field) => {
+    const conversion = AcceptedFields[field.type]
+    const columnName = fieldIdToName[field.id]
+    if (field.id !== selectedField.id && conversion && columnName in schema.columns) {
+      const aitoValue = conversion.toAitoValue(field, record)
+      return {
+        [columnName]: aitoValue === null ? null : conversion.toAitoQuery(field, aitoValue),
+        ...acc,
+      }
+    } else {
+      return acc
+    }
+  }, {})
+}
+
 const FieldPrediction: React.FC<{
   selectedField: Field
   record: Record
@@ -341,9 +379,6 @@ const FieldPrediction: React.FC<{
 
   const isTextField = [FieldType.RICH_TEXT, FieldType.MULTILINE_TEXT].includes(selectedField.type)
   const canUpdate = hasPermissionToUpdate && !selectedField.isComputed && !isTextField
-
-  type Disclaimer = 'text' | 'numbers' | null
-  const disclaimer: Disclaimer = isTextField ? 'text' : !isSuitablePrediction(selectedField) ? 'numbers' : null
 
   useEffect(() => {
     // This is run once when the element is unmounted
@@ -378,6 +413,19 @@ const FieldPrediction: React.FC<{
     }
   })
 
+  type PredictionError = 'quota-exceeded' | 'unknown-field' | 'empty-field' | 'error'
+
+  const [predictionError, setPredictionError] = useState<PredictionError | null>(null)
+
+  type Disclaimer = 'text' | 'numbers' | null
+  const disclaimer: Disclaimer = predictionError
+    ? null
+    : isTextField
+    ? 'text'
+    : !isSuitablePrediction(selectedField)
+    ? 'numbers'
+    : null
+
   const [prediction, setPrediction] = useState<PredictionHits | undefined | null>(undefined)
   useEffect(() => {
     if (delayedRequest.current !== undefined) {
@@ -387,36 +435,61 @@ const FieldPrediction: React.FC<{
     // Start a new request
     const delay = 50
     const fieldIdToName = mapColumnNames(fields)
+
+    const columnName = fieldIdToName[selectedField.id]
+    if (!(columnName in schema.columns)) {
+      setPrediction(null)
+      setPredictionError('unknown-field')
+      return
+    }
+
+    const hasUnmounted = () => delayedRequest.current === undefined
+
     delayedRequest.current = setTimeout(async () => {
-      const where = fields.reduce<globalThis.Record<string, unknown>>((acc, field) => {
-        const conversion = AcceptedFields[field.type]
-        const columnName = fieldIdToName[field.id]
-        if (field.id !== selectedField.id && conversion && columnName in schema.columns) {
-          const aitoValue = conversion.toAitoValue(field, record)
-          return {
-            [columnName]: aitoValue === null ? null : conversion.toAitoQuery(field, aitoValue),
-            ...acc,
-          }
-        } else {
-          return acc
-        }
-      }, {})
-
-      const query = {
-        from: aitoTableName,
-        where,
-        predict: fieldIdToName[selectedField.id],
-        limit: 5,
-      }
-
+      let start: Date | undefined
       try {
+        await RequestLocks.acquire()
+
+        if (hasUnmounted()) {
+          RequestLocks.release()
+          return
+        }
+
+        const where = makeWhereClause(selectedField, fields, schema, record)
+        let query = JSON.stringify({
+          from: aitoTableName,
+          predict: fieldIdToName[selectedField.id],
+          limit: 5,
+        })
+
+        // HACK: enforce decimal points
+        let whereString = JSON.stringify(where)
+        Object.entries(schema.columns).forEach(([columnName, columnSchema]) => {
+          if (columnSchema.type.toLowerCase() === 'decimal') {
+            const fieldName = JSON.stringify(columnName)
+            whereString = whereString.replace(
+              new RegExp(`([{,]${fieldName}:(?:{"\\$numeric":)?)(-?\\d+)([,}])`),
+              `$1$2.0$3`,
+            )
+          }
+        })
+        query = query.replace(/}$/, `,"where":${whereString}}`)
+
+        start = new Date()
         const prediction = await client.predict(query)
 
-        const hasUnmounted = delayedRequest.current === undefined
-        if (!hasUnmounted) {
-          if (!prediction) {
+        if (!hasUnmounted()) {
+          if (isAitoError(prediction)) {
             setPrediction(null)
+            if (prediction === 'quota-exceeded') {
+              setPredictionError('quota-exceeded')
+            } else {
+              setPredictionError('error')
+            }
           } else {
+            if (prediction.hits.length === 0) {
+              setPredictionError('empty-field')
+            }
             setPrediction(prediction)
           }
         }
@@ -425,9 +498,26 @@ const FieldPrediction: React.FC<{
         if (!hasUnmounted) {
           setPrediction(null)
         }
+      } finally {
+        // Delay releasing the request lock until
+        if (start) {
+          const elapsed = new Date().valueOf() - start.valueOf()
+          const remaining = Math.min(REQUEST_TIME, REQUEST_TIME - elapsed)
+          if (remaining > 0) {
+            await new Promise((resolve) => setTimeout(() => resolve(undefined), remaining))
+          }
+        }
+        RequestLocks.release()
       }
     }, delay)
-  })
+
+    return () => {
+      if (delayedRequest.current) {
+        clearTimeout(delayedRequest.current)
+        delayedRequest.current = undefined
+      }
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   type ConfirmParameters = [unknown, unknown]
   const [confirmation, setConfirmation] = useState<ConfirmParameters | undefined>()
@@ -485,10 +575,6 @@ const FieldPrediction: React.FC<{
     }
   }, [record, selectedField, confirmation, setConfirmation, setCellValue])
 
-  if (prediction === null) {
-    return <Text variant="paragraph">Unable to predict {selectedField.name}.</Text>
-  }
-
   return (
     <Box paddingBottom={3}>
       {canUpdate && confirmation && (
@@ -543,23 +629,23 @@ const FieldPrediction: React.FC<{
             )}
           >
             <Box style={{ overflowX: 'hidden', textOverflow: 'ellipsis' }}>
-              <Text display="inline" textColor="light" paddingX={1}>
+              <Text display="inline" textColor="light" paddingX={3}>
+                {selectedField.name}
                 {disclaimer && (
                   <Icon
                     name="warning"
                     aria-label="Warning"
-                    marginRight={2}
-                    style={{ verticalAlign: 'middle', width: '1em', height: '1em' }}
+                    marginLeft={2}
+                    style={{ verticalAlign: 'text-bottom', width: '1em', height: '1em' }}
                   />
                 )}
-                {selectedField.name}
               </Text>
-              {!prediction && <Loader scale={0.2} />}
+              {prediction === undefined && <Loader scale={0.2} />}
             </Box>
           </Tooltip>
         </Cell>
         <Cell width="90px" flexGrow={0}>
-          {prediction && (
+          {prediction && !predictionError && (
             <Box display="flex" height="100%" justifyContent="left">
               <Text textColor="light">Confidence</Text>
             </Box>
@@ -568,7 +654,21 @@ const FieldPrediction: React.FC<{
         <Cell width="6px" flexGrow={0}></Cell>
       </Row>
       <Box>
-        {prediction &&
+        {predictionError && (
+          <Box marginX={3}>
+            {predictionError === 'empty-field' && (
+              <Text variant="paragraph">It seems there are no examples of this field in the training set.</Text>
+            )}
+            {predictionError === 'unknown-field' && (
+              <Text variant="paragraph">This field is not part of the training set and cannot be predicted.</Text>
+            )}
+            {predictionError === 'quota-exceeded' && <QueryQuotaExceeded />}
+            {predictionError === 'error' && <Text variant="paragraph">Unable to predict {selectedField.name}.</Text>}
+          </Box>
+        )}
+
+        {!predictionError &&
+          prediction &&
           prediction.hits.map(({ $p, feature }, i) => {
             const conversion = AcceptedFields[selectedField.type]
             const value = conversion ? conversion.toCellValue(feature) : feature
@@ -588,8 +688,8 @@ const FieldPrediction: React.FC<{
                     />
                   </Box>
                 </Cell>
-                <Cell width="34px" flexGrow={0}>
-                  <Box display="flex" height="100%" justifyContent="left">
+                <Cell width="40px" flexGrow={0}>
+                  <Box display="flex" height="100%" justifyContent="right">
                     <Text textColor="light" alignSelf="center">
                       {Math.round($p * 100)}%
                     </Text>
@@ -606,14 +706,14 @@ const FieldPrediction: React.FC<{
                         alignSelf="center"
                         disabled={!canUpdate}
                         aria-label="Toggle feature"
-                        variant={hasFeature(record, selectedField, feature) ? 'danger' : 'default'}
+                        variant={hasFeature(record, selectedField, feature) ? 'danger' : 'primary'}
                       />
                     ) : (
                       <Button
                         onClick={() => onClick(feature)}
                         size="small"
                         alignSelf="center"
-                        variant="secondary"
+                        variant="default"
                         disabled={!canUpdate || hasFeature(record, selectedField, feature)}
                         marginX={2}
                       >

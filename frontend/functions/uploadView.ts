@@ -1,7 +1,7 @@
 import { Field, View } from '@airtable/blocks/models'
 import _ from 'lodash'
 import AcceptedFields from '../AcceptedFields'
-import AitoClient, { Value } from '../AitoClient'
+import AitoClient, { AitoError, isAitoError, Value } from '../AitoClient'
 import inferAitoSchema, { ColumnNameMapping, mapColumnNames } from './inferAitoSchema'
 
 export type UploadResult = SuccessfulUploadResult | ErrorUploadResult
@@ -13,6 +13,7 @@ interface SuccessfulUploadResult {
 
 interface ErrorUploadResult {
   type: 'error'
+  error: AitoError
 }
 
 export async function uploadView(client: AitoClient, view: View, aitoTable: string): Promise<UploadResult> {
@@ -43,15 +44,17 @@ export async function uploadView(client: AitoClient, view: View, aitoTable: stri
       limit: 0,
     })
 
-    if (response) {
+    if (!isAitoError(response)) {
       return { type: 'success', rowCount: response.total }
+    } else {
+      return { type: 'error', error: response }
     }
   } catch (e) {
     console.error(e)
   } finally {
     metadata.unloadData()
   }
-  return { type: 'error' }
+  return { type: 'error', error: 'error' }
 }
 
 async function fetchRecordsAndUpload(

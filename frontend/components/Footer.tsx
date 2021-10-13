@@ -1,7 +1,7 @@
 import { Box, Link } from '@airtable/blocks/ui'
 import React from 'react'
 
-export default () => (
+const Footer = () => (
   <Box as="footer" display="flex" justifyContent="space-between">
     <Link target="_blank" href="https://console.aito.ai/">
       Aito console
@@ -11,3 +11,5 @@ export default () => (
     </Link>
   </Box>
 )
+
+export default Footer

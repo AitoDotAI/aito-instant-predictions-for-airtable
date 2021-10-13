@@ -1,5 +1,5 @@
 import { Table, View, ViewType } from '@airtable/blocks/models'
-import { Box, useBase, useCursor, useGlobalConfig, useSettingsButton, ViewportConstraint } from '@airtable/blocks/ui'
+import { useBase, useCursor, useGlobalConfig, useSettingsButton, ViewportConstraint } from '@airtable/blocks/ui'
 import React, { useCallback, useState } from 'react'
 import * as GlobalConfigKeys from '../GlobalConfigKeys'
 import SettingsMenu, { Settings } from './SettingsMenu'

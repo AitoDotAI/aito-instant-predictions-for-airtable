@@ -20,7 +20,7 @@ import Footer from './Footer'
 
 const AitoLogo = () => (
   <svg height="2em" viewBox="0 0 613 260">
-    <g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+    <g stroke="none" strokeWidth="1" fill="none" fillRule="evenodd">
       <g id="aito_logo" transform="translate(-7.000000, -7.000000)">
         <g id="Group" transform="translate(7.000000, 7.000000)">
           <path

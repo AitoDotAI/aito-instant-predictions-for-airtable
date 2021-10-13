@@ -47,20 +47,29 @@ const TableView: React.FC<{
   } else {
     // tab === 'predict
     const view = tableConfig.airtableViewId ? table.getViewByIdIfExists(tableConfig.airtableViewId) : null
+    const lastUpdated = tableConfig && tableConfig.lastRowCount && tableConfig.lastUpdated
+    const hasUploaded = Boolean(lastUpdated)
 
     return (
       <Box display="flex" flexDirection="column" minHeight="100vh">
         <Box flexGrow={1} flexBasis="100%">
           <React.Suspense fallback={<Spinner />}>
-            <PredictView key={table.id} table={table} cursor={cursor} tableConfig={tableConfig} client={client} />
+            <PredictView
+              key={table.id}
+              table={table}
+              cursor={cursor}
+              tableConfig={tableConfig}
+              client={client}
+              hasUploaded={hasUploaded}
+            />
           </React.Suspense>
         </Box>
         <Box padding={1} borderTop="thick" display="flex" backgroundColor="#f0f0f0" flexGrow={0}>
           <Text variant="paragraph" flexGrow={1} size="default" padding={1} margin={0}>
-            {tableConfig && tableConfig.lastRowCount && tableConfig.lastUpdated ? (
+            {lastUpdated ? (
               <>
                 {tableConfig.lastRowCount} records from <em>{view ? view.name : 'a removed view'}</em> uploaded at{' '}
-                {new Date(tableConfig.lastUpdated).toLocaleDateString()}
+                {new Date(lastUpdated).toLocaleDateString()}
               </>
             ) : (
               'No training data has been uploaded yet.'
@@ -75,7 +84,7 @@ const TableView: React.FC<{
             variant="primary"
             disabled={!canUpdateSettings}
           >
-            Train model
+            {hasUploaded ? 'Retrain' : 'Train'} model
           </Button>
         </Box>
       </Box>
