@@ -451,7 +451,6 @@ const FieldPrediction: React.FC<{
         await RequestLocks.acquire()
 
         if (hasUnmounted()) {
-          RequestLocks.release()
           return
         }
 
@@ -494,8 +493,7 @@ const FieldPrediction: React.FC<{
           }
         }
       } catch (e) {
-        const hasUnmounted = delayedRequest.current === undefined
-        if (!hasUnmounted) {
+        if (!hasUnmounted()) {
           setPrediction(null)
         }
       } finally {
