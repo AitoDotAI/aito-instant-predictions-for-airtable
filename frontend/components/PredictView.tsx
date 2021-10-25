@@ -397,7 +397,7 @@ const FieldPrediction: React.FC<{
     }[]
   }
 
-  const hasAutomaticallySet = useRef(false)
+  const hasAutomaticallySet = useRef(!_.isEmpty(record.getCellValue(selectedField.id)))
   useEffect(() => {
     if (!hasAutomaticallySet.current && autoFill && canUpdate && prediction && isSuitablePrediction(selectedField)) {
       const hit = prediction.hits[0]
