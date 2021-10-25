@@ -64,6 +64,29 @@ export default class AitoClient {
     }
   }
 
+  async getSchema(): Promise<Record<string, TableSchema> | AitoError> {
+    const url = new URL(`/api/v1/schema`, this.host)
+    const response = await fetch(url.toString(), {
+      method: 'GET',
+      mode: 'cors',
+      headers: {
+        'x-api-key': this.key,
+      },
+    })
+    if (response.ok) {
+      const body = await response.json()
+      console.log(body)
+      return Object.entries(body.schema).reduce((acc, [name, value]) => {
+        if (isTableSchema(value)) {
+          return { ...acc, [name]: value }
+        } else {
+          return acc
+        }
+      }, {} as Record<string, TableSchema>)
+    }
+    return toAitoError(response)
+  }
+
   async getTableSchema(tableName: string): Promise<TableSchema | AitoError> {
     const name = encodeURIComponent(tableName)
     const url = new URL(`/api/v1/schema/${name}`, this.host)

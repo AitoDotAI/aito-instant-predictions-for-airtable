@@ -212,7 +212,7 @@ const useAitoSchema = (
     let cancel = false
     const loadSchema = async () => {
       try {
-        const response = await client.getTableSchema(aitoTableName)
+        const response = await client.getSchema()
         if (!cancel) {
           if (isAitoError(response)) {
             if (response === 'quota-exceeded') {
@@ -221,7 +221,9 @@ const useAitoSchema = (
               setSchema(null)
             }
           } else {
-            setSchema(response)
+            console.log(response)
+            const tableSchema = response[aitoTableName] || null
+            setSchema(tableSchema)
           }
         }
       } catch (e) {
