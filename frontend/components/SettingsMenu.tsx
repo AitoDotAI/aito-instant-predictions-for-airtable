@@ -81,7 +81,7 @@ const SettingsMenu: React.FC<{
       {isAuthenticationError && (
         <Box backgroundColor="#f82b60" borderColor="#404040" borderWidth="thick" width="100%" padding={3}>
           <Text variant="paragraph" size="large" textColor="white" margin={0} padding={0}>
-            Authorization failed. Please check that they API key and instance URL are valid.
+            Aito instance authorization failed. Please check that they API key and instance URL are both valid.
           </Text>
         </Box>
       )}
