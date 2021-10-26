@@ -7,7 +7,7 @@ export type AitoValue = Value | AitoRow
 
 export interface AitoRow extends Record<string, AitoValue> {}
 
-export type AitoError = 'quota-exceeded' | 'error'
+export type AitoError = 'quota-exceeded' | 'forbidden' | 'error'
 
 export interface Hits<Hit = AitoRow> {
   total: number
@@ -37,15 +37,8 @@ export interface SearchQuery {
 
 type FetchParameters = Parameters<typeof fetch>[1]
 
-const toAitoError = (response: Response): AitoError => {
-  if (response.status === 429 && response.headers.get('x-error-cause') === 'Quota Exceeded') {
-    return 'quota-exceeded'
-  } else {
-    return 'error'
-  }
-}
-
-export const isAitoError = (value: unknown): value is AitoError => value === 'quota-exceeded' || value === 'error'
+export const isAitoError = (value: unknown): value is AitoError =>
+  value === 'quota-exceeded' || value === 'error' || value === 'forbidden'
 
 export default class AitoClient {
   constructor(host: string, key: string) {
@@ -61,6 +54,21 @@ export default class AitoClient {
       return new URL(this.host).host.split('.')[0]
     } catch (e) {
       return this.host
+    }
+  }
+
+  public onAuthenticationError: null | (() => void) = null
+
+  private toAitoError(response: Response): AitoError {
+    if (response.status === 429 && response.headers.get('x-error-cause') === 'Quota Exceeded') {
+      return 'quota-exceeded'
+    } else if (response.status === 403) {
+      if (this.onAuthenticationError) {
+        this.onAuthenticationError()
+      }
+      return 'forbidden'
+    } else {
+      return 'error'
     }
   }
 
@@ -83,7 +91,7 @@ export default class AitoClient {
         }
       }, {} as Record<string, TableSchema>)
     }
-    return toAitoError(response)
+    return this.toAitoError(response)
   }
 
   async getTableSchema(tableName: string): Promise<TableSchema | AitoError> {
@@ -102,7 +110,7 @@ export default class AitoClient {
         return body
       }
     }
-    return toAitoError(response)
+    return this.toAitoError(response)
   }
 
   private body(method: string, body?: string): FetchParameters {
@@ -148,7 +156,7 @@ export default class AitoClient {
     if (response.ok) {
       return await response.json()
     } else {
-      return toAitoError(response)
+      return this.toAitoError(response)
     }
   }
 
@@ -158,7 +166,7 @@ export default class AitoClient {
     if (response.ok) {
       return await response.json()
     } else {
-      return toAitoError(response)
+      return this.toAitoError(response)
     }
   }
 
@@ -168,7 +176,7 @@ export default class AitoClient {
     if (response.ok) {
       return 'ok'
     } else {
-      return toAitoError(response)
+      return this.toAitoError(response)
     }
   }
 
@@ -178,7 +186,7 @@ export default class AitoClient {
     if (response.ok) {
       return 'ok'
     } else {
-      return toAitoError(response)
+      return this.toAitoError(response)
     }
   }
 
@@ -188,7 +196,7 @@ export default class AitoClient {
     if (response.ok) {
       return 'ok'
     } else {
-      return toAitoError(response)
+      return this.toAitoError(response)
     }
   }
 }

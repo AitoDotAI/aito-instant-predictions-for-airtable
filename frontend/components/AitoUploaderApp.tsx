@@ -94,7 +94,17 @@ const MainView: React.FC<{
     setIsShowingSettings(!isShowingSettings)
   })
 
-  const client = useMemo(() => (aitoUrl && aitoKey ? new AitoClient(aitoUrl, aitoKey) : null), [aitoUrl, aitoKey])
+  const client = useMemo(() => {
+    if (aitoUrl && aitoKey) {
+      const cl = new AitoClient(aitoUrl, aitoKey)
+      cl.onAuthenticationError = () => {
+        globalConfig.setAsync(GlobalConfigKeys.AITO_KEY, undefined)
+      }
+      return cl
+    } else {
+      return null
+    }
+  }, [aitoUrl, aitoKey, globalConfig])
 
   const uploadButtonClick = useCallback(
     async (view: View, aitoTable: string): Promise<UploadResult | undefined> => {
