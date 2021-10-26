@@ -27,9 +27,10 @@ const SettingsMenu: React.FC<{
   globalConfig: GlobalConfig
   settings: Settings
   canUpdateSettings: boolean
+  isAuthenticationError: boolean
   onDoneClick: (settings: Settings) => void
 }> = (props) => {
-  const { canUpdateSettings, settings, onDoneClick } = props
+  const { canUpdateSettings, settings, onDoneClick, isAuthenticationError } = props
 
   const [stagedChanges, setStagedChanges] = useState(settings)
   const [isSaving, setIsSaving] = useState(false)
@@ -76,78 +77,87 @@ const SettingsMenu: React.FC<{
   )
 
   return (
-    <Box padding={3} minHeight="100vh">
-      <Heading marginBottom={1}>Settings</Heading>
-      <Text variant="paragraph" textColor="light">
-        Credentials to an Aito.ai instance are required for making predictions and uploading training data.
-      </Text>
-
-      <Text variant="paragraph" textColor="light">
-        Login to Aito Console{' '}
-        <Link target="_blank" href="https://console.aito.ai/">
-          here
-        </Link>{' '}
-        to get your API URL and key.
-      </Text>
-
-      <FormField label="Aito Instance name or URL:">
-        <Input
-          value={stagedChanges.aitoUrl}
-          readOnly={!canUpdateSettings}
-          placeholder="Check it out from Aito Console"
-          onChange={(e) => {
-            setStagedChanges(setAitoUrl(stagedChanges, e.target.value))
-            setCredentialsState('valid')
-          }}
-        />
-        {stagedChanges.aitoUrl !== normalizedUrl && (
-          <Text textColor="light" marginTop={1} style={{ lineBreak: 'anywhere' }}>
-            Instance URL: {normalizedUrl}
+    <>
+      {isAuthenticationError && (
+        <Box backgroundColor="#f82b60" borderColor="#404040" borderWidth="thick" width="100%" padding={3}>
+          <Text variant="paragraph" size="large" textColor="white" margin={0} padding={0}>
+            Authorization failed. Please check that they API key and instance URL are valid.
           </Text>
-        )}
-      </FormField>
-      <FormField label="Aito R/W API KEY:">
-        <Input
-          type="password"
-          value={stagedChanges.aitoKey}
-          readOnly={!canUpdateSettings}
-          onChange={(e) => {
-            setStagedChanges(setAitoKey(stagedChanges, e.target.value))
-            setCredentialsState('valid')
-          }}
-          placeholder="Need to be read/write key"
-        />
-      </FormField>
-
-      <Box display="flex" alignItems="center" justifyContent="space-between">
-        <Button
-          variant="primary"
-          type="submit"
-          icon="check"
-          marginRight={2}
-          disabled={isSaving || !canUpdateSettings || !hasChanges}
-          onClick={saveChanges}
-        >
-          Apply changes
-        </Button>
-
-        <Box flexGrow={1}>
-          <HiddenElement className={isSaving ? 'visible' : ''}>
-            <Loader scale={0.3} />
-          </HiddenElement>
         </Box>
+      )}
+      <Box padding={3} minHeight="100vh">
+        <Heading marginBottom={1}>Settings</Heading>
+        <Text variant="paragraph" textColor="light">
+          Credentials to an Aito.ai instance are required for making predictions and uploading training data.
+        </Text>
+
+        <Text variant="paragraph" textColor="light">
+          Login to Aito Console{' '}
+          <Link target="_blank" href="https://console.aito.ai/">
+            here
+          </Link>{' '}
+          to get your API URL and key.
+        </Text>
+
+        <FormField label="Aito Instance name or URL:">
+          <Input
+            value={stagedChanges.aitoUrl}
+            readOnly={!canUpdateSettings}
+            placeholder="Check it out from Aito Console"
+            onChange={(e) => {
+              setStagedChanges(setAitoUrl(stagedChanges, e.target.value))
+              setCredentialsState('valid')
+            }}
+          />
+          {stagedChanges.aitoUrl !== normalizedUrl && (
+            <Text textColor="light" marginTop={1} style={{ lineBreak: 'anywhere' }}>
+              Instance URL: {normalizedUrl}
+            </Text>
+          )}
+        </FormField>
+        <FormField label="Aito R/W API KEY:">
+          <Input
+            type="password"
+            value={stagedChanges.aitoKey}
+            readOnly={!canUpdateSettings}
+            onChange={(e) => {
+              setStagedChanges(setAitoKey(stagedChanges, e.target.value))
+              setCredentialsState('valid')
+            }}
+            placeholder="Need to be read/write key"
+          />
+        </FormField>
+
+        <Box display="flex" alignItems="center" justifyContent="space-between">
+          <Button
+            variant="primary"
+            type="submit"
+            icon="check"
+            marginRight={2}
+            disabled={isSaving || !canUpdateSettings || !hasChanges}
+            onClick={saveChanges}
+          >
+            Apply changes
+          </Button>
+
+          <Box flexGrow={1}>
+            <HiddenElement className={isSaving ? 'visible' : ''}>
+              <Loader scale={0.3} />
+            </HiddenElement>
+          </Box>
+        </Box>
+
+        <div>
+          <StatusMessage message={credentialsState} my={[3]}>
+            <Text data-message="invalid" variant="paragraph">
+              Unable to validate credentials. Please check that the instance URL and API key are correct.
+            </Text>
+          </StatusMessage>
+        </div>
+
+        <Footer />
       </Box>
-
-      <div>
-        <StatusMessage message={credentialsState} my={[3]}>
-          <Text data-message="invalid" variant="paragraph">
-            Unable to validate credentials. Please check that the instance URL and API key are correct.
-          </Text>
-        </StatusMessage>
-      </div>
-
-      <Footer />
-    </Box>
+    </>
   )
 }
 

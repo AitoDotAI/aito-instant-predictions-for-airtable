@@ -94,17 +94,21 @@ const MainView: React.FC<{
     setIsShowingSettings(!isShowingSettings)
   })
 
+  const [isAuthenticationError, setAuthenticationError] = useState(false)
+
   const client = useMemo(() => {
     if (aitoUrl && aitoKey) {
+      setAuthenticationError(false)
       const cl = new AitoClient(aitoUrl, aitoKey)
       cl.onAuthenticationError = () => {
+        setAuthenticationError(true)
         globalConfig.setAsync(GlobalConfigKeys.AITO_KEY, undefined)
       }
       return cl
     } else {
       return null
     }
-  }, [aitoUrl, aitoKey, globalConfig])
+  }, [aitoUrl, aitoKey, globalConfig, setAuthenticationError])
 
   const uploadButtonClick = useCallback(
     async (view: View, aitoTable: string): Promise<UploadResult | undefined> => {
@@ -146,6 +150,7 @@ const MainView: React.FC<{
         globalConfig={globalConfig}
         settings={settings}
         canUpdateSettings={canUpdateSettings}
+        isAuthenticationError={isAuthenticationError}
         onDoneClick={onSaveSettings}
       />
     )
