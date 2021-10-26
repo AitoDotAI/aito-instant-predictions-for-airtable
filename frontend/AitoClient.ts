@@ -75,7 +75,6 @@ export default class AitoClient {
     })
     if (response.ok) {
       const body = await response.json()
-      console.log(body)
       return Object.entries(body.schema).reduce((acc, [name, value]) => {
         if (isTableSchema(value)) {
           return { ...acc, [name]: value }
@@ -131,7 +130,7 @@ export default class AitoClient {
   }
 
   private async send(url: URL, params: FetchParameters): Promise<Response> {
-    while (true) {
+    for (;;) {
       const response = await fetch(url.toString(), params)
       const errorCause = response.headers.get('x-error-cause')
       const isThrottled = response.status === 429 && errorCause == 'Throttled'

@@ -221,7 +221,6 @@ const useAitoSchema = (
               setSchema(null)
             }
           } else {
-            console.log(response)
             const tableSchema = response[aitoTableName] || null
             setSchema(tableSchema)
           }
