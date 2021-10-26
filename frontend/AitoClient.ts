@@ -7,7 +7,7 @@ export type AitoValue = Value | AitoRow
 
 export interface AitoRow extends Record<string, AitoValue> {}
 
-export type AitoError = 'quota-exceeded' | 'error'
+export type AitoError = 'quota-exceeded' | 'forbidden' | 'error'
 
 export interface Hits<Hit = AitoRow> {
   total: number
@@ -37,15 +37,8 @@ export interface SearchQuery {
 
 type FetchParameters = Parameters<typeof fetch>[1]
 
-const toAitoError = (response: Response): AitoError => {
-  if (response.status === 429 && response.headers.get('x-error-cause') === 'Quota Exceeded') {
-    return 'quota-exceeded'
-  } else {
-    return 'error'
-  }
-}
-
-export const isAitoError = (value: unknown): value is AitoError => value === 'quota-exceeded' || value === 'error'
+export const isAitoError = (value: unknown): value is AitoError =>
+  value === 'quota-exceeded' || value === 'error' || value === 'forbidden'
 
 export default class AitoClient {
   constructor(host: string, key: string) {
@@ -64,6 +57,43 @@ export default class AitoClient {
     }
   }
 
+  public onAuthenticationError: null | (() => void) = null
+
+  private toAitoError(response: Response): AitoError {
+    if (response.status === 429 && response.headers.get('x-error-cause') === 'Quota Exceeded') {
+      return 'quota-exceeded'
+    } else if (response.status === 403) {
+      if (this.onAuthenticationError) {
+        this.onAuthenticationError()
+      }
+      return 'forbidden'
+    } else {
+      return 'error'
+    }
+  }
+
+  async getSchema(): Promise<Record<string, TableSchema> | AitoError> {
+    const url = new URL(`/api/v1/schema`, this.host)
+    const response = await fetch(url.toString(), {
+      method: 'GET',
+      mode: 'cors',
+      headers: {
+        'x-api-key': this.key,
+      },
+    })
+    if (response.ok) {
+      const body = await response.json()
+      return Object.entries(body.schema).reduce((acc, [name, value]) => {
+        if (isTableSchema(value)) {
+          return { ...acc, [name]: value }
+        } else {
+          return acc
+        }
+      }, {} as Record<string, TableSchema>)
+    }
+    return this.toAitoError(response)
+  }
+
   async getTableSchema(tableName: string): Promise<TableSchema | AitoError> {
     const name = encodeURIComponent(tableName)
     const url = new URL(`/api/v1/schema/${name}`, this.host)
@@ -80,7 +110,7 @@ export default class AitoClient {
         return body
       }
     }
-    return toAitoError(response)
+    return this.toAitoError(response)
   }
 
   private body(method: string, body?: string): FetchParameters {
@@ -108,7 +138,7 @@ export default class AitoClient {
   }
 
   private async send(url: URL, params: FetchParameters): Promise<Response> {
-    while (true) {
+    for (;;) {
       const response = await fetch(url.toString(), params)
       const errorCause = response.headers.get('x-error-cause')
       const isThrottled = response.status === 429 && errorCause == 'Throttled'
@@ -126,7 +156,7 @@ export default class AitoClient {
     if (response.ok) {
       return await response.json()
     } else {
-      return toAitoError(response)
+      return this.toAitoError(response)
     }
   }
 
@@ -136,7 +166,7 @@ export default class AitoClient {
     if (response.ok) {
       return await response.json()
     } else {
-      return toAitoError(response)
+      return this.toAitoError(response)
     }
   }
 
@@ -146,7 +176,7 @@ export default class AitoClient {
     if (response.ok) {
       return 'ok'
     } else {
-      return toAitoError(response)
+      return this.toAitoError(response)
     }
   }
 
@@ -156,7 +186,7 @@ export default class AitoClient {
     if (response.ok) {
       return 'ok'
     } else {
-      return toAitoError(response)
+      return this.toAitoError(response)
     }
   }
 
@@ -166,7 +196,7 @@ export default class AitoClient {
     if (response.ok) {
       return 'ok'
     } else {
-      return toAitoError(response)
+      return this.toAitoError(response)
     }
   }
 }

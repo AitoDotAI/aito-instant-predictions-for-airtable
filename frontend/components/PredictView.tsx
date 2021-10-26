@@ -163,7 +163,7 @@ const PredictView: React.FC<{
         placementX={Tooltip.placements.CENTER}
         placementY={Tooltip.placements.BOTTOM}
         style={{ height: 'auto', width: '240px', maxWidth: '300px', whiteSpace: 'normal' }}
-        content="An empty cell is automatically filled with the predicted calue, if the confidence is over 90%."
+        content="Use the top prediction to automatically fill an empty cell if the confidence is over 90%."
       >
         <Box borderBottom="thick">
           <Switch
@@ -171,7 +171,7 @@ const PredictView: React.FC<{
             disabled={!canUpdate.hasPermission}
             value={autoFill}
             onChange={saveAutoFill}
-            label="Automatically apply high confidence predictions to empty cells"
+            label="Auto-fill cells when confidence >90%"
             backgroundColor="transparent"
           />
         </Box>
@@ -212,7 +212,7 @@ const useAitoSchema = (
     let cancel = false
     const loadSchema = async () => {
       try {
-        const response = await client.getTableSchema(aitoTableName)
+        const response = await client.getSchema()
         if (!cancel) {
           if (isAitoError(response)) {
             if (response === 'quota-exceeded') {
@@ -221,7 +221,8 @@ const useAitoSchema = (
               setSchema(null)
             }
           } else {
-            setSchema(response)
+            const tableSchema = response[aitoTableName] || null
+            setSchema(tableSchema)
           }
         }
       } catch (e) {
@@ -397,7 +398,7 @@ const FieldPrediction: React.FC<{
     }[]
   }
 
-  const hasAutomaticallySet = useRef(false)
+  const hasAutomaticallySet = useRef(!_.isEmpty(record.getCellValue(selectedField.id)))
   useEffect(() => {
     if (!hasAutomaticallySet.current && autoFill && canUpdate && prediction && isSuitablePrediction(selectedField)) {
       const hit = prediction.hits[0]
@@ -451,7 +452,6 @@ const FieldPrediction: React.FC<{
         await RequestLocks.acquire()
 
         if (hasUnmounted()) {
-          RequestLocks.release()
           return
         }
 
@@ -494,8 +494,7 @@ const FieldPrediction: React.FC<{
           }
         }
       } catch (e) {
-        const hasUnmounted = delayedRequest.current === undefined
-        if (!hasUnmounted) {
+        if (!hasUnmounted()) {
           setPrediction(null)
         }
       } finally {
