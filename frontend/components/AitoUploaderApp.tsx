@@ -123,7 +123,7 @@ const MainView: React.FC<{
   const onSaveSettings = useCallback(
     async (settings: Settings): Promise<void> => {
       const resetTables =
-        normalizeAitoUrl(aitoUrl) !== normalizeAitoUrl(settings.aitoUrl)
+        aitoUrl && normalizeAitoUrl(aitoUrl) !== normalizeAitoUrl(settings.aitoUrl)
           ? [{ path: [GlobalConfigKeys.TABLE_SETTINGS], value: {} }]
           : []
       await globalConfig.setPathsAsync([
