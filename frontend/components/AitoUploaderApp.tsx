@@ -6,7 +6,7 @@ import SettingsMenu, { Settings } from './SettingsMenu'
 import TableView from './TableView'
 
 import { isBoolean, isString } from '../validator/validation'
-import { isTableConfig, isTablesConfig, TableConfig, UserConfig } from '../schema/config'
+import { isTableConfig, isTablesConfig, TableColumnMap, TableConfig, UserConfig } from '../schema/config'
 import OnboardingDialog from './OnboardingDialog'
 import GlobalConfig from '@airtable/blocks/dist/types/src/global_config'
 import { useMemo } from 'react'
@@ -14,6 +14,7 @@ import AitoClient from '../AitoClient'
 import { Tab } from './Tab'
 import { UploadResult, uploadView } from '../functions/uploadView'
 import { LocalConfig, readLocalConfig, writeLocalConfig } from '../LocalConfig'
+import { normalizeAitoUrl } from '../credentials'
 
 const VIEWPORT_MIN_WIDTH = 345
 const VIEWPORT_MIN_HEIGHT = 200
@@ -121,13 +122,18 @@ const MainView: React.FC<{
 
   const onSaveSettings = useCallback(
     async (settings: Settings): Promise<void> => {
+      const resetTables =
+        normalizeAitoUrl(aitoUrl) !== normalizeAitoUrl(settings.aitoUrl)
+          ? [{ path: [GlobalConfigKeys.TABLE_SETTINGS], value: {} }]
+          : []
       await globalConfig.setPathsAsync([
         { path: [GlobalConfigKeys.AITO_URL], value: settings.aitoUrl },
         { path: [GlobalConfigKeys.AITO_KEY], value: settings.aitoKey },
+        ...resetTables,
       ])
       setIsShowingSettings(false)
     },
-    [globalConfig, setIsShowingSettings],
+    [globalConfig, setIsShowingSettings, aitoUrl],
   )
 
   const setTableConfig = useCallback(
@@ -179,6 +185,7 @@ const MainView: React.FC<{
       }
 
       const defaultTableConfig = {
+        columns: {},
         aitoTableName: `airtable-${table.id}`,
         airtableViewId: viewId,
         lastRowCount: undefined,
