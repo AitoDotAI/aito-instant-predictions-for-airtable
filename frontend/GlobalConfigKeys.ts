@@ -6,6 +6,7 @@ export const AIRTABLE_VIEW_ID = 'airtableViewId' as const
 export const LAST_ROW_COUNT = 'lastRowCount' as const
 export const LAST_UPDATED = 'lastUpdated' as const
 export const LAST_UPDATED_BY = 'lastUpdatedBy' as const
+export const TABLE_COLUMN_MAP = 'columns' as const
 export const TABLE_SETTINGS = 'tables' as const
 export const USER_SETTINGS = 'users' as const
 export const PER_TABLE_SETTINGS = 'tables' as const

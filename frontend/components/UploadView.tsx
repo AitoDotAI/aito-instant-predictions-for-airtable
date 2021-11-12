@@ -19,7 +19,7 @@ import React, { useCallback, useEffect, useState } from 'react'
 import AcceptedFields, { isAcceptedField } from '../AcceptedFields'
 import AitoClient from '../AitoClient'
 import { UploadResult } from '../functions/uploadView'
-import { TableConfig } from '../schema/config'
+import { TableColumnMap, TableConfig } from '../schema/config'
 import Footer from './Footer'
 import QueryQuotaExceeded from './QueryQuotaExceeded'
 import StatusMessage from './StatusMessage'
@@ -79,6 +79,7 @@ const UploadView: React.FC<{
         if (!result) {
           setUploadState('error')
         } else if (result.type === 'success') {
+          const columns: TableColumnMap = result.columns
           await setTableConfig(table, {
             ...pendingTableConfig,
             lastRowCount: result.rowCount,
@@ -87,6 +88,7 @@ const UploadView: React.FC<{
               id: user.id,
               name: user.name,
             },
+            columns,
           })
           setUploadedRows(result.rowCount)
           setUploadState('done')

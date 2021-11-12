@@ -2,13 +2,15 @@ import { Field, View } from '@airtable/blocks/models'
 import _ from 'lodash'
 import AcceptedFields from '../AcceptedFields'
 import AitoClient, { AitoError, isAitoError, Value } from '../AitoClient'
-import inferAitoSchema, { ColumnNameMapping, mapColumnNames } from './inferAitoSchema'
+import { TableColumnMap } from '../schema/config'
+import inferAitoSchema, { mapColumnNames } from './inferAitoSchema'
 
 export type UploadResult = SuccessfulUploadResult | ErrorUploadResult
 
 interface SuccessfulUploadResult {
   type: 'success'
   rowCount: number
+  columns: TableColumnMap
 }
 
 interface ErrorUploadResult {
@@ -45,7 +47,7 @@ export async function uploadView(client: AitoClient, view: View, aitoTable: stri
     })
 
     if (!isAitoError(response)) {
-      return { type: 'success', rowCount: response.total }
+      return { type: 'success', rowCount: response.total, columns: fieldIdToName }
     } else {
       return { type: 'error', error: response }
     }
@@ -61,7 +63,7 @@ async function fetchRecordsAndUpload(
   client: AitoClient,
   view: View,
   visibleFields: Field[],
-  fieldIdToName: ColumnNameMapping,
+  fieldIdToName: TableColumnMap,
   aitoTable: string,
 ): Promise<void> {
   const queryResult = await view.selectRecordsAsync()
@@ -71,7 +73,7 @@ async function fetchRecordsAndUpload(
       const row = visibleFields.reduce<Record<string, Value>>((row, field) => {
         const conversion = AcceptedFields[field.type]
 
-        const columnName = fieldIdToName[field.id]
+        const columnName = fieldIdToName[field.id].name
 
         let columnValue: any
         if (!conversion || !conversion.isValid(field, record)) {

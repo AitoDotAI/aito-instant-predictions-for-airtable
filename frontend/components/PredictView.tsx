@@ -23,7 +23,7 @@ import AcceptedFields from '../AcceptedFields'
 import AitoClient, { isAitoError } from '../AitoClient'
 import { mapColumnNames } from '../functions/inferAitoSchema'
 import { TableSchema } from '../schema/aito'
-import { TableConfig } from '../schema/config'
+import { TableColumnMap, TableConfig } from '../schema/config'
 import { useLocalConfig } from '../LocalConfig'
 import { isArrayOf, isMissing, isObjectOf, isString, ValidatedType } from '../validator/validation'
 import { Cell, Row } from './table'
@@ -57,6 +57,7 @@ const PredictView: React.FC<{
   }
 
   const aitoTableName = tableConfig.aitoTableName
+  const tableColumnMap = tableConfig.columns
 
   const schema = useAitoSchema(aitoTableName, client)
 
@@ -154,6 +155,30 @@ const PredictView: React.FC<{
     }
   }, [])
 
+  const currentTableColumnMap = metadata ? mapColumnNames(metadata.visibleFields) : {}
+  const isSchemaOutOfSync = !!Object.entries(currentTableColumnMap).find(([fieldId, { type }]) => {
+    const uploaded = tableColumnMap[fieldId]
+    return uploaded && uploaded.type !== type
+  })
+
+  if (isSchemaOutOfSync) {
+    return (
+      <Box padding={3} display="flex">
+        <Icon
+          flexGrow={0}
+          name="warning"
+          aria-label="Warning"
+          marginRight={2}
+          style={{ verticalAlign: 'text-bottom', width: '1.5em', height: '1.5em' }}
+        />
+
+        <Text variant="paragraph" flexGrow={1}>
+          The fields have changed since training data was last uploaded to aito. Please retrain the model.
+        </Text>
+      </Box>
+    )
+  }
+
   const maxRecords = 10
 
   return (
@@ -187,6 +212,7 @@ const PredictView: React.FC<{
           offset={i}
           recordId={recordId}
           viewFields={visibleFields}
+          tableColumnMap={tableColumnMap}
           fieldsToPredict={fieldsToPredict}
           aitoTableName={aitoTableName}
           client={client}
@@ -249,6 +275,7 @@ const RecordPrediction: React.FC<{
   recordsQuery: TableOrViewQueryResult
   recordId: string
   viewFields: Field[]
+  tableColumnMap: TableColumnMap
   fieldsToPredict: Field[]
   client: AitoClient
   aitoTableName: string
@@ -268,6 +295,7 @@ const RecordPrediction: React.FC<{
   setCellValue,
   autoFill,
   canUpdate,
+  tableColumnMap,
 }) => {
   const record = useRecordById(recordsQuery, recordId)
 
@@ -285,6 +313,7 @@ const RecordPrediction: React.FC<{
           key={field.id}
           record={record}
           fields={viewFields}
+          tableColumnMap={tableColumnMap}
           aitoTableName={aitoTableName}
           client={client}
           schema={schema}
@@ -342,7 +371,7 @@ const makeWhereClause = (selectedField: Field, fields: Field[], schema: TableSch
   const fieldIdToName = mapColumnNames(fields)
   return fields.reduce<globalThis.Record<string, unknown>>((acc, field) => {
     const conversion = AcceptedFields[field.type]
-    const columnName = fieldIdToName[field.id]
+    const columnName = fieldIdToName[field.id].name
     if (field.id !== selectedField.id && conversion && columnName in schema.columns) {
       const aitoValue = conversion.toAitoValue(field, record)
       return {
@@ -359,6 +388,7 @@ const FieldPrediction: React.FC<{
   selectedField: Field
   record: Record
   fields: Field[]
+  tableColumnMap: TableColumnMap
   schema: TableSchema
   client: AitoClient
   aitoTableName: string
@@ -371,6 +401,7 @@ const FieldPrediction: React.FC<{
   record,
   schema,
   client,
+  tableColumnMap,
   aitoTableName,
   setCellValue,
   autoFill,
@@ -435,9 +466,9 @@ const FieldPrediction: React.FC<{
 
     // Start a new request
     const delay = 50
-    const fieldIdToName = mapColumnNames(fields)
+    const fieldIdToName = tableColumnMap
 
-    const columnName = fieldIdToName[selectedField.id]
+    const columnName = fieldIdToName[selectedField.id].name
     if (!(columnName in schema.columns)) {
       setPrediction(null)
       setPredictionError('unknown-field')
@@ -458,7 +489,7 @@ const FieldPrediction: React.FC<{
         const where = makeWhereClause(selectedField, fields, schema, record)
         let query = JSON.stringify({
           from: aitoTableName,
-          predict: fieldIdToName[selectedField.id],
+          predict: fieldIdToName[selectedField.id].name,
           limit: 5,
         })
 
