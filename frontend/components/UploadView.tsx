@@ -140,7 +140,15 @@ const UploadView: React.FC<{
 
   return (
     <>
-      <Box style={{ opacity: uploadState === 'done' ? 0 : 1, transition: 'opacity 0.25s' }}>
+      <Box
+        style={{
+          opacity: uploadState === 'done' ? 0 : 1,
+          visibility: uploadState === 'done' ? 'hidden' : 'visible',
+          height: uploadState === 'done' ? 0 : 'auto',
+          overflow: 'hidden',
+          transition: 'opacity 0.4s 0s, visibility 0s 0.5s, height 0s 0.5s',
+        }}
+      >
         <Box paddingX={3} paddingTop={2}>
           <Heading marginBottom={1}>Upload training data</Heading>
           <Text variant="paragraph" textColor="light">
@@ -231,20 +239,19 @@ const UploadView: React.FC<{
             </Text>
             <QueryQuotaExceeded data-message="quota-exceeded" />
           </StatusMessage>
-
-          <Box position="fixed" top={0} left={0} right={0} width="100%">
-            <StatusMessage message={uploadState} autoHide>
-              <UploadStatusMessage data-message="uploading">
-                <Loader fillColor="white" scale={0.2} /> Uploading...
-              </UploadStatusMessage>
-              <UploadStatusMessage data-message="error">Failed to upload content!</UploadStatusMessage>
-            </StatusMessage>
-          </Box>
-
           <Box marginY={3}>
             <Footer />
           </Box>
         </Box>
+      </Box>
+
+      <Box position="fixed" top={0} left={0} right={0} width="100%">
+        <StatusMessage message={uploadState} autoHide>
+          <UploadStatusMessage data-message="uploading">
+            <Loader fillColor="white" scale={0.2} /> Uploading...
+          </UploadStatusMessage>
+          <UploadStatusMessage data-message="error">Failed to upload content!</UploadStatusMessage>
+        </StatusMessage>
       </Box>
 
       <Box
@@ -252,7 +259,6 @@ const UploadView: React.FC<{
         top={0}
         left={0}
         right={0}
-        bottom={0}
         style={{
           opacity: uploadState === 'done' ? 1 : 0,
           transform: `translateY(${uploadState === 'done' ? 0 : '-2em'})`,
