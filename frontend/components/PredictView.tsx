@@ -365,7 +365,12 @@ const isSuitablePrediction = (field: Field): boolean =>
   ].includes(field.type)
 
 const isMultipleSelectField = (field: Field): boolean =>
-  [FieldType.MULTIPLE_COLLABORATORS, FieldType.MULTIPLE_SELECTS].includes(field.type)
+  [
+    FieldType.MULTIPLE_COLLABORATORS,
+    FieldType.MULTIPLE_SELECTS,
+    FieldType.RICH_TEXT,
+    FieldType.MULTILINE_TEXT,
+  ].includes(field.type)
 
 const renderCellDefault = (cellValue: unknown): React.ReactElement => <>{String(cellValue)}</>
 
@@ -489,10 +494,14 @@ const FieldPrediction: React.FC<{
           return
         }
 
+        const exclusiveness = !isMultipleSelectField(selectedField)
+
         const where = makeWhereClause(selectedField, fields, schema, record)
         let query = JSON.stringify({
           from: aitoTableName,
           predict: fieldIdToName[selectedField.id].name,
+          exclusiveness,
+          select: ['$p', 'field', 'feature', '$why'],
           limit: 5,
         })
 
