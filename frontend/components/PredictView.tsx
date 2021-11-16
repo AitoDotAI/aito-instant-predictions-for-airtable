@@ -381,9 +381,13 @@ const makeWhereClause = (selectedField: Field, fields: Field[], schema: TableSch
     const columnName = fieldIdToName[field.id].name
     if (field.id !== selectedField.id && conversion && columnName in schema.columns) {
       const aitoValue = conversion.toAitoValue(field, record)
-      return {
-        [columnName]: aitoValue === null ? null : conversion.toAitoQuery(field, aitoValue),
-        ...acc,
+      if (aitoValue === null || aitoValue === undefined || aitoValue === '') {
+        return acc
+      } else {
+        return {
+          [columnName]: aitoValue === null ? null : conversion.toAitoQuery(field, aitoValue),
+          ...acc,
+        }
       }
     } else {
       return acc
@@ -476,7 +480,7 @@ const FieldPrediction: React.FC<{
     const delay = 50
     const fieldIdToName = tableColumnMap
 
-    const columnName = fieldIdToName[selectedField.id].name
+    const columnName = fieldIdToName[selectedField.id]?.name
     if (!(columnName in schema.columns)) {
       setPrediction(null)
       setPredictionError('unknown-field')
