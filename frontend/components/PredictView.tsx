@@ -31,10 +31,29 @@ import Semaphore from 'semaphore-async-await'
 import QueryQuotaExceeded from './QueryQuotaExceeded'
 import { Why } from '../explanations'
 import ExplanationBox, { DefaultExplanationBox } from './ExplanationBox'
+import styled from 'styled-components'
 
 const PARALLEL_REQUESTS = 10
 const REQUEST_TIME = 750
 const RequestLocks = new Semaphore(PARALLEL_REQUESTS)
+
+const PopupContainer = styled.div`
+  height: 100%;
+
+  & .popup {
+    height: 0;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 1.15s 0s;
+  }
+
+  &:hover .popup {
+    opacity: 1;
+    height: auto;
+    visibility: visible;
+    transition: opacity 0.15s ease-in-out;
+  }
+`
 
 const PredictView: React.FC<{
   table: Table
@@ -735,19 +754,7 @@ const FieldPrediction: React.FC<{
                   </Box>
                 </Cell>
                 <Cell width="60px" flexGrow={0}>
-                  <Tooltip
-                    shouldHideTooltipOnClick={true}
-                    placementX={Tooltip.placements.CENTER}
-                    placementY={Tooltip.placements.CENTER}
-                    style={{ height: 'auto', width: '300px', maxWidth: '300px', whiteSpace: 'nowrap' }}
-                    content={() =>
-                      $why ? (
-                        <ExplanationBox $p={$p} $why={$why} fields={fields} tableColumnMap={tableColumnMap} />
-                      ) : (
-                        <DefaultExplanationBox />
-                      )
-                    }
-                  >
+                  <PopupContainer>
                     <Box display="flex" height="100%" justifyContent="right">
                       <Text textColor="light" alignSelf="center">
                         {Math.round($p * 100)}%
@@ -760,8 +767,24 @@ const FieldPrediction: React.FC<{
                         marginLeft={2}
                         style={{ verticalAlign: 'text-bottom', width: '1.0em', height: '1.0em' }}
                       ></Icon>
+                      <Box
+                        className="popup"
+                        position="absolute"
+                        marginTop={4}
+                        left={3}
+                        right={3}
+                        textColor="white"
+                        backgroundColor="dark"
+                        borderRadius="default"
+                      >
+                        {$why ? (
+                          <ExplanationBox $p={$p} $why={$why} fields={fields} tableColumnMap={tableColumnMap} />
+                        ) : (
+                          <DefaultExplanationBox />
+                        )}
+                      </Box>
                     </Box>
-                  </Tooltip>
+                  </PopupContainer>
                 </Cell>
                 <Cell width="62px" flexGrow={0}>
                   <Box display="flex" height="100%" justifyContent="right">
