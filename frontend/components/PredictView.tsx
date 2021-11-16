@@ -29,6 +29,8 @@ import { isArrayOf, isMissing, isObjectOf, isString, ValidatedType } from '../va
 import { Cell, Row } from './table'
 import Semaphore from 'semaphore-async-await'
 import QueryQuotaExceeded from './QueryQuotaExceeded'
+import { Why } from '../explanations'
+import ExplanationBox, { DefaultExplanationBox } from './ExplanationBox'
 
 const PARALLEL_REQUESTS = 10
 const REQUEST_TIME = 750
@@ -422,13 +424,6 @@ const FieldPrediction: React.FC<{
     }
   }, [delayedRequest])
 
-  interface PredictionHits {
-    hits: {
-      $p: number
-      feature: number | string | boolean | null
-    }[]
-  }
-
   const hasAutomaticallySet = useRef(!_.isEmpty(record.getCellValue(selectedField.id)))
   useEffect(() => {
     if (!hasAutomaticallySet.current && autoFill && canUpdate && prediction && isSuitablePrediction(selectedField)) {
@@ -457,6 +452,14 @@ const FieldPrediction: React.FC<{
     : !isSuitablePrediction(selectedField)
     ? 'numbers'
     : null
+
+  interface PredictionHits {
+    hits: {
+      $p: number
+      feature: number | string | boolean | null
+      $why?: Why
+    }[]
+  }
 
   const [prediction, setPrediction] = useState<PredictionHits | undefined | null>(undefined)
   useEffect(() => {
@@ -674,7 +677,7 @@ const FieldPrediction: React.FC<{
             </Box>
           </Tooltip>
         </Cell>
-        <Cell width="90px" flexGrow={0}>
+        <Cell width="110px" flexGrow={0}>
           {prediction && !predictionError && (
             <Box display="flex" height="100%" justifyContent="left">
               <Text textColor="light">Confidence</Text>
@@ -699,7 +702,7 @@ const FieldPrediction: React.FC<{
 
         {!predictionError &&
           prediction &&
-          prediction.hits.map(({ $p, feature }, i) => {
+          prediction.hits.map(({ $p, feature, $why }, i) => {
             const conversion = AcceptedFields[selectedField.type]
             const value = conversion ? conversion.toCellValue(feature) : feature
 
@@ -718,12 +721,34 @@ const FieldPrediction: React.FC<{
                     />
                   </Box>
                 </Cell>
-                <Cell width="40px" flexGrow={0}>
-                  <Box display="flex" height="100%" justifyContent="right">
-                    <Text textColor="light" alignSelf="center">
-                      {Math.round($p * 100)}%
-                    </Text>
-                  </Box>
+                <Cell width="60px" flexGrow={0}>
+                  <Tooltip
+                    shouldHideTooltipOnClick={true}
+                    placementX={Tooltip.placements.CENTER}
+                    placementY={Tooltip.placements.CENTER}
+                    style={{ height: 'auto', width: '300px', maxWidth: '300px', whiteSpace: 'nowrap' }}
+                    content={() =>
+                      $why ? (
+                        <ExplanationBox $p={$p} $why={$why} fields={fields} tableColumnMap={tableColumnMap} />
+                      ) : (
+                        <DefaultExplanationBox />
+                      )
+                    }
+                  >
+                    <Box display="flex" height="100%" justifyContent="right">
+                      <Text textColor="light" alignSelf="center">
+                        {Math.round($p * 100)}%
+                      </Text>
+                      <Icon
+                        alignSelf="center"
+                        name="info"
+                        aria-label="Info"
+                        fillColor="light"
+                        marginLeft={2}
+                        style={{ verticalAlign: 'text-bottom', width: '1.0em', height: '1.0em' }}
+                      ></Icon>
+                    </Box>
+                  </Tooltip>
                 </Cell>
                 <Cell width="62px" flexGrow={0}>
                   <Box display="flex" height="100%" justifyContent="right">
