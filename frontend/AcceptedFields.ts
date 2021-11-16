@@ -24,6 +24,7 @@ interface SupportedField {
   toAitoType: (f: Field) => AitoType
   toAitoAnalyzer: () => Analyzer | undefined
   toCellValue: (value: unknown) => unknown
+  toTextValue: (value: unknown) => string
   toAitoQuery: (f: Field, value: unknown) => unknown
   hasFeature: (cell: unknown, feature: unknown) => boolean
 }
@@ -34,6 +35,7 @@ const textConversion: (analyzer: Analyzer) => SupportedField = (analyzer) => ({
   toAitoAnalyzer: () => analyzer,
   isValid: () => true,
   toCellValue: (v) => String(v),
+  toTextValue: (v) => JSON.stringify(String(v)),
   toAitoQuery: (_f, v) => v,
   hasFeature: (): boolean => false,
 })
@@ -53,6 +55,7 @@ const stringConversion: (convert?: (string: string) => string) => SupportedField
   isValid: () => true,
   toAitoAnalyzer: () => undefined,
   toCellValue: (v) => String(v),
+  toTextValue: (v) => JSON.stringify(String(v)),
   toAitoQuery: (_f, v) => v,
   hasFeature: (cell: unknown, feature: unknown): boolean => cell === feature,
 })
@@ -90,6 +93,7 @@ const numberConversion: (t: 'Decimal' | 'Int', convert?: (string: string) => num
   },
   toAitoAnalyzer: () => undefined,
   toCellValue: (v) => Number(v),
+  toTextValue: (v) => Number(v).toString(),
   toAitoQuery: (f, v) => {
     if (f.type === FieldType.NUMBER && isNumberOptions(f.options)) {
       if (f.options.precision > 0) {
@@ -112,6 +116,7 @@ const currency: SupportedField = {
   },
   toAitoAnalyzer: () => undefined,
   toCellValue: (v) => Number(v),
+  toTextValue: (v) => Number(v).toString(),
   toAitoQuery: (_f, v) => ({ $numeric: v }),
   hasFeature: (cell: unknown, feature: unknown): boolean => cell === feature,
 }
@@ -127,6 +132,7 @@ const percent: SupportedField = {
   },
   toAitoAnalyzer: () => undefined,
   toCellValue: (v) => Number(v),
+  toTextValue: (v) => Number(v).toString(),
   toAitoQuery: (_f, v) => ({ $numeric: v }),
   hasFeature: (cell: unknown, feature: unknown): boolean => cell === feature,
 }
@@ -181,6 +187,7 @@ const dateTimeConversion = (fromString: (d: string) => Date, toString: (d: Date)
   },
   toAitoAnalyzer: () => undefined,
   toCellValue: (v) => toString(epochSecondsToDate(Number(v))),
+  toTextValue: (v) => toString(epochSecondsToDate(Number(v))),
   toAitoQuery: (_f, v) => ({ $numeric: v }),
   hasFeature: (cell: unknown, feature: unknown): boolean => cell === feature,
 })
@@ -203,6 +210,7 @@ const timeConversion: (convert?: (s: string) => number) => SupportedField = (
   },
   toAitoAnalyzer: () => undefined,
   toCellValue: (v) => Number(v),
+  toTextValue: (v) => Number(v).toString(),
   toAitoQuery: (f_, v) => ({ $numeric: v }),
   hasFeature: (cell: unknown, feature: unknown): boolean => cell === feature,
 })
@@ -228,6 +236,7 @@ const singleSelect: SupportedField = {
   isValid: () => true,
   toAitoAnalyzer: () => undefined,
   toCellValue: (name) => ({ name }),
+  toTextValue: (v) => String(v),
   toAitoQuery: (_f, v) => v,
   hasFeature: (cell: unknown, feature: unknown): boolean =>
     hasName(cell) && hasName(feature) && cell.name === feature.name,
@@ -254,6 +263,7 @@ const multipleSelects: SupportedField = {
           .split(delimiter)
           .map((name) => ({ name }))
       : [],
+  toTextValue: (v) => (v ? String(v).split(delimiter).join(' and ') : ''),
   toAitoQuery: (_f, v) => v,
   hasFeature: (cell: unknown, feature: unknown) =>
     isMultipleNames(cell) && isMultipleNames(feature) && Boolean(cell.find((c) => c.name === feature[0]?.name)),
@@ -272,6 +282,7 @@ const singleCollaborator: SupportedField = {
   isValid: () => true,
   toAitoAnalyzer: () => undefined,
   toCellValue: (id) => ({ id }),
+  toTextValue: (id) => String(id),
   toAitoQuery: (_f, v) => v,
   hasFeature: (cell: unknown, feature: unknown) => hasId(cell) && hasId(feature) && cell.id === feature.id,
 }
@@ -296,6 +307,7 @@ const multipleCollaborators: SupportedField = {
           .split(delimiter)
           .map((id) => ({ id }))
       : [],
+  toTextValue: (v) => (v ? String(v).split(delimiter).join(' and ') : ''),
   toAitoQuery: (_f, v) => v,
   hasFeature: (cell: unknown, feature: unknown) =>
     isMultipleIds(cell) && isMultipleIds(feature) && Boolean(cell.find((c) => c.id === feature[0]?.id)),
@@ -348,6 +360,7 @@ const AcceptedFields: Partial<globalThis.Record<FieldType, SupportedField>> = {
     isValid: (f, r) => isBoolean(r.getCellValue(f)),
     toAitoAnalyzer: () => undefined,
     toCellValue: (v) => v,
+    toTextValue: (v) => String(v),
     toAitoQuery: (_f, v) => v,
     hasFeature: (cell, feature) => Boolean(cell) === Boolean(feature),
   },
