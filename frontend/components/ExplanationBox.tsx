@@ -1,5 +1,6 @@
+import { AllStylesProps } from '@airtable/blocks/dist/types/src/ui/system'
 import { Field } from '@airtable/blocks/models'
-import { Box } from '@airtable/blocks/ui'
+import { Text, Box, CellRenderer } from '@airtable/blocks/ui'
 import React from 'react'
 import AcceptedFields from '../AcceptedFields'
 import {
@@ -13,21 +14,34 @@ import {
 } from '../explanations'
 import { TableColumnMap } from '../schema/config'
 
+const AlignedText: React.FC<AllStylesProps> = ({ children, ...props }) => (
+  <Text
+    style={{ verticalAlign: 'top' }}
+    alignSelf="start"
+    textColor="white"
+    display="inline-block"
+    paddingY={2}
+    {...props}
+  >
+    {children}
+  </Text>
+)
+
 const oxfordCommaList = (nodes: React.ReactNode[], addLinebreaks: Boolean = false): React.ReactNode[] => {
   if (nodes.length < 2) {
     return nodes
   }
-  const separator = addLinebreaks ? <br /> : ' '
+  const separator = ' ' //addLinebreaks ? <br /> : ' '
   if (nodes.length === 2) {
-    return [nodes[0], <> and{separator}</>, nodes[1]]
+    return [nodes[0], <AlignedText>and</AlignedText>, nodes[1]]
   }
   const result = [nodes[0]]
   // Add commas
   for (let i = 1; i < nodes.length; i += 1) {
     if (i + 1 < nodes.length) {
-      result[2 * i - 1] = <>,{separator}</>
+      result[2 * i - 1] = <AlignedText>,{separator}</AlignedText>
     } else {
-      result[2 * i - 1] = <>, and{separator}</>
+      result[2 * i - 1] = <AlignedText>, and{separator}</AlignedText>
     }
     result[2 * i] = nodes[i]
   }
@@ -97,50 +111,89 @@ const ExplanationBox: React.FC<{
         const fieldName = field?.name || columnName
         let convert = (e: any): any => e
 
-        if (field) {
-          const conversion = AcceptedFields[field.type]
-          if (conversion) {
-            convert = (x) => conversion.toTextValue(x)
-          }
+        if (!field) {
+          return acc
+        }
+        const conversion = AcceptedFields[field.type]
+        if (conversion) {
+          convert = (x) => conversion.toCellValue(x)
         }
 
         // Don't merge $is propositions
         const isPropositions = propositions.filter(isIsProposition).map(({ $is }) => (
           <>
             <i>{fieldName}</i> is
-            <b>{convert($is)}</b>
+            <CellRenderer
+              field={field}
+              cellValue={convert($is)}
+              renderInvalidCellValue={(v) => <>{String(v)}</>}
+              cellStyle={{
+                padding: 0,
+              }}
+              style={{
+                display: 'inline-block',
+                padding: 0,
+                lineHeight: 1.25,
+              }}
+            />
+            {/*<b>{convert($is)}</b>*/}
           </>
         ))
 
         // Merge $has propositions
-        const convertedHasPropositions = propositions.filter(isHasProposition).map(({ $has }) => <b>{convert($has)}</b>)
+        const convertedHasPropositions = propositions
+          .filter(isHasProposition)
+          .map(({ $has }) => <CellRenderer field={field} cellValue={convert($has)} display="inline-block" />)
+
+        /*
+          style={{
+                verticalAlign: 'text-bottom',
+                lineHeight: 'inherit',
+              }}
+              cellStyle={{
+                fontWeight: 'bold',
+                verticalAlign: 'text-bottom',
+                padding: 0,
+                lineHeight: 2/3,
+              }}
+        */
+
         let hasPropositions: React.ReactNode[] = []
         if (convertedHasPropositions.length > 0) {
           const list = oxfordCommaList(convertedHasPropositions)
           hasPropositions = [
-            <>
-              <i>{fieldName}</i> has {list}
-            </>,
+            <Box display="flex">
+              <AlignedText flexShrink={0} flexGrow={0} flexBasis="auto">
+                <i>{fieldName}</i> is
+              </AlignedText>
+              <Box flexGrow={1}>{list}</Box>
+            </Box>,
           ]
         }
 
-        const numericPropositions = propositions.filter(isNumericProposition).map((proposition) => {
-          return (
-            <>
-              <i>{fieldName}</i> is roughly <b>{convert(proposition.$numeric)}</b>
-            </>
-          )
-        })
+        const numericPropositions = propositions.filter(isNumericProposition).map(({ $numeric }) => (
+          <Box display="flex">
+            <AlignedText flexShrink={0} flexGrow={0} flexBasis="auto">
+              <i>{fieldName}</i> is about
+            </AlignedText>
+            <Box flexGrow={1}>
+              <CellRenderer field={field} cellValue={convert($numeric)} />
+            </Box>
+          </Box>
+        ))
 
         return [...acc, ...isPropositions, ...hasPropositions, ...numericPropositions]
       }, [] as React.ReactNode[])
 
       return (
-        <Box key={i} display="flex" marginBottom={1}>
-          <Box flexGrow={0} flexShrink={0} flexBasis={32}>
+        <Box key={i} display="flex" marginBottom={0}>
+          <AlignedText flexGrow={0} flexShrink={0} flexBasis={32}>
             {arrows}
+          </AlignedText>
+          <Box display="flex" flexDirection="column">
+            {havingState}
           </Box>
-          <Box flexGrow={1}>{oxfordCommaList(havingState, true)}</Box>
+          {/*<Box flexGrow={1}>{oxfordCommaList(havingState, true)}</Box>*/}
         </Box>
       )
     })
@@ -148,8 +201,8 @@ const ExplanationBox: React.FC<{
   return (
     <Box
       paddingX={2}
-      paddingTop={2}
-      paddingBottom={1}
+      paddingTop={0}
+      paddingBottom={0}
       display="inline-flex"
       flexDirection="column"
       justifyContent="stretch"

@@ -44,14 +44,13 @@ const PopupContainer = styled.div`
     height: 0;
     opacity: 0;
     visibility: hidden;
-    transition: opacity 1.15s 0s;
+    transition: opacity 0.15s ease-in-out;
   }
 
   &:hover .popup {
     opacity: 1;
     height: auto;
     visibility: visible;
-    transition: opacity 0.15s ease-in-out;
   }
 `
 
