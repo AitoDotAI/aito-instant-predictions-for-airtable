@@ -222,11 +222,11 @@ const ExplanationBox: React.FC<{
       }, [] as React.ReactNode[])
 
       return (
-        <Box key={i} display="flex" marginTop={1} marginBottom={3} flexWrap="nowrap">
-          <AlignedText flexGrow={0} flexShrink={0} flexBasis={32}>
+        <Box key={i} display="flex" marginBottom={1} flexWrap="nowrap">
+          <AlignedText flexGrow={0} flexShrink={0} flexBasis={32} paddingTop={1} textAlign="right" paddingRight={1}>
             {arrows}
           </AlignedText>
-          <Box display="flex" flexDirection="row" flexWrap="wrap" flexGrow={1} style={{ gap: '6px' }}>
+          <Box display="flex" flexDirection="row" flexWrap="wrap" flexGrow={1} style={{ gap: '6px', borderTop: i > 0 ? 'thin solid gray' : undefined}} paddingTop={1}>
             {havingState}
           </Box>
           {/*<Box flexGrow={1}>{oxfordCommaList(havingState, true)}</Box>*/}
@@ -238,7 +238,7 @@ const ExplanationBox: React.FC<{
     <Box
       paddingX={2}
       paddingTop={1}
-      marginBottom={-2}
+      marginBottom={0}
       display="flex"
       flexDirection="column"
       justifyContent="stretch"
