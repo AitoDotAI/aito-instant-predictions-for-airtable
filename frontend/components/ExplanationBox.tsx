@@ -115,6 +115,7 @@ const ExplanationBox: React.FC<{
       const negativeMargin =
         [
           FieldType.MULTILINE_TEXT,
+          FieldType.MULTIPLE_SELECTS,
           FieldType.NUMBER,
           FieldType.PERCENT,
           FieldType.PHONE_NUMBER,

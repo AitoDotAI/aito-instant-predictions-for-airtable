@@ -1,4 +1,4 @@
-import { Field, View } from '@airtable/blocks/models'
+import { Field, FieldType, View } from '@airtable/blocks/models'
 import _ from 'lodash'
 import AcceptedFields from '../AcceptedFields'
 import AitoClient, { AitoError, isAitoError, Value } from '../AitoClient'
@@ -81,13 +81,19 @@ async function fetchRecordsAndUpload(
             `The value for record ${record.id} is not valid according to the field schema. Type is ${field.type}. Setting to null.`,
           )
           columnValue = null
+        } else if (field.type !== FieldType.CHECKBOX && record.getCellValueAsString(field) === '') {
+          columnValue = null
         } else {
           columnValue = conversion.toAitoValue(field, record)
         }
 
-        return {
-          [columnName]: columnValue,
-          ...row,
+        if (columnValue === null) {
+          return row
+        } else {
+          return {
+            [columnName]: columnValue,
+            ...row,
+          }
         }
       }, {})
       dataArray.push(row)
