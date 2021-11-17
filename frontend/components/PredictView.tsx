@@ -42,12 +42,14 @@ const PopupContainer = styled.div`
 
   & .popup {
     height: 0;
+    overflow: hidden;
     opacity: 0;
     visibility: hidden;
     transition: opacity 0.15s ease-in-out;
   }
 
   &:hover .popup {
+    z-index: 1000;
     opacity: 1;
     height: auto;
     visibility: visible;
@@ -640,7 +642,7 @@ const FieldPrediction: React.FC<{
   }, [record, selectedField, confirmation, setConfirmation, setCellValue])
 
   return (
-    <Box paddingBottom={3}>
+    <Box paddingBottom={3} position="relative">
       {canUpdate && confirmation && (
         <ConfirmationDialog
           title="Replace cell"
@@ -769,9 +771,11 @@ const FieldPrediction: React.FC<{
                       <Box
                         className="popup"
                         position="absolute"
-                        marginTop={4}
+                        marginTop={3}
+                        top={0}
                         left={3}
                         right={3}
+                        marginRight="126px"
                         textColor="white"
                         backgroundColor="dark"
                         borderRadius="default"
