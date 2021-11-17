@@ -764,7 +764,7 @@ const FieldPrediction: React.FC<{
                         alignSelf="center"
                         name="help"
                         aria-label="Info"
-                        fillColor="light"
+                        fillColor="gray"
                         marginLeft={2}
                         style={{ verticalAlign: 'text-bottom', width: '1.0em', height: '1.0em' }}
                       />
