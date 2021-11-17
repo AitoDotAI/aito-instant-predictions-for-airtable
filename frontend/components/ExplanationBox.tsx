@@ -217,10 +217,13 @@ const ExplanationBox: React.FC<{
       justifyContent="stretch"
       style={{ whiteSpace: 'normal', width: '100%' }}
     >
+      <Text paddingBottom={1} textColor="white">
+        The prediction is based on
+      </Text>
       {descriptions.length > 0 ? descriptions : defaultMessage}
       {droppedComponentCount > 0 && (
         <Text marginTop={2} paddingBottom={1} textColor="white">
-          And {droppedComponentCount} less important indicator{droppedComponentCount !== 1 ? 's' : ''}
+          and {droppedComponentCount} less important indicator{droppedComponentCount !== 1 ? 's' : ''}.
         </Text>
       )}
     </Box>

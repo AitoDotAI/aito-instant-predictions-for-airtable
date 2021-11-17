@@ -762,7 +762,7 @@ const FieldPrediction: React.FC<{
                       </Text>
                       <Icon
                         alignSelf="center"
-                        name="info"
+                        name="help"
                         aria-label="Info"
                         fillColor="light"
                         marginLeft={2}
