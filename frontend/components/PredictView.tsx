@@ -195,7 +195,7 @@ const PredictView: React.FC<{
         />
 
         <Text variant="paragraph" flexGrow={1}>
-          The fields have changed since training data was last uploaded to aito. Please retrain the model.
+          The fields have changed since training data was last uploaded to Aito. Please retrain the model.
         </Text>
       </Box>
     )
