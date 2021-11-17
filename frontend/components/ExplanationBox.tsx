@@ -1,6 +1,6 @@
 import { AllStylesProps } from '@airtable/blocks/dist/types/src/ui/system'
 import { Field, FieldType } from '@airtable/blocks/models'
-import { Text, Box, CellRenderer } from '@airtable/blocks/ui'
+import { Text, Box, CellRenderer, Icon, colors, colorUtils } from '@airtable/blocks/ui'
 import _ from 'lodash'
 import React from 'react'
 import AcceptedFields from '../AcceptedFields'
@@ -56,29 +56,39 @@ const ExplanationBox: React.FC<{
   const explanation = simpleExplanation($p, $why)
 
   const sortByAbsScore = (a: SimpleExplanation, b: SimpleExplanation) => Math.abs(b.score) - Math.abs(a.score)
-  const sortByScore = (a: SimpleExplanation, b: SimpleExplanation) => b.score - a.score
 
   const propositionLifts = explanation.filter((e): e is RelatedExplanation => e.type === 'relatedPropositionLift')
   propositionLifts.sort(sortByAbsScore)
   const sortedExplanations = Number.isFinite(limit) ? _.take(propositionLifts, limit) : propositionLifts
-  sortedExplanations.sort(sortByScore)
 
   const droppedComponentCount = propositionLifts.length - sortedExplanations.length
 
   const descriptions = sortedExplanations.map(({ score, propositions }, i) => {
-    let arrows: string = ''
+    let arrows: React.ReactNode[] = []
+    const green = colorUtils.getHexForColor(colors.GREEN_DARK_1)
+    const red = colorUtils.getHexForColor(colors.RED_DARK_1)
+    const up = (
+      <Box display="inline-block">
+        <Icon fillColor={green} name="up" size={13} marginX="-2.5px" marginTop="1px" />
+      </Box>
+    )
+    const down = (
+      <Box display="inline-block">
+        <Icon fillColor={red} name="down" size={13} marginX="-2.5px" marginTop="4px" />
+      </Box>
+    )
     if (score < -2.0) {
-      arrows = '↓↓↓'
+      arrows = [down, down, down]
     } else if (score < -0.5) {
-      arrows = '↓↓'
+      arrows = [down, down]
     } else if (score < 0.0) {
-      arrows = '↓'
+      arrows = [down]
     } else if (score <= 0.5) {
-      arrows = '↑'
+      arrows = [up]
     } else if (score <= 2.0) {
-      arrows = '↑↑'
+      arrows = [up, up]
     } else {
-      arrows = '↑↑↑'
+      arrows = [up, up, up]
     }
 
     type GroupedProposition = globalThis.Record<string, SimpleProposition[]>
@@ -172,8 +182,16 @@ const ExplanationBox: React.FC<{
     }, [] as React.ReactNode[])
 
     return (
-      <Box key={i} display="flex" flexWrap="nowrap">
-        <AlignedText flexGrow={0} flexShrink={0} flexBasis={32} paddingTop={1} textAlign="right" paddingRight={1}>
+      <Box key={i} display="flex" flexWrap="nowrap" marginBottom={1}>
+        <AlignedText
+          marginTop={i > 0 ? '1px' : undefined}
+          flexGrow={0}
+          flexShrink={0}
+          flexBasis={32}
+          paddingTop={1}
+          textAlign="right"
+          paddingRight={1}
+        >
           {arrows}
         </AlignedText>
         <Box
@@ -181,7 +199,7 @@ const ExplanationBox: React.FC<{
           flexDirection="row"
           flexWrap="wrap"
           flexGrow={1}
-          style={{ gap: '6px', borderTop: i > 0 ? 'thin solid gray' : undefined }}
+          style={{ gap: '6px', borderTop: i > 0 ? '1px solid gray' : undefined }}
           paddingTop={1}
         >
           {havingState}
@@ -194,7 +212,6 @@ const ExplanationBox: React.FC<{
     <Box
       paddingX={2}
       paddingTop={1}
-      paddingBottom={1}
       display="flex"
       flexDirection="column"
       justifyContent="stretch"
@@ -202,7 +219,7 @@ const ExplanationBox: React.FC<{
     >
       {descriptions.length > 0 ? descriptions : defaultMessage}
       {droppedComponentCount > 0 && (
-        <Text marginTop={2} textColor="white">
+        <Text marginTop={2} paddingBottom={1} textColor="white">
           And {droppedComponentCount} less important indicator{droppedComponentCount !== 1 ? 's' : ''}
         </Text>
       )}
