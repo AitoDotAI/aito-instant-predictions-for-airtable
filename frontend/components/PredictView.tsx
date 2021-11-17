@@ -765,7 +765,7 @@ const FieldPrediction: React.FC<{
                         fillColor="light"
                         marginLeft={2}
                         style={{ verticalAlign: 'text-bottom', width: '1.0em', height: '1.0em' }}
-                      ></Icon>
+                      />
                       <Box
                         className="popup"
                         position="absolute"

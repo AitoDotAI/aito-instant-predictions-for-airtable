@@ -1,5 +1,5 @@
 import { AllStylesProps } from '@airtable/blocks/dist/types/src/ui/system'
-import { Field } from '@airtable/blocks/models'
+import { Field, FieldType } from '@airtable/blocks/models'
 import { Text, Box, CellRenderer } from '@airtable/blocks/ui'
 import React from 'react'
 import AcceptedFields from '../AcceptedFields'
@@ -19,8 +19,6 @@ const AlignedText: React.FC<AllStylesProps> = ({ children, ...props }) => (
     style={{ verticalAlign: 'top' }}
     alignSelf="start"
     textColor="white"
-    display="inline-block"
-    paddingY={2}
     {...props}
   >
     {children}
@@ -33,15 +31,15 @@ const oxfordCommaList = (nodes: React.ReactNode[], addLinebreaks: Boolean = fals
   }
   const separator = ' ' //addLinebreaks ? <br /> : ' '
   if (nodes.length === 2) {
-    return [nodes[0], <AlignedText>and</AlignedText>, nodes[1]]
+    return [nodes[0], <> and </>, nodes[1]]
   }
   const result = [nodes[0]]
   // Add commas
   for (let i = 1; i < nodes.length; i += 1) {
     if (i + 1 < nodes.length) {
-      result[2 * i - 1] = <AlignedText>,{separator}</AlignedText>
+      result[2 * i - 1] = <>,{separator}</>
     } else {
-      result[2 * i - 1] = <AlignedText>, and{separator}</AlignedText>
+      result[2 * i - 1] = <>, and{separator}</>
     }
     result[2 * i] = nodes[i]
   }
@@ -143,7 +141,13 @@ const ExplanationBox: React.FC<{
         // Merge $has propositions
         const convertedHasPropositions = propositions
           .filter(isHasProposition)
-          .map(({ $has }) => <CellRenderer field={field} cellValue={convert($has)} display="inline-block" />)
+          .map(({ $has }) => {
+            if (field.type === FieldType.MULTILINE_TEXT) {
+              return <b>{$has}</b>
+            } else {
+              return <CellRenderer field={field} cellValue={convert($has)} display="inline-block" marginLeft={1} />
+            }
+          })
 
         /*
           style={{
@@ -164,21 +168,53 @@ const ExplanationBox: React.FC<{
           hasPropositions = [
             <Box display="flex">
               <AlignedText flexShrink={0} flexGrow={0} flexBasis="auto">
-                <i>{fieldName}</i> is
+                <i>{fieldName}</i> has
               </AlignedText>
               <Box flexGrow={1}>{list}</Box>
             </Box>,
           ]
         }
 
+        const negativeMargin = [
+            FieldType.MULTILINE_TEXT,
+            FieldType.NUMBER,
+            FieldType.PERCENT,
+            FieldType.PHONE_NUMBER,
+            FieldType.SINGLE_LINE_TEXT,
+            FieldType.AUTO_NUMBER,
+            FieldType.BARCODE,
+            FieldType.CURRENCY,
+            FieldType.DATE,
+            FieldType.DATE_TIME,
+            FieldType.DURATION,
+            FieldType.EMAIL,
+          ].indexOf(field.type) >= 0 ? '-6px' : '0'
+
+        const hasProps = propositions.filter(isHasProposition)
+
+        if (hasProps.length === 1) {
+          hasPropositions = [
+          <Box flexGrow={1} flexShrink={0}>
+            <Text textColor="white"><b>{fieldName}</b></Text>
+            <CellRenderer style={{ margin: negativeMargin }} field={field} cellValue={convert(hasProps[0].$has)} />
+          </Box>
+          ]
+        } else if (hasProps.length > 0) {
+          // A text field of some kind
+          hasPropositions = [
+          <Box flexGrow={1} flexShrink={0} flexBasis="auto" maxWidth="100%">
+            <Text textColor="white"><b>{fieldName}</b></Text>
+            <Text textColor="white" margin={0}>
+              <CellRenderer style={{ margin: negativeMargin }} field={field} cellValue={hasProps.map((v) => v.$has).join(', ')} />
+            </Text>
+          </Box>
+          ]
+        }
+
         const numericPropositions = propositions.filter(isNumericProposition).map(({ $numeric }) => (
-          <Box display="flex">
-            <AlignedText flexShrink={0} flexGrow={0} flexBasis="auto">
-              <i>{fieldName}</i> is about
-            </AlignedText>
-            <Box flexGrow={1}>
-              <CellRenderer field={field} cellValue={convert($numeric)} />
-            </Box>
+          <Box flexGrow={1} flexShrink={0} flexBasis="auto">
+            <Text textColor="white"><b>{fieldName}</b></Text>
+            <CellRenderer  style={{ margin: negativeMargin }}  field={field} cellValue={convert($numeric)} />
           </Box>
         ))
 
@@ -186,11 +222,11 @@ const ExplanationBox: React.FC<{
       }, [] as React.ReactNode[])
 
       return (
-        <Box key={i} display="flex" marginBottom={0}>
+        <Box key={i} display="flex" marginTop={1} marginBottom={3} flexWrap="nowrap">
           <AlignedText flexGrow={0} flexShrink={0} flexBasis={32}>
             {arrows}
           </AlignedText>
-          <Box display="flex" flexDirection="column">
+          <Box display="flex" flexDirection="row" flexWrap="wrap" flexGrow={1} style={{ gap: '6px' }}>
             {havingState}
           </Box>
           {/*<Box flexGrow={1}>{oxfordCommaList(havingState, true)}</Box>*/}
@@ -201,9 +237,9 @@ const ExplanationBox: React.FC<{
   return (
     <Box
       paddingX={2}
-      paddingTop={0}
-      paddingBottom={0}
-      display="inline-flex"
+      paddingTop={1}
+      marginBottom={-2}
+      display="flex"
       flexDirection="column"
       justifyContent="stretch"
       style={{ whiteSpace: 'normal', width: '100%' }}
