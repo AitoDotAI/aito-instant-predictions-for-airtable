@@ -739,6 +739,11 @@ const FieldPrediction: React.FC<{
             const conversion = AcceptedFields[selectedField.type]
             const value = conversion ? conversion.toCellValue(feature) : feature
 
+            const hitCount = prediction.hits.length
+            const hitsBoxHeight = 16 + 49.5 * hitCount
+            const beforeFraction = (16 + 49.5 * i) / hitsBoxHeight
+            const afterFraction = (hitsBoxHeight - (i + 1) * 49.5) / hitsBoxHeight
+
             return (
               <Row key={i} highlight={hasFeature(record, selectedField, feature)}>
                 <Cell flexGrow={1} flexShrink={1}>
@@ -776,15 +781,25 @@ const FieldPrediction: React.FC<{
                         left={3}
                         right={3}
                         marginRight="126px"
-                        textColor="white"
-                        backgroundColor="dark"
-                        borderRadius="default"
                       >
-                        {$why ? (
-                          <ExplanationBox $p={$p} $why={$why} fields={fields} tableColumnMap={tableColumnMap} />
-                        ) : (
-                          <DefaultExplanationBox />
-                        )}
+                        <Box display="flex" flexDirection="column" minHeight={`${hitsBoxHeight}px`}>
+                          <Box flexShrink={beforeFraction} flexGrow={beforeFraction}></Box>
+                          <Box
+                            flexShrink={0}
+                            flexGrow={0}
+                            flexBasis="auto"
+                            textColor="white"
+                            backgroundColor="dark"
+                            borderRadius="default"
+                          >
+                            {$why ? (
+                              <ExplanationBox $p={$p} $why={$why} fields={fields} tableColumnMap={tableColumnMap} />
+                            ) : (
+                              <DefaultExplanationBox />
+                            )}
+                          </Box>
+                          <Box flexShrink={afterFraction} flexGrow={afterFraction}></Box>
+                        </Box>
                       </Box>
                     </Box>
                   </PopupContainer>
