@@ -23,16 +23,38 @@ import AcceptedFields from '../AcceptedFields'
 import AitoClient, { isAitoError } from '../AitoClient'
 import { mapColumnNames } from '../functions/inferAitoSchema'
 import { TableSchema } from '../schema/aito'
-import { TableConfig } from '../schema/config'
+import { TableColumnMap, TableConfig } from '../schema/config'
 import { useLocalConfig } from '../LocalConfig'
 import { isArrayOf, isMissing, isObjectOf, isString, ValidatedType } from '../validator/validation'
 import { Cell, Row } from './table'
 import Semaphore from 'semaphore-async-await'
 import QueryQuotaExceeded from './QueryQuotaExceeded'
+import { Why } from '../explanations'
+import ExplanationBox, { DefaultExplanationBox } from './ExplanationBox'
+import styled from 'styled-components'
 
 const PARALLEL_REQUESTS = 10
 const REQUEST_TIME = 750
 const RequestLocks = new Semaphore(PARALLEL_REQUESTS)
+
+const PopupContainer = styled.div`
+  height: 100%;
+
+  & .popup {
+    height: 0;
+    overflow: hidden;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.15s ease-in-out;
+  }
+
+  &:hover .popup {
+    z-index: 1000;
+    opacity: 1;
+    height: auto;
+    visibility: visible;
+  }
+`
 
 const PredictView: React.FC<{
   table: Table
@@ -57,6 +79,7 @@ const PredictView: React.FC<{
   }
 
   const aitoTableName = tableConfig.aitoTableName
+  const tableColumnMap = tableConfig.columns
 
   const schema = useAitoSchema(aitoTableName, client)
 
@@ -154,6 +177,30 @@ const PredictView: React.FC<{
     }
   }, [])
 
+  const currentTableColumnMap = metadata ? mapColumnNames(metadata.visibleFields) : {}
+  const isSchemaOutOfSync = !!Object.entries(currentTableColumnMap).find(([fieldId, { type }]) => {
+    const uploaded = tableColumnMap[fieldId]
+    return uploaded && uploaded.type !== type
+  })
+
+  if (isSchemaOutOfSync) {
+    return (
+      <Box padding={3} display="flex">
+        <Icon
+          flexGrow={0}
+          name="warning"
+          aria-label="Warning"
+          marginRight={2}
+          style={{ verticalAlign: 'text-bottom', width: '1.5em', height: '1.5em' }}
+        />
+
+        <Text variant="paragraph" flexGrow={1}>
+          The fields have changed since training data was last uploaded to Aito. Please retrain the model.
+        </Text>
+      </Box>
+    )
+  }
+
   const maxRecords = 10
 
   return (
@@ -187,6 +234,7 @@ const PredictView: React.FC<{
           offset={i}
           recordId={recordId}
           viewFields={visibleFields}
+          tableColumnMap={tableColumnMap}
           fieldsToPredict={fieldsToPredict}
           aitoTableName={aitoTableName}
           client={client}
@@ -249,6 +297,7 @@ const RecordPrediction: React.FC<{
   recordsQuery: TableOrViewQueryResult
   recordId: string
   viewFields: Field[]
+  tableColumnMap: TableColumnMap
   fieldsToPredict: Field[]
   client: AitoClient
   aitoTableName: string
@@ -268,6 +317,7 @@ const RecordPrediction: React.FC<{
   setCellValue,
   autoFill,
   canUpdate,
+  tableColumnMap,
 }) => {
   const record = useRecordById(recordsQuery, recordId)
 
@@ -285,6 +335,7 @@ const RecordPrediction: React.FC<{
           key={field.id}
           record={record}
           fields={viewFields}
+          tableColumnMap={tableColumnMap}
           aitoTableName={aitoTableName}
           client={client}
           schema={schema}
@@ -334,7 +385,12 @@ const isSuitablePrediction = (field: Field): boolean =>
   ].includes(field.type)
 
 const isMultipleSelectField = (field: Field): boolean =>
-  [FieldType.MULTIPLE_COLLABORATORS, FieldType.MULTIPLE_SELECTS].includes(field.type)
+  [
+    FieldType.MULTIPLE_COLLABORATORS,
+    FieldType.MULTIPLE_SELECTS,
+    FieldType.RICH_TEXT,
+    FieldType.MULTILINE_TEXT,
+  ].includes(field.type)
 
 const renderCellDefault = (cellValue: unknown): React.ReactElement => <>{String(cellValue)}</>
 
@@ -342,12 +398,17 @@ const makeWhereClause = (selectedField: Field, fields: Field[], schema: TableSch
   const fieldIdToName = mapColumnNames(fields)
   return fields.reduce<globalThis.Record<string, unknown>>((acc, field) => {
     const conversion = AcceptedFields[field.type]
-    const columnName = fieldIdToName[field.id]
+    const columnName = fieldIdToName[field.id].name
     if (field.id !== selectedField.id && conversion && columnName in schema.columns) {
+      const isEmpty = record.getCellValueAsString(field) === '' && field.type !== FieldType.CHECKBOX
       const aitoValue = conversion.toAitoValue(field, record)
-      return {
-        [columnName]: aitoValue === null ? null : conversion.toAitoQuery(field, aitoValue),
-        ...acc,
+      if (aitoValue === null || aitoValue === undefined || isEmpty) {
+        return acc
+      } else {
+        return {
+          [columnName]: aitoValue === null ? null : conversion.toAitoQuery(field, aitoValue),
+          ...acc,
+        }
       }
     } else {
       return acc
@@ -359,6 +420,7 @@ const FieldPrediction: React.FC<{
   selectedField: Field
   record: Record
   fields: Field[]
+  tableColumnMap: TableColumnMap
   schema: TableSchema
   client: AitoClient
   aitoTableName: string
@@ -371,6 +433,7 @@ const FieldPrediction: React.FC<{
   record,
   schema,
   client,
+  tableColumnMap,
   aitoTableName,
   setCellValue,
   autoFill,
@@ -390,13 +453,6 @@ const FieldPrediction: React.FC<{
       }
     }
   }, [delayedRequest])
-
-  interface PredictionHits {
-    hits: {
-      $p: number
-      feature: number | string | boolean | null
-    }[]
-  }
 
   const hasAutomaticallySet = useRef(!_.isEmpty(record.getCellValue(selectedField.id)))
   useEffect(() => {
@@ -427,6 +483,14 @@ const FieldPrediction: React.FC<{
     ? 'numbers'
     : null
 
+  interface PredictionHits {
+    hits: {
+      $p: number
+      feature: number | string | boolean | null
+      $why?: Why
+    }[]
+  }
+
   const [prediction, setPrediction] = useState<PredictionHits | undefined | null>(undefined)
   useEffect(() => {
     if (delayedRequest.current !== undefined) {
@@ -435,9 +499,9 @@ const FieldPrediction: React.FC<{
 
     // Start a new request
     const delay = 50
-    const fieldIdToName = mapColumnNames(fields)
+    const fieldIdToName = tableColumnMap
 
-    const columnName = fieldIdToName[selectedField.id]
+    const columnName = fieldIdToName[selectedField.id]?.name
     if (!(columnName in schema.columns)) {
       setPrediction(null)
       setPredictionError('unknown-field')
@@ -455,10 +519,14 @@ const FieldPrediction: React.FC<{
           return
         }
 
+        const exclusiveness = !isMultipleSelectField(selectedField)
+
         const where = makeWhereClause(selectedField, fields, schema, record)
         let query = JSON.stringify({
           from: aitoTableName,
-          predict: fieldIdToName[selectedField.id],
+          predict: fieldIdToName[selectedField.id].name,
+          exclusiveness,
+          select: ['$p', 'field', 'feature', '$why'],
           limit: 5,
         })
 
@@ -575,7 +643,7 @@ const FieldPrediction: React.FC<{
   }, [record, selectedField, confirmation, setConfirmation, setCellValue])
 
   return (
-    <Box paddingBottom={3}>
+    <Box paddingBottom={3} position="relative">
       {canUpdate && confirmation && (
         <ConfirmationDialog
           title="Replace cell"
@@ -643,7 +711,7 @@ const FieldPrediction: React.FC<{
             </Box>
           </Tooltip>
         </Cell>
-        <Cell width="90px" flexGrow={0}>
+        <Cell width="110px" flexGrow={0}>
           {prediction && !predictionError && (
             <Box display="flex" height="100%" justifyContent="left">
               <Text textColor="light">Confidence</Text>
@@ -668,9 +736,14 @@ const FieldPrediction: React.FC<{
 
         {!predictionError &&
           prediction &&
-          prediction.hits.map(({ $p, feature }, i) => {
+          prediction.hits.map(({ $p, feature, $why }, i) => {
             const conversion = AcceptedFields[selectedField.type]
             const value = conversion ? conversion.toCellValue(feature) : feature
+
+            const hitCount = prediction.hits.length
+            const hitsBoxHeight = 16 + 49.5 * hitCount
+            const beforeFraction = (16 + 49.5 * i) / hitsBoxHeight
+            const afterFraction = (hitsBoxHeight - (i + 1) * 49.5) / hitsBoxHeight
 
             return (
               <Row key={i} highlight={hasFeature(record, selectedField, feature)}>
@@ -687,12 +760,50 @@ const FieldPrediction: React.FC<{
                     />
                   </Box>
                 </Cell>
-                <Cell width="40px" flexGrow={0}>
-                  <Box display="flex" height="100%" justifyContent="right">
-                    <Text textColor="light" alignSelf="center">
-                      {Math.round($p * 100)}%
-                    </Text>
-                  </Box>
+                <Cell width="60px" flexGrow={0}>
+                  <PopupContainer>
+                    <Box display="flex" height="100%" justifyContent="right">
+                      <Text textColor="light" alignSelf="center">
+                        {Math.round($p * 100)}%
+                      </Text>
+                      <Icon
+                        alignSelf="center"
+                        name="help"
+                        aria-label="Info"
+                        fillColor="gray"
+                        marginLeft={2}
+                        style={{ verticalAlign: 'text-bottom', width: '1.0em', height: '1.0em' }}
+                      />
+                      <Box
+                        className="popup"
+                        position="absolute"
+                        marginTop={3}
+                        top={0}
+                        left={3}
+                        right={3}
+                        marginRight="126px"
+                      >
+                        <Box display="flex" flexDirection="column" minHeight={`${hitsBoxHeight}px`}>
+                          <Box flexShrink={beforeFraction} flexGrow={beforeFraction}></Box>
+                          <Box
+                            flexShrink={0}
+                            flexGrow={0}
+                            flexBasis="auto"
+                            textColor="white"
+                            backgroundColor="dark"
+                            borderRadius="default"
+                          >
+                            {$why ? (
+                              <ExplanationBox $p={$p} $why={$why} fields={fields} tableColumnMap={tableColumnMap} />
+                            ) : (
+                              <DefaultExplanationBox />
+                            )}
+                          </Box>
+                          <Box flexShrink={afterFraction} flexGrow={afterFraction}></Box>
+                        </Box>
+                      </Box>
+                    </Box>
+                  </PopupContainer>
                 </Cell>
                 <Cell width="62px" flexGrow={0}>
                   <Box display="flex" height="100%" justifyContent="right">

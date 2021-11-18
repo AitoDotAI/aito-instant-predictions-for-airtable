@@ -3,6 +3,7 @@ import { Field } from '@airtable/blocks/models'
 
 import AcceptedFields, { isAcceptedField } from '../AcceptedFields'
 import { isColumnSchema, ColumnSchema, TableSchema, isTableSchema } from '../schema/aito'
+import { TableColumnMap } from '../schema/config'
 
 function fieldToColumnSchema(field: Field): ColumnSchema {
   const conversion = AcceptedFields[field.type]
@@ -19,20 +20,21 @@ function fieldToColumnSchema(field: Field): ColumnSchema {
   })
 }
 
-export type ColumnNameMapping = Record<string, string>
-
 const sanitizeName = (name: string): string => name.trim().replace(/[\s/".$]/g, '_')
 
-export const mapColumnNames = (fields: Field[]): ColumnNameMapping =>
+export const mapColumnNames = (fields: Field[]): TableColumnMap =>
   fields.reduce((mapping, field) => {
     return {
       ...mapping,
-      [field.id]: sanitizeName(field.name),
+      [field.id]: {
+        name: sanitizeName(field.name),
+        type: field.type,
+      },
     }
   }, {})
 
 // Aito schema creation
-export default function inferAitoSchema(fields: Field[], fieldIdToName: ColumnNameMapping): TableSchema {
+export default function inferAitoSchema(fields: Field[], fieldIdToName: TableColumnMap): TableSchema {
   if (_.size(fields) <= 0) {
     throw new Error(`Cannot infer schema. No fields provided`)
   }
@@ -45,7 +47,7 @@ export default function inferAitoSchema(fields: Field[], fieldIdToName: ColumnNa
   }
 
   const columns = fields.map((field) => ({
-    [fieldIdToName[field.id]]: fieldToColumnSchema(field),
+    [fieldIdToName[field.id].name]: fieldToColumnSchema(field),
   }))
 
   return isTableSchema.validate({
