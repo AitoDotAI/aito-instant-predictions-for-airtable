@@ -24,8 +24,7 @@ const AlignedText: React.FC<AllStylesProps> = ({ children, ...props }) => (
 
 const defaultMessage = (
   <Box marginBottom={1}>
-    The expected rate at which you see this in a cell. No significant correlations with the record's other fields were
-    found.
+    This is the expected rate at which you see this in a cell. No strong field correlations were found.
   </Box>
 )
 
