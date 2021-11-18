@@ -400,8 +400,9 @@ const makeWhereClause = (selectedField: Field, fields: Field[], schema: TableSch
     const conversion = AcceptedFields[field.type]
     const columnName = fieldIdToName[field.id].name
     if (field.id !== selectedField.id && conversion && columnName in schema.columns) {
+      const isEmpty = record.getCellValueAsString(field) === '' && field.type !== FieldType.CHECKBOX
       const aitoValue = conversion.toAitoValue(field, record)
-      if (aitoValue === null || aitoValue === undefined || aitoValue === '') {
+      if (aitoValue === null || aitoValue === undefined || isEmpty) {
         return acc
       } else {
         return {
