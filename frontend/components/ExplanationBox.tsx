@@ -131,34 +131,46 @@ const ExplanationBox: React.FC<{
           ? '-6px'
           : '0'
 
+      const fieldHeader = (
+        <Text textColor="white">
+          <b>{fieldName}</b>
+        </Text>
+      )
+
       const isPropositions = propositions.filter(isIsProposition).map(({ $is }) => (
         <Box flexGrow={1} flexShrink={0}>
-          <Text textColor="white">
-            <b>{fieldName}</b>
-          </Text>
+          {fieldHeader}
           <CellRenderer style={{ margin: negativeMargin }} field={field} cellValue={convert($is)} />
         </Box>
       ))
 
       const hasInputs = propositions.filter(isHasProposition)
 
-      let hasPropositions: React.ReactNode[] = []
+      let hasPropositions: React.ReactNode = null
       if (hasInputs.length === 1) {
-        hasPropositions = [
-          <Box flexGrow={1} flexShrink={0}>
-            <Text textColor="white">
-              <b>{fieldName}</b>
-            </Text>
-            <CellRenderer style={{ margin: negativeMargin }} field={field} cellValue={convert(hasInputs[0].$has)} />
-          </Box>,
-        ]
+        const cellValue = convert(hasInputs[0].$has)
+        if (field.type === FieldType.CHECKBOX && cellValue === false) {
+          hasPropositions = (
+            <Box flexGrow={1} flexShrink={0}>
+              {fieldHeader}
+              <Text textColor="white" lineHeight={1.5}>
+                <i>unchecked</i>
+              </Text>
+            </Box>
+          )
+        } else {
+          hasPropositions = (
+            <Box flexGrow={1} flexShrink={0}>
+              {fieldHeader}
+              <CellRenderer style={{ margin: negativeMargin }} field={field} cellValue={cellValue} />
+            </Box>
+          )
+        }
       } else if (hasInputs.length > 0) {
         // A text field of some kind
-        hasPropositions = [
+        hasPropositions = (
           <Box flexGrow={1} flexShrink={0} flexBasis="auto" maxWidth="100%">
-            <Text textColor="white">
-              <b>{fieldName}</b>
-            </Text>
+            {fieldHeader}
             <Text textColor="white" margin={0}>
               <CellRenderer
                 style={{ margin: negativeMargin }}
@@ -166,20 +178,18 @@ const ExplanationBox: React.FC<{
                 cellValue={hasInputs.map((v) => v.$has).join(', ')}
               />
             </Text>
-          </Box>,
-        ]
+          </Box>
+        )
       }
 
       const numericPropositions = propositions.filter(isNumericProposition).map(({ $numeric }) => (
         <Box flexGrow={1} flexShrink={0} flexBasis="auto">
-          <Text textColor="white">
-            <b>{fieldName}</b>
-          </Text>
+          {fieldHeader}
           <CellRenderer style={{ margin: negativeMargin }} field={field} cellValue={convert($numeric)} />
         </Box>
       ))
 
-      return [...acc, ...isPropositions, ...hasPropositions, ...numericPropositions]
+      return [...acc, ...isPropositions, hasPropositions, ...numericPropositions]
     }, [] as React.ReactNode[])
 
     return (
