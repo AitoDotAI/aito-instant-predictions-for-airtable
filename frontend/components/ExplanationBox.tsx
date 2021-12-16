@@ -16,12 +16,6 @@ import {
 } from '../explanations'
 import { TableColumnMap } from '../schema/config'
 
-const AlignedText: React.FC<AllStylesProps> = ({ children, ...props }) => (
-  <Text style={{ verticalAlign: 'top' }} alignSelf="start" textColor="white" {...props}>
-    {children}
-  </Text>
-)
-
 const defaultMessage = (
   <Box marginBottom={1}>
     This is the expected rate at which you see this in a cell. No strong field correlations were found.
@@ -66,28 +60,28 @@ const ExplanationBox: React.FC<{
     let arrows: React.ReactNode[] = []
     const green = colorUtils.getHexForColor(colors.GREEN_DARK_1)
     const red = colorUtils.getHexForColor(colors.RED_DARK_1)
-    const up = (
-      <Box display="inline-block">
+    const up = (key: number) => (
+      <Box display="inline-block" key={key}>
         <Icon fillColor={green} name="up" size={13} marginX="-2.5px" marginTop="1px" />
       </Box>
     )
-    const down = (
-      <Box display="inline-block">
+    const down = (key: number) => (
+      <Box display="inline-block" key={key}>
         <Icon fillColor={red} name="down" size={13} marginX="-2.5px" marginTop="4px" />
       </Box>
     )
     if (score < -2.0) {
-      arrows = [down, down, down]
+      arrows = [down(0), down(1), down(2)]
     } else if (score < -0.5) {
-      arrows = [down, down]
+      arrows = [down(0), down(1)]
     } else if (score < 0.0) {
-      arrows = [down]
+      arrows = [down(0)]
     } else if (score <= 0.5) {
-      arrows = [up]
+      arrows = [up(0)]
     } else if (score <= 2.0) {
-      arrows = [up, up]
+      arrows = [up(0), up(1)]
     } else {
-      arrows = [up, up, up]
+      arrows = [up(0), up(1), up(2)]
     }
 
     type GroupedProposition = globalThis.Record<string, SimpleProposition[]>
@@ -215,7 +209,10 @@ const ExplanationBox: React.FC<{
 
     return (
       <Box key={i} display="flex" flexWrap="nowrap" marginBottom={1}>
-        <AlignedText
+        <Box
+          style={{ verticalAlign: 'top' }}
+          alignSelf="start"
+          textColor="white"
           marginTop={i > 0 ? '1px' : undefined}
           flexGrow={0}
           flexShrink={0}
@@ -225,7 +222,7 @@ const ExplanationBox: React.FC<{
           paddingRight={1}
         >
           {arrows}
-        </AlignedText>
+        </Box>
         <Box
           display="flex"
           flexDirection="row"
