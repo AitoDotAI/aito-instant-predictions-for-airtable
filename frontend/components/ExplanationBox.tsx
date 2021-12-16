@@ -139,7 +139,7 @@ const ExplanationBox: React.FC<{
       const isPropositions = propositions.filter(isIsProposition).map(({ $is }) => (
         <Box flexGrow={1} flexShrink={0}>
           {fieldHeader}
-          <CellRenderer style={{ margin: negativeMargin }} field={field} cellValue={convert($is)} />
+          <CellRenderer style={{ margin: negativeMargin, color: 'white' }} field={field} cellValue={convert($is)} />
         </Box>
       ))
 
@@ -166,25 +166,47 @@ const ExplanationBox: React.FC<{
           )
         }
       } else if (hasInputs.length > 0) {
-        // A text field of some kind
-        hasPropositions = (
-          <Box flexGrow={1} flexShrink={0} flexBasis="auto" maxWidth="100%">
-            {fieldHeader}
-            <Text textColor="white" margin={0}>
-              <CellRenderer
-                style={{ margin: negativeMargin }}
-                field={field}
-                cellValue={hasInputs.map((v) => v.$has).join(', ')}
-              />
-            </Text>
-          </Box>
-        )
+        if (field.type == FieldType.MULTIPLE_SELECTS) {
+          hasPropositions = (
+            <Box flexGrow={1} flexShrink={0} flexBasis="auto" maxWidth="100%">
+              {fieldHeader}
+                <CellRenderer
+                  style={{ margin: negativeMargin, color: 'white' }}
+                  field={field}
+                  cellValue={hasInputs.map((v) => ({ name: v.$has }))}
+                />
+            </Box>
+          )
+        } else if (field.type === FieldType.MULTIPLE_COLLABORATORS) {
+          hasPropositions = (
+            <Box flexGrow={1} flexShrink={0} flexBasis="auto" maxWidth="100%">
+              {fieldHeader}
+                <CellRenderer
+                  style={{ margin: negativeMargin, color: 'white' }}
+                  field={field}
+                  cellValue={hasInputs.map((v) => ({ id: v.$has }))}
+                />
+            </Box>
+          )
+        } else {
+          // A text field of some kind
+          hasPropositions = (
+            <Box flexGrow={1} flexShrink={0} flexBasis="auto" maxWidth="100%">
+              {fieldHeader}
+                <CellRenderer
+                  style={{ margin: negativeMargin, color: 'white' }}
+                  field={field}
+                  cellValue={hasInputs.map((v) => v.$has).join(', ')}
+                />
+            </Box>
+          )
+        }
       }
 
       const numericPropositions = propositions.filter(isNumericProposition).map(({ $numeric }) => (
         <Box flexGrow={1} flexShrink={0} flexBasis="auto">
           {fieldHeader}
-          <CellRenderer style={{ margin: negativeMargin }} field={field} cellValue={convert($numeric)} />
+          <CellRenderer style={{ margin: negativeMargin, color: 'white' }} field={field} cellValue={convert($numeric)} />
         </Box>
       ))
 
