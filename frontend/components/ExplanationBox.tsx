@@ -165,22 +165,22 @@ const ExplanationBox: React.FC<{
           hasPropositions = (
             <Box flexGrow={1} flexShrink={0} flexBasis="auto" maxWidth="100%" key={`${propId}-has-0`}>
               {fieldHeader}
-                <CellRenderer
-                  style={{ margin: negativeMargin, color: 'white' }}
-                  field={field}
-                  cellValue={hasInputs.map((v) => ({ name: v.$has }))}
-                />
+              <CellRenderer
+                style={{ margin: negativeMargin, color: 'white' }}
+                field={field}
+                cellValue={hasInputs.map((v) => ({ name: v.$has }))}
+              />
             </Box>
           )
         } else if (field.type === FieldType.MULTIPLE_COLLABORATORS) {
           hasPropositions = (
             <Box flexGrow={1} flexShrink={0} flexBasis="auto" maxWidth="100%" key={`${propId}-has-0`}>
               {fieldHeader}
-                <CellRenderer
-                  style={{ margin: negativeMargin, color: 'white' }}
-                  field={field}
-                  cellValue={hasInputs.map((v) => ({ id: v.$has }))}
-                />
+              <CellRenderer
+                style={{ margin: negativeMargin, color: 'white' }}
+                field={field}
+                cellValue={hasInputs.map((v) => ({ id: v.$has }))}
+              />
             </Box>
           )
         } else {
@@ -188,11 +188,11 @@ const ExplanationBox: React.FC<{
           hasPropositions = (
             <Box flexGrow={1} flexShrink={0} flexBasis="auto" maxWidth="100%" key={`${propId}-has-0`}>
               {fieldHeader}
-                <CellRenderer
-                  style={{ margin: negativeMargin, color: 'white' }}
-                  field={field}
-                  cellValue={hasInputs.map((v) => v.$has).join(', ')}
-                />
+              <CellRenderer
+                style={{ margin: negativeMargin, color: 'white' }}
+                field={field}
+                cellValue={hasInputs.map((v) => v.$has).join(', ')}
+              />
             </Box>
           )
         }
@@ -201,7 +201,11 @@ const ExplanationBox: React.FC<{
       const numericPropositions = propositions.filter(isNumericProposition).map(({ $numeric }, i) => (
         <Box flexGrow={1} flexShrink={0} flexBasis="auto" key={`${propId}-num-${i}`}>
           {fieldHeader}
-          <CellRenderer style={{ margin: negativeMargin, color: 'white' }} field={field} cellValue={convert($numeric)} />
+          <CellRenderer
+            style={{ margin: negativeMargin, color: 'white' }}
+            field={field}
+            cellValue={convert($numeric)}
+          />
         </Box>
       ))
 
