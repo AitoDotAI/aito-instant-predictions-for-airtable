@@ -109,7 +109,7 @@ const PredictView: React.FC<{
   const canUpdate = table.checkPermissionsForUpdateRecords(cursor.selectedRecordIds.map((id) => ({ id })))
 
   const setCellValue = async (record: Record, field: Field, value: unknown): Promise<void> => {
-    if (canUpdate) {
+    if (canUpdate.hasPermission) {
       await table.updateRecordAsync(record, { [field.id]: value })
     }
   }
@@ -392,7 +392,23 @@ const isMultipleSelectField = (field: Field): boolean =>
     FieldType.MULTILINE_TEXT,
   ].includes(field.type)
 
-const renderCellDefault = (cellValue: unknown): React.ReactElement => <>{String(cellValue)}</>
+const renderCellDefault =
+  (field: Field) =>
+  (cellValue: unknown): React.ReactElement => {
+    if (field.type === FieldType.SINGLE_COLLABORATOR || field.type === FieldType.MULTIPLE_COLLABORATORS) {
+      return <i>Unknown collaborator</i>
+    }
+    let value: string = String(cellValue)
+    try {
+      const af = AcceptedFields[field.type]
+      if (af) {
+        value = af.cellValueToText(cellValue, field)
+      }
+    } catch {
+      // Ignore
+    }
+    return <i>{value}</i>
+  }
 
 const makeWhereClause = (selectedField: Field, fields: Field[], schema: TableSchema, record: Record) => {
   const fieldIdToName = mapColumnNames(fields)
@@ -414,6 +430,36 @@ const makeWhereClause = (selectedField: Field, fields: Field[], schema: TableSch
       return acc
     }
   }, {})
+}
+
+const whyIsFieldChoiceNotAllowed = (field: Field, choice: string): string | undefined => {
+  const config = field.config
+  if (config.type === FieldType.SINGLE_SELECT || config.type === FieldType.MULTIPLE_SELECTS) {
+    const fieldExists = Boolean(config.options.choices.find(({ name }) => name === choice))
+    if (fieldExists) {
+      return undefined
+    }
+    const permission = field.checkPermissionsForUpdateOptions({
+      choices: [...config.options.choices, { name: choice }],
+    })
+    return permission.hasPermission ? undefined : permission.reasonDisplayString
+  } else if (config.type === FieldType.SINGLE_COLLABORATOR || config.type === FieldType.MULTIPLE_COLLABORATORS) {
+    const collaboratorExists = Boolean(config.options.choices.find(({ id }) => id === choice))
+    if (!collaboratorExists) {
+      return 'This collaborator no longer has access to this base'
+    }
+  }
+}
+
+const addFieldChoice = async (field: Field, name: string): Promise<void> => {
+  const config = field.config
+  if (config.type === FieldType.SINGLE_SELECT || config.type === FieldType.MULTIPLE_SELECTS) {
+    if (!config.options.choices.find((choice) => choice.name === name)) {
+      await field.updateOptionsAsync({
+        choices: [...config.options.choices, { name }],
+      })
+    }
+  }
 }
 
 const FieldPrediction: React.FC<{
@@ -586,11 +632,11 @@ const FieldPrediction: React.FC<{
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  type ConfirmParameters = [unknown, unknown]
+  type ConfirmParameters = [unknown, unknown, string]
   const [confirmation, setConfirmation] = useState<ConfirmParameters | undefined>()
 
   const onClick = useCallback(
-    (feature: unknown) => {
+    async (feature: unknown) => {
       const value = record.getCellValue(selectedField.id)
       const valueString = record.getCellValueAsString(selectedField.id)
 
@@ -612,17 +658,19 @@ const FieldPrediction: React.FC<{
               value.filter((v) => !predicate(v)),
             )
           } else {
-            // Remove it
             // Add it
+            await addFieldChoice(selectedField, String(feature))
             setCellValue(record, selectedField, [...value, ...(convertedValue as HasNameOrId[])])
           }
         } else if (value === null || (Array.isArray(value) && value.length === 0)) {
+          await addFieldChoice(selectedField, String(feature))
           setCellValue(record, selectedField, convertedValue)
         }
       } else if (_.isEmpty(valueString)) {
+        await addFieldChoice(selectedField, String(feature))
         setCellValue(record, selectedField, convertedValue)
       } else {
-        setConfirmation([convertedValue, value])
+        setConfirmation([convertedValue, value, String(feature)])
       }
     },
     [record, selectedField, setCellValue, setConfirmation],
@@ -632,10 +680,11 @@ const FieldPrediction: React.FC<{
     setConfirmation(undefined)
   }, [setConfirmation])
 
-  const confirm = useCallback(() => {
+  const confirm = useCallback(async () => {
     if (confirmation) {
       if (!isMultipleSelectField(selectedField)) {
         // We shouldn't end up here for multiple selection predictions
+        await addFieldChoice(selectedField, confirmation[2])
         setCellValue(record, selectedField, confirmation[0])
       }
       setConfirmation(undefined)
@@ -654,13 +703,13 @@ const FieldPrediction: React.FC<{
               <CellRenderer
                 field={selectedField}
                 cellValue={confirmation[1]}
-                renderInvalidCellValue={renderCellDefault}
+                renderInvalidCellValue={renderCellDefault(selectedField)}
               />
               <Label>Replace with</Label>
               <CellRenderer
                 field={selectedField}
                 cellValue={confirmation[0]}
-                renderInvalidCellValue={renderCellDefault}
+                renderInvalidCellValue={renderCellDefault(selectedField)}
               />
             </>
           }
@@ -744,6 +793,7 @@ const FieldPrediction: React.FC<{
             const hitsBoxHeight = 16 + 49.5 * hitCount
             const beforeFraction = (16 + 49.5 * i) / hitsBoxHeight
             const afterFraction = (hitsBoxHeight - (i + 1) * 49.5) / hitsBoxHeight
+            const disallowedReason = whyIsFieldChoiceNotAllowed(selectedField, String(feature))
 
             return (
               <Row key={i} highlight={hasFeature(record, selectedField, feature)}>
@@ -755,7 +805,7 @@ const FieldPrediction: React.FC<{
                       alignSelf="center"
                       field={selectedField}
                       cellValue={value}
-                      renderInvalidCellValue={renderCellDefault}
+                      renderInvalidCellValue={renderCellDefault(selectedField)}
                       cellStyle={{ margin: 0 }}
                     />
                   </Box>
@@ -807,29 +857,33 @@ const FieldPrediction: React.FC<{
                 </Cell>
                 <Cell width="62px" flexGrow={0}>
                   <Box display="flex" height="100%" justifyContent="right">
-                    {isMultipleSelectField(selectedField) ? (
-                      <Button
-                        marginX={2}
-                        icon={hasFeature(record, selectedField, feature) ? 'minus' : 'plus'}
-                        onClick={() => onClick(feature)}
-                        size="small"
-                        alignSelf="center"
-                        disabled={!canUpdate}
-                        aria-label="Toggle feature"
-                        variant={hasFeature(record, selectedField, feature) ? 'danger' : 'primary'}
-                      />
-                    ) : (
-                      <Button
-                        onClick={() => onClick(feature)}
-                        size="small"
-                        alignSelf="center"
-                        variant="default"
-                        disabled={!canUpdate || hasFeature(record, selectedField, feature)}
-                        marginX={2}
-                      >
-                        Use
-                      </Button>
-                    )}
+                    <Tooltip disabled={!disallowedReason} content={disallowedReason || ''}>
+                      {isMultipleSelectField(selectedField) ? (
+                        <Button
+                          marginX={2}
+                          icon={hasFeature(record, selectedField, feature) ? 'minus' : 'plus'}
+                          onClick={() => onClick(feature)}
+                          size="small"
+                          alignSelf="center"
+                          disabled={!canUpdate || Boolean(disallowedReason)}
+                          aria-label="Toggle feature"
+                          variant={hasFeature(record, selectedField, feature) ? 'danger' : 'primary'}
+                        />
+                      ) : (
+                        <Button
+                          onClick={() => onClick(feature)}
+                          size="small"
+                          alignSelf="center"
+                          variant="default"
+                          disabled={
+                            !canUpdate || hasFeature(record, selectedField, feature) || Boolean(disallowedReason)
+                          }
+                          marginX={2}
+                        >
+                          Use
+                        </Button>
+                      )}
+                    </Tooltip>
                   </Box>
                 </Cell>
               </Row>
