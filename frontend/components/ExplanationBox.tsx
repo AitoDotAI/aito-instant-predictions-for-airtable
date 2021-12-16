@@ -96,6 +96,7 @@ const ExplanationBox: React.FC<{
       const field = fields.find((f) => f.id === fieldId)
       const fieldName = field?.name || columnName
       let convert = (e: any): any => e
+      const propId = acc.length
 
       if (!field) {
         return acc
@@ -130,8 +131,8 @@ const ExplanationBox: React.FC<{
         </Text>
       )
 
-      const isPropositions = propositions.filter(isIsProposition).map(({ $is }) => (
-        <Box flexGrow={1} flexShrink={0}>
+      const isPropositions = propositions.filter(isIsProposition).map(({ $is }, i) => (
+        <Box flexGrow={1} flexShrink={0} key={`${propId}-is-${i}`}>
           {fieldHeader}
           <CellRenderer style={{ margin: negativeMargin, color: 'white' }} field={field} cellValue={convert($is)} />
         </Box>
@@ -144,7 +145,7 @@ const ExplanationBox: React.FC<{
         const cellValue = convert(hasInputs[0].$has)
         if (field.type === FieldType.CHECKBOX && cellValue === false) {
           hasPropositions = (
-            <Box flexGrow={1} flexShrink={0}>
+            <Box flexGrow={1} flexShrink={0} key={`${propId}-has-0`}>
               {fieldHeader}
               <Text textColor="white" lineHeight={1.5}>
                 <i>unchecked</i>
@@ -153,7 +154,7 @@ const ExplanationBox: React.FC<{
           )
         } else {
           hasPropositions = (
-            <Box flexGrow={1} flexShrink={0}>
+            <Box flexGrow={1} flexShrink={0} key={`${propId}-has-0`}>
               {fieldHeader}
               <CellRenderer style={{ margin: negativeMargin }} field={field} cellValue={cellValue} />
             </Box>
@@ -162,7 +163,7 @@ const ExplanationBox: React.FC<{
       } else if (hasInputs.length > 0) {
         if (field.type == FieldType.MULTIPLE_SELECTS) {
           hasPropositions = (
-            <Box flexGrow={1} flexShrink={0} flexBasis="auto" maxWidth="100%">
+            <Box flexGrow={1} flexShrink={0} flexBasis="auto" maxWidth="100%" key={`${propId}-has-0`}>
               {fieldHeader}
                 <CellRenderer
                   style={{ margin: negativeMargin, color: 'white' }}
@@ -173,7 +174,7 @@ const ExplanationBox: React.FC<{
           )
         } else if (field.type === FieldType.MULTIPLE_COLLABORATORS) {
           hasPropositions = (
-            <Box flexGrow={1} flexShrink={0} flexBasis="auto" maxWidth="100%">
+            <Box flexGrow={1} flexShrink={0} flexBasis="auto" maxWidth="100%" key={`${propId}-has-0`}>
               {fieldHeader}
                 <CellRenderer
                   style={{ margin: negativeMargin, color: 'white' }}
@@ -185,7 +186,7 @@ const ExplanationBox: React.FC<{
         } else {
           // A text field of some kind
           hasPropositions = (
-            <Box flexGrow={1} flexShrink={0} flexBasis="auto" maxWidth="100%">
+            <Box flexGrow={1} flexShrink={0} flexBasis="auto" maxWidth="100%" key={`${propId}-has-0`}>
               {fieldHeader}
                 <CellRenderer
                   style={{ margin: negativeMargin, color: 'white' }}
@@ -197,8 +198,8 @@ const ExplanationBox: React.FC<{
         }
       }
 
-      const numericPropositions = propositions.filter(isNumericProposition).map(({ $numeric }) => (
-        <Box flexGrow={1} flexShrink={0} flexBasis="auto">
+      const numericPropositions = propositions.filter(isNumericProposition).map(({ $numeric }, i) => (
+        <Box flexGrow={1} flexShrink={0} flexBasis="auto" key={`${propId}-num-${i}`}>
           {fieldHeader}
           <CellRenderer style={{ margin: negativeMargin, color: 'white' }} field={field} cellValue={convert($numeric)} />
         </Box>
