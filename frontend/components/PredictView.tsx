@@ -32,6 +32,7 @@ import QueryQuotaExceeded from './QueryQuotaExceeded'
 import { Why } from '../explanations'
 import ExplanationBox, { DefaultExplanationBox } from './ExplanationBox'
 import styled from 'styled-components'
+import { PermissionCheckResult } from '@airtable/blocks/dist/types/src/types/mutations'
 
 const PARALLEL_REQUESTS = 10
 const REQUEST_TIME = 750
@@ -241,7 +242,7 @@ const PredictView: React.FC<{
           recordsQuery={recordsQuery}
           schema={schema}
           setCellValue={setCellValue}
-          canUpdate={canUpdate.hasPermission}
+          canUpdate={canUpdate}
           autoFill={autoFill && canUpdate.hasPermission}
         />
       ))}
@@ -304,7 +305,7 @@ const RecordPrediction: React.FC<{
   schema: TableSchema
   setCellValue: (record: Record, field: Field, value: unknown) => Promise<unknown>
   autoFill: boolean
-  canUpdate: boolean
+  canUpdate: PermissionCheckResult
 }> = ({
   offset,
   recordId,
@@ -472,7 +473,7 @@ const FieldPrediction: React.FC<{
   aitoTableName: string
   setCellValue: (record: Record, field: Field, value: unknown) => Promise<unknown>
   autoFill: boolean
-  canUpdate: boolean
+  canUpdate: PermissionCheckResult
 }> = ({
   selectedField,
   fields,
@@ -488,7 +489,8 @@ const FieldPrediction: React.FC<{
   const delayedRequest = useRef<ReturnType<typeof setTimeout> | undefined>()
 
   const isTextField = [FieldType.RICH_TEXT, FieldType.MULTILINE_TEXT].includes(selectedField.type)
-  const canUpdate = hasPermissionToUpdate && !selectedField.isComputed && !isTextField
+  const canUpdate = hasPermissionToUpdate.hasPermission && !selectedField.isComputed && !isTextField
+  const cantUpdateReason =hasPermissionToUpdate.hasPermission ? undefined : hasPermissionToUpdate.reasonDisplayString
 
   useEffect(() => {
     // This is run once when the element is unmounted
@@ -857,7 +859,7 @@ const FieldPrediction: React.FC<{
                 </Cell>
                 <Cell width="62px" flexGrow={0}>
                   <Box display="flex" height="100%" justifyContent="right">
-                    <Tooltip disabled={!disallowedReason} content={disallowedReason || ''}>
+                    <Tooltip disabled={!disallowedReason && canUpdate} content={cantUpdateReason || disallowedReason || ''}>
                       {isMultipleSelectField(selectedField) ? (
                         <Button
                           marginX={2}
