@@ -245,7 +245,14 @@ const singleSelect: SupportedField = {
   toAitoAnalyzer: () => undefined,
   toCellValue: (name) => ({ name }),
   toTextValue: (v) => String(v),
-  cellValueToText: (v) => String(v),
+  cellValueToText: (v) => {
+    const obj = v as any
+    if ('name' in obj && obj.name) {
+      return String(obj.name)
+    } else {
+      return String(v)
+    }
+  },
   toAitoQuery: (_f, v) => v,
   hasFeature: (cell: unknown, feature: unknown): boolean =>
     hasName(cell) && hasName(feature) && cell.name === feature.name,
