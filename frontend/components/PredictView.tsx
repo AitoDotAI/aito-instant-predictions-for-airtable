@@ -696,7 +696,7 @@ const FieldPrediction: React.FC<{
         } else if (value === null || (Array.isArray(value) && value.length === 0)) {
           setCellValue(record, selectedField, convertedValue)
         }
-      } else if (_.isEmpty(valueString)) {
+      } else if (_.isEmpty(valueString) || confirm === 'replace') {
         setCellValue(record, selectedField, convertedValue)
       } else {
         setConfirmation({
