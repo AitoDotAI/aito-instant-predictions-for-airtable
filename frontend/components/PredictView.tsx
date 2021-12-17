@@ -663,6 +663,7 @@ const FieldPrediction: React.FC<{
           try {
             await addFieldChoice(selectedField, String(feature))
           } catch (e) {
+            setConfirmation(undefined)
             return
           }
         }
@@ -704,7 +705,9 @@ const FieldPrediction: React.FC<{
           newValue: convertedValue,
           oldValue: value,
         })
+        return
       }
+      setConfirmation(undefined)
     },
     [record, selectedField, setCellValue, setConfirmation],
   )
@@ -715,12 +718,19 @@ const FieldPrediction: React.FC<{
     setConfirmation(undefined)
   }, [setConfirmation])
 
+  const [isUpdatingField, setUpdatingField] = useState(false)
+
   const confirm = useCallback(async () => {
     if (confirmation) {
-      setConfirmation(undefined)
-      await updateField(confirmation.feature, confirmation.confirm)
+      setUpdatingField(true)
+      try {
+        await updateField(confirmation.feature, confirmation.confirm)
+      } catch (e) {
+        // It's fine, we probably want to remove the confirmation dialog
+      }
+      setUpdatingField(false)
     }
-  }, [confirmation, setConfirmation, updateField])
+  }, [confirmation, setConfirmation, updateField, isUpdatingField, setUpdatingField])
 
   const renderFallback = useMemo(() => renderCellDefault(selectedField), [selectedField])
 
@@ -728,6 +738,8 @@ const FieldPrediction: React.FC<{
     <Box paddingBottom={3} position="relative">
       {canUpdate && confirmation && (
         <ConfirmationDialog
+          isCancelButtonDisabled={isUpdatingField}
+          isConfirmButtonDisabled={isUpdatingField}
           title={confirmation.confirm === 'replace' ? 'Replace cell' : 'Update field'}
           body={
             <>
