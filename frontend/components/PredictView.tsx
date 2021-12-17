@@ -452,6 +452,14 @@ const whyIsFieldChoiceNotAllowed = (field: Field, choice: string): string | unde
   }
 }
 
+const fieldChoiceExists = (field: Field, name: string): Boolean => {
+  const config = field.config
+  if (config.type === FieldType.SINGLE_SELECT || config.type === FieldType.MULTIPLE_SELECTS) {
+    return Boolean(config.options.choices.find((choice) => choice.name === name))
+  }
+  return false
+}
+
 const addFieldChoice = async (field: Field, name: string): Promise<void> => {
   const config = field.config
   if (config.type === FieldType.SINGLE_SELECT || config.type === FieldType.MULTIPLE_SELECTS) {
@@ -490,7 +498,7 @@ const FieldPrediction: React.FC<{
 
   const isTextField = [FieldType.RICH_TEXT, FieldType.MULTILINE_TEXT].includes(selectedField.type)
   const canUpdate = hasPermissionToUpdate.hasPermission && !selectedField.isComputed && !isTextField
-  const cantUpdateReason =hasPermissionToUpdate.hasPermission ? undefined : hasPermissionToUpdate.reasonDisplayString
+  const cantUpdateReason = hasPermissionToUpdate.hasPermission ? undefined : hasPermissionToUpdate.reasonDisplayString
 
   useEffect(() => {
     // This is run once when the element is unmounted
@@ -634,11 +642,32 @@ const FieldPrediction: React.FC<{
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  type ConfirmParameters = [unknown, unknown, string]
+  interface ConfirmParameters {
+    confirm: 'replace' | 'add-choice'
+    feature: unknown
+    oldValue?: unknown
+    newValue?: unknown
+  }
   const [confirmation, setConfirmation] = useState<ConfirmParameters | undefined>()
 
-  const onClick = useCallback(
-    async (feature: unknown) => {
+  const updateField = useCallback(
+    async (feature: unknown, confirm?: 'add-choice' | 'replace'): Promise<void> => {
+      if (!fieldChoiceExists(selectedField, String(feature))) {
+        if (confirm !== 'add-choice') {
+          setConfirmation({
+            confirm: 'add-choice',
+            feature: feature,
+          })
+          return
+        } else {
+          try {
+            await addFieldChoice(selectedField, String(feature))
+          } catch (e) {
+            return
+          }
+        }
+      }
+
       const value = record.getCellValue(selectedField.id)
       const valueString = record.getCellValueAsString(selectedField.id)
 
@@ -661,22 +690,26 @@ const FieldPrediction: React.FC<{
             )
           } else {
             // Add it
-            await addFieldChoice(selectedField, String(feature))
             setCellValue(record, selectedField, [...value, ...(convertedValue as HasNameOrId[])])
           }
         } else if (value === null || (Array.isArray(value) && value.length === 0)) {
-          await addFieldChoice(selectedField, String(feature))
           setCellValue(record, selectedField, convertedValue)
         }
       } else if (_.isEmpty(valueString)) {
-        await addFieldChoice(selectedField, String(feature))
         setCellValue(record, selectedField, convertedValue)
       } else {
-        setConfirmation([convertedValue, value, String(feature)])
+        setConfirmation({
+          confirm: 'replace',
+          feature,
+          newValue: convertedValue,
+          oldValue: value,
+        })
       }
     },
     [record, selectedField, setCellValue, setConfirmation],
   )
+
+  const onClick = useCallback((feature: unknown): Promise<void> => updateField(feature), [updateField])
 
   const reject = useCallback(() => {
     setConfirmation(undefined)
@@ -684,38 +717,49 @@ const FieldPrediction: React.FC<{
 
   const confirm = useCallback(async () => {
     if (confirmation) {
-      if (!isMultipleSelectField(selectedField)) {
-        // We shouldn't end up here for multiple selection predictions
-        await addFieldChoice(selectedField, confirmation[2])
-        setCellValue(record, selectedField, confirmation[0])
-      }
       setConfirmation(undefined)
+      await updateField(confirmation.feature, confirmation.confirm)
     }
-  }, [record, selectedField, confirmation, setConfirmation, setCellValue])
+  }, [confirmation, setConfirmation, updateField])
+
+  const renderFallback = useMemo(() => renderCellDefault(selectedField), [selectedField])
 
   return (
     <Box paddingBottom={3} position="relative">
       {canUpdate && confirmation && (
         <ConfirmationDialog
-          title="Replace cell"
+          title={confirmation.confirm === 'replace' ? 'Replace cell' : 'Update field'}
           body={
             <>
-              <Text marginBottom={3}>Do you want to replace the cell contents?</Text>
-              <Label>Current value</Label>
-              <CellRenderer
-                field={selectedField}
-                cellValue={confirmation[1]}
-                renderInvalidCellValue={renderCellDefault(selectedField)}
-              />
-              <Label>Replace with</Label>
-              <CellRenderer
-                field={selectedField}
-                cellValue={confirmation[0]}
-                renderInvalidCellValue={renderCellDefault(selectedField)}
-              />
+              {confirmation.confirm === 'add-choice' && (
+                <>
+                  <Text variant="paragraph">
+                    <i>{selectedField.name}</i> has been changed since training data was uploaded and it no longer
+                    includes {renderFallback(confirmation.feature)} among its options. Do you want to update the field
+                    and make it an option again?
+                  </Text>
+                </>
+              )}
+              {confirmation.confirm === 'replace' && (
+                <>
+                  <Text variant="paragraph">Do you want to replace the cell contents?</Text>
+                  <Label marginTop={3}>Current value</Label>
+                  <CellRenderer
+                    field={selectedField}
+                    cellValue={confirmation.oldValue}
+                    renderInvalidCellValue={renderFallback}
+                  />
+                  <Label>Replace with</Label>
+                  <CellRenderer
+                    field={selectedField}
+                    cellValue={confirmation.newValue}
+                    renderInvalidCellValue={renderFallback}
+                  />
+                </>
+              )}
             </>
           }
-          confirmButtonText="Replace"
+          confirmButtonText={confirmation.confirm === 'replace' ? 'Replace' : 'Add option'}
           onConfirm={confirm}
           onCancel={reject}
         />
@@ -807,7 +851,7 @@ const FieldPrediction: React.FC<{
                       alignSelf="center"
                       field={selectedField}
                       cellValue={value}
-                      renderInvalidCellValue={renderCellDefault(selectedField)}
+                      renderInvalidCellValue={renderFallback}
                       cellStyle={{ margin: 0 }}
                     />
                   </Box>
@@ -859,7 +903,10 @@ const FieldPrediction: React.FC<{
                 </Cell>
                 <Cell width="62px" flexGrow={0}>
                   <Box display="flex" height="100%" justifyContent="right">
-                    <Tooltip disabled={!disallowedReason && canUpdate} content={cantUpdateReason || disallowedReason || ''}>
+                    <Tooltip
+                      disabled={!disallowedReason && canUpdate}
+                      content={cantUpdateReason || disallowedReason || ''}
+                    >
                       {isMultipleSelectField(selectedField) ? (
                         <Button
                           marginX={2}
