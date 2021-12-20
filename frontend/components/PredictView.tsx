@@ -32,6 +32,7 @@ import QueryQuotaExceeded from './QueryQuotaExceeded'
 import { Why } from '../explanations'
 import ExplanationBox, { DefaultExplanationBox } from './ExplanationBox'
 import styled from 'styled-components'
+import { PermissionCheckResult } from '@airtable/blocks/dist/types/src/types/mutations'
 
 const PARALLEL_REQUESTS = 10
 const REQUEST_TIME = 750
@@ -109,7 +110,7 @@ const PredictView: React.FC<{
   const canUpdate = table.checkPermissionsForUpdateRecords(cursor.selectedRecordIds.map((id) => ({ id })))
 
   const setCellValue = async (record: Record, field: Field, value: unknown): Promise<void> => {
-    if (canUpdate) {
+    if (canUpdate.hasPermission) {
       await table.updateRecordAsync(record, { [field.id]: value })
     }
   }
@@ -241,7 +242,7 @@ const PredictView: React.FC<{
           recordsQuery={recordsQuery}
           schema={schema}
           setCellValue={setCellValue}
-          canUpdate={canUpdate.hasPermission}
+          canUpdate={canUpdate}
           autoFill={autoFill && canUpdate.hasPermission}
         />
       ))}
@@ -304,7 +305,7 @@ const RecordPrediction: React.FC<{
   schema: TableSchema
   setCellValue: (record: Record, field: Field, value: unknown) => Promise<unknown>
   autoFill: boolean
-  canUpdate: boolean
+  canUpdate: PermissionCheckResult
 }> = ({
   offset,
   recordId,
@@ -392,7 +393,23 @@ const isMultipleSelectField = (field: Field): boolean =>
     FieldType.MULTILINE_TEXT,
   ].includes(field.type)
 
-const renderCellDefault = (cellValue: unknown): React.ReactElement => <>{String(cellValue)}</>
+const renderCellDefault =
+  (field: Field) =>
+  (cellValue: unknown): React.ReactElement => {
+    if (field.type === FieldType.SINGLE_COLLABORATOR || field.type === FieldType.MULTIPLE_COLLABORATORS) {
+      return <i>Unknown collaborator</i>
+    }
+    let value: string = String(cellValue)
+    try {
+      const af = AcceptedFields[field.type]
+      if (af) {
+        value = af.cellValueToText(cellValue, field)
+      }
+    } catch {
+      // Ignore
+    }
+    return <i>{value}</i>
+  }
 
 const makeWhereClause = (selectedField: Field, fields: Field[], schema: TableSchema, record: Record) => {
   const fieldIdToName = mapColumnNames(fields)
@@ -416,6 +433,44 @@ const makeWhereClause = (selectedField: Field, fields: Field[], schema: TableSch
   }, {})
 }
 
+const whyIsFieldChoiceNotAllowed = (field: Field, choice: string): string | undefined => {
+  const config = field.config
+  if (config.type === FieldType.SINGLE_SELECT || config.type === FieldType.MULTIPLE_SELECTS) {
+    const fieldExists = Boolean(config.options.choices.find(({ name }) => name === choice))
+    if (fieldExists) {
+      return undefined
+    }
+    const permission = field.checkPermissionsForUpdateOptions({
+      choices: [...config.options.choices, { name: choice }],
+    })
+    return permission.hasPermission ? undefined : permission.reasonDisplayString
+  } else if (config.type === FieldType.SINGLE_COLLABORATOR || config.type === FieldType.MULTIPLE_COLLABORATORS) {
+    const collaboratorExists = Boolean(config.options.choices.find(({ id }) => id === choice))
+    if (!collaboratorExists) {
+      return 'This collaborator no longer has access to this base'
+    }
+  }
+}
+
+const fieldChoiceExists = (field: Field, name: string): Boolean => {
+  const config = field.config
+  if (config.type === FieldType.SINGLE_SELECT || config.type === FieldType.MULTIPLE_SELECTS) {
+    return Boolean(config.options.choices.find((choice) => choice.name === name))
+  }
+  return false
+}
+
+const addFieldChoice = async (field: Field, name: string): Promise<void> => {
+  const config = field.config
+  if (config.type === FieldType.SINGLE_SELECT || config.type === FieldType.MULTIPLE_SELECTS) {
+    if (!config.options.choices.find((choice) => choice.name === name)) {
+      await field.updateOptionsAsync({
+        choices: [...config.options.choices, { name }],
+      })
+    }
+  }
+}
+
 const FieldPrediction: React.FC<{
   selectedField: Field
   record: Record
@@ -426,7 +481,7 @@ const FieldPrediction: React.FC<{
   aitoTableName: string
   setCellValue: (record: Record, field: Field, value: unknown) => Promise<unknown>
   autoFill: boolean
-  canUpdate: boolean
+  canUpdate: PermissionCheckResult
 }> = ({
   selectedField,
   fields,
@@ -442,7 +497,8 @@ const FieldPrediction: React.FC<{
   const delayedRequest = useRef<ReturnType<typeof setTimeout> | undefined>()
 
   const isTextField = [FieldType.RICH_TEXT, FieldType.MULTILINE_TEXT].includes(selectedField.type)
-  const canUpdate = hasPermissionToUpdate && !selectedField.isComputed && !isTextField
+  const canUpdate = hasPermissionToUpdate.hasPermission && !selectedField.isComputed && !isTextField
+  const cantUpdateReason = hasPermissionToUpdate.hasPermission ? undefined : hasPermissionToUpdate.reasonDisplayString
 
   useEffect(() => {
     // This is run once when the element is unmounted
@@ -586,11 +642,33 @@ const FieldPrediction: React.FC<{
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  type ConfirmParameters = [unknown, unknown]
+  interface ConfirmParameters {
+    confirm: 'replace' | 'add-choice'
+    feature: unknown
+    oldValue?: unknown
+    newValue?: unknown
+  }
   const [confirmation, setConfirmation] = useState<ConfirmParameters | undefined>()
 
-  const onClick = useCallback(
-    (feature: unknown) => {
+  const updateField = useCallback(
+    async (feature: unknown, confirm?: 'add-choice' | 'replace'): Promise<void> => {
+      if (!fieldChoiceExists(selectedField, String(feature))) {
+        if (confirm !== 'add-choice') {
+          setConfirmation({
+            confirm: 'add-choice',
+            feature: feature,
+          })
+          return
+        } else {
+          try {
+            await addFieldChoice(selectedField, String(feature))
+          } catch (e) {
+            setConfirmation(undefined)
+            return
+          }
+        }
+      }
+
       const value = record.getCellValue(selectedField.id)
       const valueString = record.getCellValueAsString(selectedField.id)
 
@@ -612,59 +690,88 @@ const FieldPrediction: React.FC<{
               value.filter((v) => !predicate(v)),
             )
           } else {
-            // Remove it
             // Add it
             setCellValue(record, selectedField, [...value, ...(convertedValue as HasNameOrId[])])
           }
         } else if (value === null || (Array.isArray(value) && value.length === 0)) {
           setCellValue(record, selectedField, convertedValue)
         }
-      } else if (_.isEmpty(valueString)) {
+      } else if (_.isEmpty(valueString) || confirm === 'replace') {
         setCellValue(record, selectedField, convertedValue)
       } else {
-        setConfirmation([convertedValue, value])
+        setConfirmation({
+          confirm: 'replace',
+          feature,
+          newValue: convertedValue,
+          oldValue: value,
+        })
+        return
       }
+      setConfirmation(undefined)
     },
     [record, selectedField, setCellValue, setConfirmation],
   )
+
+  const onClick = useCallback((feature: unknown): Promise<void> => updateField(feature), [updateField])
 
   const reject = useCallback(() => {
     setConfirmation(undefined)
   }, [setConfirmation])
 
-  const confirm = useCallback(() => {
+  const [isUpdatingField, setUpdatingField] = useState(false)
+
+  const confirm = useCallback(async () => {
     if (confirmation) {
-      if (!isMultipleSelectField(selectedField)) {
-        // We shouldn't end up here for multiple selection predictions
-        setCellValue(record, selectedField, confirmation[0])
+      setUpdatingField(true)
+      try {
+        await updateField(confirmation.feature, confirmation.confirm)
+      } catch (e) {
+        // It's fine, we probably want to remove the confirmation dialog
       }
-      setConfirmation(undefined)
+      setUpdatingField(false)
     }
-  }, [record, selectedField, confirmation, setConfirmation, setCellValue])
+  }, [confirmation, setConfirmation, updateField, isUpdatingField, setUpdatingField])
+
+  const renderFallback = useMemo(() => renderCellDefault(selectedField), [selectedField])
 
   return (
     <Box paddingBottom={3} position="relative">
       {canUpdate && confirmation && (
         <ConfirmationDialog
-          title="Replace cell"
+          isCancelButtonDisabled={isUpdatingField}
+          isConfirmButtonDisabled={isUpdatingField}
+          title={confirmation.confirm === 'replace' ? 'Replace cell' : 'Update field'}
           body={
             <>
-              <Text marginBottom={3}>Do you want to replace the cell contents?</Text>
-              <Label>Current value</Label>
-              <CellRenderer
-                field={selectedField}
-                cellValue={confirmation[1]}
-                renderInvalidCellValue={renderCellDefault}
-              />
-              <Label>Replace with</Label>
-              <CellRenderer
-                field={selectedField}
-                cellValue={confirmation[0]}
-                renderInvalidCellValue={renderCellDefault}
-              />
+              {confirmation.confirm === 'add-choice' && (
+                <>
+                  <Text variant="paragraph">
+                    <i>{selectedField.name}</i> has been changed since training data was uploaded and it no longer
+                    includes {renderFallback(confirmation.feature)} among its options. Do you want to update the field
+                    and make it an option again?
+                  </Text>
+                </>
+              )}
+              {confirmation.confirm === 'replace' && (
+                <>
+                  <Text variant="paragraph">Do you want to replace the cell contents?</Text>
+                  <Label marginTop={3}>Current value</Label>
+                  <CellRenderer
+                    field={selectedField}
+                    cellValue={confirmation.oldValue}
+                    renderInvalidCellValue={renderFallback}
+                  />
+                  <Label>Replace with</Label>
+                  <CellRenderer
+                    field={selectedField}
+                    cellValue={confirmation.newValue}
+                    renderInvalidCellValue={renderFallback}
+                  />
+                </>
+              )}
             </>
           }
-          confirmButtonText="Replace"
+          confirmButtonText={confirmation.confirm === 'replace' ? 'Replace' : 'Add option'}
           onConfirm={confirm}
           onCancel={reject}
         />
@@ -744,6 +851,7 @@ const FieldPrediction: React.FC<{
             const hitsBoxHeight = 16 + 49.5 * hitCount
             const beforeFraction = (16 + 49.5 * i) / hitsBoxHeight
             const afterFraction = (hitsBoxHeight - (i + 1) * 49.5) / hitsBoxHeight
+            const disallowedReason = whyIsFieldChoiceNotAllowed(selectedField, String(feature))
 
             return (
               <Row key={i} highlight={hasFeature(record, selectedField, feature)}>
@@ -755,7 +863,7 @@ const FieldPrediction: React.FC<{
                       alignSelf="center"
                       field={selectedField}
                       cellValue={value}
-                      renderInvalidCellValue={renderCellDefault}
+                      renderInvalidCellValue={renderFallback}
                       cellStyle={{ margin: 0 }}
                     />
                   </Box>
@@ -807,29 +915,36 @@ const FieldPrediction: React.FC<{
                 </Cell>
                 <Cell width="62px" flexGrow={0}>
                   <Box display="flex" height="100%" justifyContent="right">
-                    {isMultipleSelectField(selectedField) ? (
-                      <Button
-                        marginX={2}
-                        icon={hasFeature(record, selectedField, feature) ? 'minus' : 'plus'}
-                        onClick={() => onClick(feature)}
-                        size="small"
-                        alignSelf="center"
-                        disabled={!canUpdate}
-                        aria-label="Toggle feature"
-                        variant={hasFeature(record, selectedField, feature) ? 'danger' : 'primary'}
-                      />
-                    ) : (
-                      <Button
-                        onClick={() => onClick(feature)}
-                        size="small"
-                        alignSelf="center"
-                        variant="default"
-                        disabled={!canUpdate || hasFeature(record, selectedField, feature)}
-                        marginX={2}
-                      >
-                        Use
-                      </Button>
-                    )}
+                    <Tooltip
+                      disabled={!disallowedReason && canUpdate}
+                      content={cantUpdateReason || disallowedReason || ''}
+                    >
+                      {isMultipleSelectField(selectedField) ? (
+                        <Button
+                          marginX={2}
+                          icon={hasFeature(record, selectedField, feature) ? 'minus' : 'plus'}
+                          onClick={() => onClick(feature)}
+                          size="small"
+                          alignSelf="center"
+                          disabled={!canUpdate || Boolean(disallowedReason)}
+                          aria-label="Toggle feature"
+                          variant={hasFeature(record, selectedField, feature) ? 'danger' : 'primary'}
+                        />
+                      ) : (
+                        <Button
+                          onClick={() => onClick(feature)}
+                          size="small"
+                          alignSelf="center"
+                          variant="default"
+                          disabled={
+                            !canUpdate || hasFeature(record, selectedField, feature) || Boolean(disallowedReason)
+                          }
+                          marginX={2}
+                        >
+                          Use
+                        </Button>
+                      )}
+                    </Tooltip>
                   </Box>
                 </Cell>
               </Row>

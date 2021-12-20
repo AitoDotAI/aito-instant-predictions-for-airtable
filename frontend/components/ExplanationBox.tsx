@@ -16,12 +16,6 @@ import {
 } from '../explanations'
 import { TableColumnMap } from '../schema/config'
 
-const AlignedText: React.FC<AllStylesProps> = ({ children, ...props }) => (
-  <Text style={{ verticalAlign: 'top' }} alignSelf="start" textColor="white" {...props}>
-    {children}
-  </Text>
-)
-
 const defaultMessage = (
   <Box marginBottom={1}>
     This is the expected rate at which you see this in a cell. No strong field correlations were found.
@@ -66,28 +60,28 @@ const ExplanationBox: React.FC<{
     let arrows: React.ReactNode[] = []
     const green = colorUtils.getHexForColor(colors.GREEN_DARK_1)
     const red = colorUtils.getHexForColor(colors.RED_DARK_1)
-    const up = (
-      <Box display="inline-block">
+    const up = (key: number) => (
+      <Box display="inline-block" key={key}>
         <Icon fillColor={green} name="up" size={13} marginX="-2.5px" marginTop="1px" />
       </Box>
     )
-    const down = (
-      <Box display="inline-block">
+    const down = (key: number) => (
+      <Box display="inline-block" key={key}>
         <Icon fillColor={red} name="down" size={13} marginX="-2.5px" marginTop="4px" />
       </Box>
     )
     if (score < -2.0) {
-      arrows = [down, down, down]
+      arrows = [down(0), down(1), down(2)]
     } else if (score < -0.5) {
-      arrows = [down, down]
+      arrows = [down(0), down(1)]
     } else if (score < 0.0) {
-      arrows = [down]
+      arrows = [down(0)]
     } else if (score <= 0.5) {
-      arrows = [up]
+      arrows = [up(0)]
     } else if (score <= 2.0) {
-      arrows = [up, up]
+      arrows = [up(0), up(1)]
     } else {
-      arrows = [up, up, up]
+      arrows = [up(0), up(1), up(2)]
     }
 
     type GroupedProposition = globalThis.Record<string, SimpleProposition[]>
@@ -102,6 +96,7 @@ const ExplanationBox: React.FC<{
       const field = fields.find((f) => f.id === fieldId)
       const fieldName = field?.name || columnName
       let convert = (e: any): any => e
+      const propId = acc.length
 
       if (!field) {
         return acc
@@ -136,10 +131,10 @@ const ExplanationBox: React.FC<{
         </Text>
       )
 
-      const isPropositions = propositions.filter(isIsProposition).map(({ $is }) => (
-        <Box flexGrow={1} flexShrink={0}>
+      const isPropositions = propositions.filter(isIsProposition).map(({ $is }, i) => (
+        <Box flexGrow={1} flexShrink={0} key={`${propId}-is-${i}`}>
           {fieldHeader}
-          <CellRenderer style={{ margin: negativeMargin }} field={field} cellValue={convert($is)} />
+          <CellRenderer style={{ margin: negativeMargin, color: 'white' }} field={field} cellValue={convert($is)} />
         </Box>
       ))
 
@@ -150,7 +145,7 @@ const ExplanationBox: React.FC<{
         const cellValue = convert(hasInputs[0].$has)
         if (field.type === FieldType.CHECKBOX && cellValue === false) {
           hasPropositions = (
-            <Box flexGrow={1} flexShrink={0}>
+            <Box flexGrow={1} flexShrink={0} key={`${propId}-has-0`}>
               {fieldHeader}
               <Text textColor="white" lineHeight={1.5}>
                 <i>unchecked</i>
@@ -159,32 +154,58 @@ const ExplanationBox: React.FC<{
           )
         } else {
           hasPropositions = (
-            <Box flexGrow={1} flexShrink={0}>
+            <Box flexGrow={1} flexShrink={0} key={`${propId}-has-0`}>
               {fieldHeader}
               <CellRenderer style={{ margin: negativeMargin }} field={field} cellValue={cellValue} />
             </Box>
           )
         }
       } else if (hasInputs.length > 0) {
-        // A text field of some kind
-        hasPropositions = (
-          <Box flexGrow={1} flexShrink={0} flexBasis="auto" maxWidth="100%">
-            {fieldHeader}
-            <Text textColor="white" margin={0}>
+        if (field.type == FieldType.MULTIPLE_SELECTS) {
+          hasPropositions = (
+            <Box flexGrow={1} flexShrink={0} flexBasis="auto" maxWidth="100%" key={`${propId}-has-0`}>
+              {fieldHeader}
               <CellRenderer
-                style={{ margin: negativeMargin }}
+                style={{ margin: negativeMargin, color: 'white' }}
+                field={field}
+                cellValue={hasInputs.map((v) => ({ name: v.$has }))}
+              />
+            </Box>
+          )
+        } else if (field.type === FieldType.MULTIPLE_COLLABORATORS) {
+          hasPropositions = (
+            <Box flexGrow={1} flexShrink={0} flexBasis="auto" maxWidth="100%" key={`${propId}-has-0`}>
+              {fieldHeader}
+              <CellRenderer
+                style={{ margin: negativeMargin, color: 'white' }}
+                field={field}
+                cellValue={hasInputs.map((v) => ({ id: v.$has }))}
+              />
+            </Box>
+          )
+        } else {
+          // A text field of some kind
+          hasPropositions = (
+            <Box flexGrow={1} flexShrink={0} flexBasis="auto" maxWidth="100%" key={`${propId}-has-0`}>
+              {fieldHeader}
+              <CellRenderer
+                style={{ margin: negativeMargin, color: 'white' }}
                 field={field}
                 cellValue={hasInputs.map((v) => v.$has).join(', ')}
               />
-            </Text>
-          </Box>
-        )
+            </Box>
+          )
+        }
       }
 
-      const numericPropositions = propositions.filter(isNumericProposition).map(({ $numeric }) => (
-        <Box flexGrow={1} flexShrink={0} flexBasis="auto">
+      const numericPropositions = propositions.filter(isNumericProposition).map(({ $numeric }, i) => (
+        <Box flexGrow={1} flexShrink={0} flexBasis="auto" key={`${propId}-num-${i}`}>
           {fieldHeader}
-          <CellRenderer style={{ margin: negativeMargin }} field={field} cellValue={convert($numeric)} />
+          <CellRenderer
+            style={{ margin: negativeMargin, color: 'white' }}
+            field={field}
+            cellValue={convert($numeric)}
+          />
         </Box>
       ))
 
@@ -193,7 +214,10 @@ const ExplanationBox: React.FC<{
 
     return (
       <Box key={i} display="flex" flexWrap="nowrap" marginBottom={1}>
-        <AlignedText
+        <Box
+          style={{ verticalAlign: 'top' }}
+          alignSelf="start"
+          textColor="white"
           marginTop={i > 0 ? '1px' : undefined}
           flexGrow={0}
           flexShrink={0}
@@ -203,7 +227,7 @@ const ExplanationBox: React.FC<{
           paddingRight={1}
         >
           {arrows}
-        </AlignedText>
+        </Box>
         <Box
           display="flex"
           flexDirection="row"
