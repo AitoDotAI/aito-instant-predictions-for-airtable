@@ -35,6 +35,8 @@ import ExplanationBox, { DefaultExplanationBox } from './ExplanationBox'
 import styled from 'styled-components'
 import { PermissionCheckResult } from '@airtable/blocks/dist/types/src/types/mutations'
 
+const DEFAULT_CONFIDENCE_THRESHOLD = 90
+
 const PARALLEL_REQUESTS = 10
 const REQUEST_TIME = 750
 const RequestLocks = new Semaphore(PARALLEL_REQUESTS)
@@ -174,8 +176,14 @@ const PredictView: React.FC<{
   const [localConfig, setLocalConfig] = useLocalConfig()
 
   let savedAutoFill = false
+  let savedThreshold = DEFAULT_CONFIDENCE_THRESHOLD
   try {
     savedAutoFill = Boolean(localConfig.tables[table.id] && localConfig.tables[table.id].autoFill)
+    const localAutoFill = localConfig.tables[table.id] && localConfig.tables[table.id].confidenceThreshold
+
+    if (typeof localAutoFill === 'number' && Number.isInteger(localAutoFill)) {
+      savedThreshold = localAutoFill
+    }
   } catch (e) {
     console.error(e)
   }
@@ -186,6 +194,7 @@ const PredictView: React.FC<{
   const schema = useAitoSchema(aitoTableName, client)
 
   const [autoFill, setAutoFill] = useState(savedAutoFill)
+  const [threshold, setThreshold] = useState(savedThreshold)
 
   const saveAutoFill = useCallback(
     (shouldAutoFill) => {
@@ -204,14 +213,30 @@ const PredictView: React.FC<{
     [localConfig, setLocalConfig, setAutoFill, table.id],
   )
 
+  const saveThreshold = useCallback(
+    (newThreshold) => {
+      setThreshold(newThreshold)
+      setLocalConfig({
+        ...localConfig,
+        tables: {
+          ...localConfig.tables,
+          [table.id]: {
+            ...localConfig.tables[table.id],
+            confidenceThreshold: newThreshold,
+          },
+        },
+      })
+    },
+    [localConfig, setLocalConfig, setThreshold, table.id],
+  )
+
+
+
   // Make sure that the selected rows and fields are up to date
   const recordsQuery = useMemo(() => table.selectRecords(), [table])
   useLoadable([cursor, metadata])
 
   const canUpdate = table.checkPermissionsForUpdateRecords(cursor.selectedRecordIds.map((id) => ({ id })))
-
-  const [threshold, setThreshold] = useState<number>(90)
-  const saveThreshold = setThreshold
 
   const setCellValue = async (record: Record, field: Field, value: unknown): Promise<void> => {
     if (canUpdate.hasPermission) {
