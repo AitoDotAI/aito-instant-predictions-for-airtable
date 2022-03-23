@@ -11,3 +11,4 @@ export const TABLE_SETTINGS = 'tables' as const
 export const USER_SETTINGS = 'users' as const
 export const PER_TABLE_SETTINGS = 'tables' as const
 export const AUTO_FILL = 'autoFill' as const
+export const CONFIDENCE_THRESHOLD = 'confidenceThreshold' as const

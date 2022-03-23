@@ -18,6 +18,7 @@ import {
   PER_TABLE_SETTINGS as USER_TABLE_SETTINGS,
   AUTO_FILL,
   TABLE_COLUMN_MAP,
+  CONFIDENCE_THRESHOLD,
 } from '../GlobalConfigKeys'
 
 const isCollaborator = isObjectOf({
@@ -48,6 +49,7 @@ export type TablesConfig = ValidatedType<typeof isTablesConfig>
 
 export const isUserTableConfig = isObjectOf({
   [AUTO_FILL]: isSomeOf(isBoolean, isUndefined),
+  [CONFIDENCE_THRESHOLD]: isSomeOf(isNumber, isUndefined),
 })
 
 export const isUserConfig = isObjectOf({
