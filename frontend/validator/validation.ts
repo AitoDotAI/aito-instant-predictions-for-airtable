@@ -330,9 +330,9 @@ function stripChild<T>(childValidator: Validator<T>, parent: any, key: string | 
 
 // Validate that an object have the given fields
 /* eslint-disable @typescript-eslint/ban-types */
-export function hasFields<T extends object>(
-  fieldValidators: { [key in keyof Required<T>]: Validator<T[key]> },
-): Validator<T, object> {
+export function hasFields<T extends object>(fieldValidators: {
+  [key in keyof Required<T>]: Validator<T[key]>
+}): Validator<T, object> {
   type Key = keyof Required<T> & string
   const keys = Object.keys(fieldValidators) as Key[]
 
@@ -385,9 +385,10 @@ export function hasFieldsOf<T>(memberValidator: Validator<T>): Validator<{ [key 
 /* eslint-enable @typescript-eslint/ban-types */
 
 // Validate that an array (unknown[]) has tuple shape T
-export function hasElements<T extends [any, ...any[]]>(
-  validators: { [i in keyof T]: Validator<T[i]> },
-): Validator<T, unknown[]> {
+export function hasElements<T extends [any, ...any[]]>(validators: { [i in keyof T]: Validator<T[i]> }): Validator<
+  T,
+  unknown[]
+> {
   function validate(array: unknown[]): T {
     for (let i = 0; i < validators.length; i++) {
       validateChild(validators[i], array, i)
@@ -435,21 +436,21 @@ export function isRecordOf<Value>(validator: Validator<Value>): Validator<Record
 
 // Is object with given fields
 // eslint-disable-next-line @typescript-eslint/ban-types
-export function isObjectOf<T extends object>(
-  fieldValidators: { [key in keyof Required<T>]: Validator<T[key]> },
-): Validator<T> {
+export function isObjectOf<T extends object>(fieldValidators: {
+  [key in keyof Required<T>]: Validator<T[key]>
+}): Validator<T> {
   return isObject.which(hasFields<T>(fieldValidators))
 }
 
 // eslint-disable-next-line @typescript-eslint/ban-types
-export function isPartialObjectOf<T extends object>(
-  fieldValidators: { [key in keyof Required<T>]: Validator<T[key]> },
-): Validator<Partial<T>> {
+export function isPartialObjectOf<T extends object>(fieldValidators: {
+  [key in keyof Required<T>]: Validator<T[key]>
+}): Validator<Partial<T>> {
   // eslint-disable-next-line @typescript-eslint/ban-ts-comment
   // @ts-ignore-start
-  const mapToOptional = (
-    fv: { [k in keyof Partial<T>]: Validator<T[k]> },
-  ): { [k in keyof Partial<T>]: Validator<T[k]> } => {
+  const mapToOptional = (fv: { [k in keyof Partial<T>]: Validator<T[k]> }): {
+    [k in keyof Partial<T>]: Validator<T[k]>
+  } => {
     // eslint-disable-next-line @typescript-eslint/ban-ts-comment
     // @ts-ignore
     return Object.fromEntries(Object.entries(fv).map(([k, v]) => [k, isMissing.or(v)]))

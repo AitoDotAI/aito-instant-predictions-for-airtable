@@ -6,7 +6,7 @@ import SettingsMenu, { Settings } from './SettingsMenu'
 import TableView from './TableView'
 
 import { isBoolean, isString } from '../validator/validation'
-import { isTableConfig, isTablesConfig, TableColumnMap, TableConfig, UserConfig } from '../schema/config'
+import { isTableConfig, isTablesConfig, TableConfig, UserConfig } from '../schema/config'
 import OnboardingDialog from './OnboardingDialog'
 import GlobalConfig from '@airtable/blocks/dist/types/src/global_config'
 import { useMemo } from 'react'

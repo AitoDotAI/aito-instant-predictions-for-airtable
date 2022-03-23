@@ -1,4 +1,3 @@
-import { AllStylesProps } from '@airtable/blocks/dist/types/src/ui/system'
 import { Field, FieldType } from '@airtable/blocks/models'
 import { Text, Box, CellRenderer, Icon, colors, colorUtils } from '@airtable/blocks/ui'
 import _ from 'lodash'

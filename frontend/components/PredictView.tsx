@@ -90,14 +90,8 @@ const EditThresholdDialog: React.FC<{
       isConfirmButtonDisabled={threshold === pendingThreshold}
       body={
         <>
-          <Label>
-            Threshold
-          </Label>
-          <Input
-            type="number"
-            value={pendingThreshold.toString()}
-            onChange={onThresholdChange}
-          />
+          <Label>Threshold</Label>
+          <Input type="number" value={pendingThreshold.toString()} onChange={onThresholdChange} />
         </>
       }
     />
@@ -110,7 +104,7 @@ const PredictionSettingsToolbar: React.FC<{
   saveAutoFill: (value: Boolean) => void
   threshold: number
   saveThreshold: (value: number) => void
-}> = ({disabled, autoFill, saveAutoFill, threshold, saveThreshold}) => {
+}> = ({ disabled, autoFill, saveAutoFill, threshold, saveThreshold }) => {
   const [isEditThresholdModalOpen, setEditModalOpen] = useState(false)
   const showEditThresholdModal = (): void => setEditModalOpen(true)
   const hideEditThresholdModal = (): void => setEditModalOpen(false)
@@ -131,22 +125,13 @@ const PredictionSettingsToolbar: React.FC<{
           disabled={disabled}
           value={autoFill}
           onChange={saveAutoFill}
-          label={<>
-            Auto-fill cells when confidence &gt; {threshold}%
-          </>
-          }
+          label={<>Auto-fill cells when confidence &gt; {threshold}%</>}
           backgroundColor="transparent"
         />
       </Tooltip>
-      <Button
-        icon="edit"
-        flexShrink={0}
-        flexGrow={1}
-        alignSelf="start"
-        onClick={showEditThresholdModal}
-      />
+      <Button icon="edit" flexShrink={0} flexGrow={1} alignSelf="start" onClick={showEditThresholdModal} />
 
-      {isEditThresholdModalOpen &&
+      {isEditThresholdModalOpen && (
         <EditThresholdDialog
           threshold={threshold}
           onClose={hideEditThresholdModal}
@@ -155,7 +140,7 @@ const PredictionSettingsToolbar: React.FC<{
             hideEditThresholdModal()
           }}
         />
-      }
+      )}
     </Box>
   )
 }
@@ -229,8 +214,6 @@ const PredictView: React.FC<{
     },
     [localConfig, setLocalConfig, setThreshold, table.id],
   )
-
-
 
   // Make sure that the selected rows and fields are up to date
   const recordsQuery = useMemo(() => table.selectRecords(), [table])
@@ -515,9 +498,8 @@ const isMultipleSelectField = (field: Field): boolean =>
     FieldType.MULTILINE_TEXT,
   ].includes(field.type)
 
-const renderCellDefault =
-  (field: Field) =>
-  (cellValue: unknown): React.ReactElement => {
+const renderCellDefault = (field: Field) => {
+  const RenderCell = (cellValue: unknown): React.ReactElement => {
     if (field.type === FieldType.SINGLE_COLLABORATOR || field.type === FieldType.MULTIPLE_COLLABORATORS) {
       return <i>Unknown collaborator</i>
     }
@@ -532,6 +514,8 @@ const renderCellDefault =
     }
     return <i>{value}</i>
   }
+  return RenderCell
+}
 
 const makeWhereClause = (selectedField: Field, fields: Field[], schema: TableSchema, record: Record) => {
   const fieldIdToName = mapColumnNames(fields)
@@ -638,7 +622,7 @@ const FieldPrediction: React.FC<{
   useEffect(() => {
     if (!hasAutomaticallySet.current && autoFill && canUpdate && prediction && isSuitablePrediction(selectedField)) {
       const hit = prediction.hits[0]
-      if (hit && (hit.$p * 100) > threshold) {
+      if (hit && hit.$p * 100 > threshold) {
         const value = record.getCellValue(selectedField.id)
         if (_.isEmpty(value)) {
           const conversion = AcceptedFields[selectedField.type]
@@ -854,7 +838,7 @@ const FieldPrediction: React.FC<{
       }
       setUpdatingField(false)
     }
-  }, [confirmation, setConfirmation, updateField, isUpdatingField, setUpdatingField])
+  }, [confirmation, updateField, setUpdatingField])
 
   const renderFallback = useMemo(() => renderCellDefault(selectedField), [selectedField])
 

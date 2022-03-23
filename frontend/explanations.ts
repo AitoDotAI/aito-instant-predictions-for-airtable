@@ -8,10 +8,8 @@ import {
   isNull,
   isBoolean,
   isNumber,
-  isTupleOf,
   ValidatedType,
   isArrayOf,
-  isObject,
 } from './validator/validation'
 
 type Literal = string | number | boolean | null
@@ -61,8 +59,6 @@ export const isDocumentProposition: Validator<DocumentProposition> = isMapOf(fro
 export const isProposition = isSomeOf(isSimpleProposition, isAndProposition, isDocumentProposition)
 
 export type SimpleProposition = ValidatedType<typeof isSimpleProposition>
-
-const isPropositionEntry = isTupleOf([isString, isSimpleProposition])
 
 export type FieldProposition = [string, SimpleProposition]
 
@@ -124,7 +120,7 @@ export const simpleExplanation = ($p: number, $why: Why): SimpleExplanation[] =>
         parts.push([2, { type: 'normalizer', score: makeScore($why.value), value: $why.value }])
         return $why.value
 
-      case 'relatedPropositionLift':
+      case 'relatedPropositionLift': {
         const propositions: FieldProposition[] = []
 
         const getPropositions = (prop: any) => {
@@ -152,6 +148,7 @@ export const simpleExplanation = ($p: number, $why: Why): SimpleExplanation[] =>
           },
         ])
         return $why.value
+      }
 
       default:
         return 1.0
