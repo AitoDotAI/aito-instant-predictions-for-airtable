@@ -57,6 +57,57 @@ const PopupContainer = styled.div`
   }
 `
 
+const PredictionSettingsToolbar: React.FC<{
+  disabled: boolean
+  autoFill: boolean
+  saveAutoFill: (value: Boolean) => void
+  threshold: number
+  saveThreshold: (value: number) => void
+}> = ({disabled, autoFill, saveAutoFill, threshold, saveThreshold}) => {
+  const setCachedThreshold = useCallback(
+    (e: React.FocusEvent<HTMLInputElement>) => {
+      if (e.target.value === '') {
+        saveThreshold(0)
+      } else {
+        const n = Number(e.target.value)
+        if (n === 0) {
+          saveThreshold(0)
+        } else if (Number.isFinite(n) && n >= 0 && n <= 100) {
+          saveThreshold(Math.floor(n))
+        }
+      }
+    },
+    [saveThreshold]
+  )
+
+  return (
+    <Box borderBottom="thick" display="flex" flexDirection="row">
+      <Tooltip
+        shouldHideTooltipOnClick={true}
+        placementX={Tooltip.placements.CENTER}
+        placementY={Tooltip.placements.BOTTOM}
+        style={{ height: 'auto', width: '240px', maxWidth: '300px', whiteSpace: 'normal' }}
+        content={`Use the top prediction to automatically fill an empty cell if the confidence is over ${threshold}%.`}
+      >
+        <Switch
+          flexBasis="auto"
+          flexShrink={1}
+          paddingX={3}
+          disabled={disabled}
+          value={autoFill}
+          onChange={saveAutoFill}
+          label={<>
+            Auto-fill cells when confidence &gt; {threshold}%
+          </>
+          }
+          backgroundColor="transparent"
+        />
+      </Tooltip>
+      <Button icon="edit" flexShrink={0} flexGrow={1} alignSelf="start" />
+    </Box>
+  )
+}
+
 const PredictView: React.FC<{
   table: Table
   cursor: Cursor
