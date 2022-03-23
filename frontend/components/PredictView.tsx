@@ -5,6 +5,7 @@ import {
   CellRenderer,
   ConfirmationDialog,
   Icon,
+  Input,
   Label,
   Loader,
   Switch,
@@ -57,6 +58,50 @@ const PopupContainer = styled.div`
   }
 `
 
+const EditThresholdDialog: React.FC<{
+  threshold: number
+  onConfirm: (newThreshold: number) => void
+  onClose: () => void
+}> = ({ threshold, onClose, onConfirm }) => {
+  const [pendingThreshold, setPendingThreshold] = useState(threshold)
+
+  const onThresholdChange = (e: React.FocusEvent<HTMLInputElement>): void => {
+    if (e.target.value === '') {
+      setPendingThreshold(0)
+    } else {
+      const n = Number(e.target.value)
+      if (n === 0) {
+        setPendingThreshold(0)
+      } else if (Number.isFinite(n) && n >= 0 && n <= 100) {
+        setPendingThreshold(Math.floor(n))
+      }
+    }
+  }
+
+  return (
+    <ConfirmationDialog
+      title="Change Confidence Threshold"
+      onCancel={onClose}
+      onConfirm={() => onConfirm(pendingThreshold)}
+      cancelButtonText="Close"
+      confirmButtonText="Set threshold"
+      isConfirmButtonDisabled={threshold === pendingThreshold}
+      body={
+        <>
+          <Label>
+            Threshold
+          </Label>
+          <Input
+            type="number"
+            value={pendingThreshold.toString()}
+            onChange={onThresholdChange}
+          />
+        </>
+      }
+    />
+  )
+}
+
 const PredictionSettingsToolbar: React.FC<{
   disabled: boolean
   autoFill: boolean
@@ -64,21 +109,9 @@ const PredictionSettingsToolbar: React.FC<{
   threshold: number
   saveThreshold: (value: number) => void
 }> = ({disabled, autoFill, saveAutoFill, threshold, saveThreshold}) => {
-  const setCachedThreshold = useCallback(
-    (e: React.FocusEvent<HTMLInputElement>) => {
-      if (e.target.value === '') {
-        saveThreshold(0)
-      } else {
-        const n = Number(e.target.value)
-        if (n === 0) {
-          saveThreshold(0)
-        } else if (Number.isFinite(n) && n >= 0 && n <= 100) {
-          saveThreshold(Math.floor(n))
-        }
-      }
-    },
-    [saveThreshold]
-  )
+  const [isEditThresholdModalOpen, setEditModalOpen] = useState(false)
+  const showEditThresholdModal = (): void => setEditModalOpen(true)
+  const hideEditThresholdModal = (): void => setEditModalOpen(false)
 
   return (
     <Box borderBottom="thick" display="flex" flexDirection="row">
@@ -103,7 +136,24 @@ const PredictionSettingsToolbar: React.FC<{
           backgroundColor="transparent"
         />
       </Tooltip>
-      <Button icon="edit" flexShrink={0} flexGrow={1} alignSelf="start" />
+      <Button
+        icon="edit"
+        flexShrink={0}
+        flexGrow={1}
+        alignSelf="start"
+        onClick={showEditThresholdModal}
+      />
+
+      {isEditThresholdModalOpen &&
+        <EditThresholdDialog
+          threshold={threshold}
+          onClose={hideEditThresholdModal}
+          onConfirm={(newThreshold) => {
+            saveThreshold(newThreshold)
+            hideEditThresholdModal()
+          }}
+        />
+      }
     </Box>
   )
 }
