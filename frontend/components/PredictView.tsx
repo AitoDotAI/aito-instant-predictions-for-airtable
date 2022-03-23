@@ -5,6 +5,7 @@ import {
   CellRenderer,
   ConfirmationDialog,
   Icon,
+  Input,
   Label,
   Loader,
   Switch,
@@ -34,6 +35,8 @@ import ExplanationBox, { DefaultExplanationBox } from './ExplanationBox'
 import styled from 'styled-components'
 import { PermissionCheckResult } from '@airtable/blocks/dist/types/src/types/mutations'
 
+const DEFAULT_CONFIDENCE_THRESHOLD = 90
+
 const PARALLEL_REQUESTS = 10
 const REQUEST_TIME = 750
 const RequestLocks = new Semaphore(PARALLEL_REQUESTS)
@@ -57,6 +60,106 @@ const PopupContainer = styled.div`
   }
 `
 
+const EditThresholdDialog: React.FC<{
+  threshold: number
+  onConfirm: (newThreshold: number) => void
+  onClose: () => void
+}> = ({ threshold, onClose, onConfirm }) => {
+  const [pendingThreshold, setPendingThreshold] = useState(threshold)
+
+  const onThresholdChange = (e: React.FocusEvent<HTMLInputElement>): void => {
+    if (e.target.value === '') {
+      setPendingThreshold(0)
+    } else {
+      const n = Number(e.target.value)
+      if (n === 0) {
+        setPendingThreshold(0)
+      } else if (Number.isFinite(n) && n >= 0 && n <= 100) {
+        setPendingThreshold(Math.floor(n))
+      }
+    }
+  }
+
+  return (
+    <ConfirmationDialog
+      title="Change Confidence Threshold"
+      onCancel={onClose}
+      onConfirm={() => onConfirm(pendingThreshold)}
+      cancelButtonText="Close"
+      confirmButtonText="Set threshold"
+      isConfirmButtonDisabled={threshold === pendingThreshold}
+      body={
+        <>
+          <Label>
+            Threshold
+          </Label>
+          <Input
+            type="number"
+            value={pendingThreshold.toString()}
+            onChange={onThresholdChange}
+          />
+        </>
+      }
+    />
+  )
+}
+
+const PredictionSettingsToolbar: React.FC<{
+  disabled: boolean
+  autoFill: boolean
+  saveAutoFill: (value: Boolean) => void
+  threshold: number
+  saveThreshold: (value: number) => void
+}> = ({disabled, autoFill, saveAutoFill, threshold, saveThreshold}) => {
+  const [isEditThresholdModalOpen, setEditModalOpen] = useState(false)
+  const showEditThresholdModal = (): void => setEditModalOpen(true)
+  const hideEditThresholdModal = (): void => setEditModalOpen(false)
+
+  return (
+    <Box borderBottom="thick" display="flex" flexDirection="row">
+      <Tooltip
+        shouldHideTooltipOnClick={true}
+        placementX={Tooltip.placements.CENTER}
+        placementY={Tooltip.placements.BOTTOM}
+        style={{ height: 'auto', width: '240px', maxWidth: '300px', whiteSpace: 'normal' }}
+        content={`Use the top prediction to automatically fill an empty cell if the confidence is over ${threshold}%.`}
+      >
+        <Switch
+          flexBasis="auto"
+          flexShrink={1}
+          paddingX={3}
+          disabled={disabled}
+          value={autoFill}
+          onChange={saveAutoFill}
+          label={<>
+            Auto-fill cells when confidence &gt; {threshold}%
+          </>
+          }
+          backgroundColor="transparent"
+        />
+      </Tooltip>
+      <Button
+        icon="edit"
+        flexShrink={0}
+        flexGrow={1}
+        alignSelf="start"
+        onClick={showEditThresholdModal}
+      />
+
+      {isEditThresholdModalOpen &&
+        <EditThresholdDialog
+          threshold={threshold}
+          onClose={hideEditThresholdModal}
+          onConfirm={(newThreshold) => {
+            saveThreshold(newThreshold)
+            hideEditThresholdModal()
+          }}
+        />
+      }
+    </Box>
+  )
+}
+
 const PredictView: React.FC<{
   table: Table
   cursor: Cursor
@@ -73,8 +176,14 @@ const PredictView: React.FC<{
   const [localConfig, setLocalConfig] = useLocalConfig()
 
   let savedAutoFill = false
+  let savedThreshold = DEFAULT_CONFIDENCE_THRESHOLD
   try {
     savedAutoFill = Boolean(localConfig.tables[table.id] && localConfig.tables[table.id].autoFill)
+    const localAutoFill = localConfig.tables[table.id] && localConfig.tables[table.id].confidenceThreshold
+
+    if (typeof localAutoFill === 'number' && Number.isInteger(localAutoFill)) {
+      savedThreshold = localAutoFill
+    }
   } catch (e) {
     console.error(e)
   }
@@ -85,6 +194,7 @@ const PredictView: React.FC<{
   const schema = useAitoSchema(aitoTableName, client)
 
   const [autoFill, setAutoFill] = useState(savedAutoFill)
+  const [threshold, setThreshold] = useState(savedThreshold)
 
   const saveAutoFill = useCallback(
     (shouldAutoFill) => {
@@ -102,6 +212,25 @@ const PredictView: React.FC<{
     },
     [localConfig, setLocalConfig, setAutoFill, table.id],
   )
+
+  const saveThreshold = useCallback(
+    (newThreshold) => {
+      setThreshold(newThreshold)
+      setLocalConfig({
+        ...localConfig,
+        tables: {
+          ...localConfig.tables,
+          [table.id]: {
+            ...localConfig.tables[table.id],
+            confidenceThreshold: newThreshold,
+          },
+        },
+      })
+    },
+    [localConfig, setLocalConfig, setThreshold, table.id],
+  )
+
+
 
   // Make sure that the selected rows and fields are up to date
   const recordsQuery = useMemo(() => table.selectRecords(), [table])
@@ -206,24 +335,13 @@ const PredictView: React.FC<{
 
   return (
     <>
-      <Tooltip
-        shouldHideTooltipOnClick={true}
-        placementX={Tooltip.placements.CENTER}
-        placementY={Tooltip.placements.BOTTOM}
-        style={{ height: 'auto', width: '240px', maxWidth: '300px', whiteSpace: 'normal' }}
-        content="Use the top prediction to automatically fill an empty cell if the confidence is over 90%."
-      >
-        <Box borderBottom="thick">
-          <Switch
-            paddingX={3}
-            disabled={!canUpdate.hasPermission}
-            value={autoFill}
-            onChange={saveAutoFill}
-            label="Auto-fill cells when confidence >90%"
-            backgroundColor="transparent"
-          />
-        </Box>
-      </Tooltip>
+      <PredictionSettingsToolbar
+        disabled={!canUpdate.hasPermission}
+        autoFill={autoFill}
+        saveAutoFill={saveAutoFill}
+        threshold={threshold}
+        saveThreshold={saveThreshold}
+      />
       {cursor.selectedRecordIds.length > maxRecords && (
         <Text fontStyle="oblique" textColor="light" variant="paragraph" marginX={3} marginTop={3}>
           Showing predictions for {maxRecords} of the {cursor.selectedRecordIds.length} selected records.
