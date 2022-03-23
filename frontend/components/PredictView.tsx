@@ -362,6 +362,7 @@ const PredictView: React.FC<{
           setCellValue={setCellValue}
           canUpdate={canUpdate}
           autoFill={autoFill && canUpdate.hasPermission}
+          threshold={threshold}
         />
       ))}
     </>
@@ -423,6 +424,7 @@ const RecordPrediction: React.FC<{
   schema: TableSchema
   setCellValue: (record: Record, field: Field, value: unknown) => Promise<unknown>
   autoFill: boolean
+  threshold: number
   canUpdate: PermissionCheckResult
 }> = ({
   offset,
@@ -435,6 +437,7 @@ const RecordPrediction: React.FC<{
   schema,
   setCellValue,
   autoFill,
+  threshold,
   canUpdate,
   tableColumnMap,
 }) => {
@@ -461,6 +464,7 @@ const RecordPrediction: React.FC<{
           selectedField={field}
           setCellValue={setCellValue}
           autoFill={autoFill}
+          threshold={threshold}
           canUpdate={canUpdate}
         />
       ))}
@@ -599,6 +603,7 @@ const FieldPrediction: React.FC<{
   aitoTableName: string
   setCellValue: (record: Record, field: Field, value: unknown) => Promise<unknown>
   autoFill: boolean
+  threshold: number
   canUpdate: PermissionCheckResult
 }> = ({
   selectedField,
@@ -610,6 +615,7 @@ const FieldPrediction: React.FC<{
   aitoTableName,
   setCellValue,
   autoFill,
+  threshold,
   canUpdate: hasPermissionToUpdate,
 }) => {
   const delayedRequest = useRef<ReturnType<typeof setTimeout> | undefined>()
@@ -632,7 +638,7 @@ const FieldPrediction: React.FC<{
   useEffect(() => {
     if (!hasAutomaticallySet.current && autoFill && canUpdate && prediction && isSuitablePrediction(selectedField)) {
       const hit = prediction.hits[0]
-      if (hit && hit.$p > 0.9) {
+      if (hit && (hit.$p * 100) > threshold) {
         const value = record.getCellValue(selectedField.id)
         if (_.isEmpty(value)) {
           const conversion = AcceptedFields[selectedField.type]
