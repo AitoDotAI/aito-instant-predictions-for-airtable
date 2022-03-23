@@ -160,6 +160,9 @@ const PredictView: React.FC<{
 
   const canUpdate = table.checkPermissionsForUpdateRecords(cursor.selectedRecordIds.map((id) => ({ id })))
 
+  const [threshold, setThreshold] = useState<number>(90)
+  const saveThreshold = setThreshold
+
   const setCellValue = async (record: Record, field: Field, value: unknown): Promise<void> => {
     if (canUpdate.hasPermission) {
       await table.updateRecordAsync(record, { [field.id]: value })
@@ -257,24 +260,13 @@ const PredictView: React.FC<{
 
   return (
     <>
-      <Tooltip
-        shouldHideTooltipOnClick={true}
-        placementX={Tooltip.placements.CENTER}
-        placementY={Tooltip.placements.BOTTOM}
-        style={{ height: 'auto', width: '240px', maxWidth: '300px', whiteSpace: 'normal' }}
-        content="Use the top prediction to automatically fill an empty cell if the confidence is over 90%."
-      >
-        <Box borderBottom="thick">
-          <Switch
-            paddingX={3}
-            disabled={!canUpdate.hasPermission}
-            value={autoFill}
-            onChange={saveAutoFill}
-            label="Auto-fill cells when confidence >90%"
-            backgroundColor="transparent"
-          />
-        </Box>
-      </Tooltip>
+      <PredictionSettingsToolbar
+        disabled={!canUpdate.hasPermission}
+        autoFill={autoFill}
+        saveAutoFill={saveAutoFill}
+        threshold={threshold}
+        saveThreshold={saveThreshold}
+      />
       {cursor.selectedRecordIds.length > maxRecords && (
         <Text fontStyle="oblique" textColor="light" variant="paragraph" marginX={3} marginTop={3}>
           Showing predictions for {maxRecords} of the {cursor.selectedRecordIds.length} selected records.
