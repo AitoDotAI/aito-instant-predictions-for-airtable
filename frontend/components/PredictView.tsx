@@ -887,7 +887,8 @@ const FieldPrediction: React.FC<{
                         position="absolute"
                         marginTop={3}
                         top={0}
-                        left={3}
+                        marginLeft={3}
+                        minWidth="200px"
                         right={3}
                         marginRight="126px"
                       >
