@@ -17,7 +17,6 @@ import { LocalConfig, readLocalConfig, writeLocalConfig } from '../LocalConfig'
 import { normalizeAitoUrl } from '../credentials'
 
 const VIEWPORT_MIN_WIDTH = 345
-const VIEWPORT_MIN_HEIGHT = 200
 const VIEWPORT_FULLSCREEN_MAX_WIDTH = 600
 
 const asBoolean = (value: unknown): boolean | undefined => {
@@ -70,7 +69,6 @@ const AitoUploaderApp: React.FC = () => {
       <ViewportConstraint
         minSize={{
           width: VIEWPORT_MIN_WIDTH,
-          height: VIEWPORT_MIN_HEIGHT,
         }}
         maxFullscreenSize={{
           width: VIEWPORT_FULLSCREEN_MAX_WIDTH,
