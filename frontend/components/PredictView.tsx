@@ -129,7 +129,14 @@ const PredictionSettingsToolbar: React.FC<{
           backgroundColor="transparent"
         />
       </Tooltip>
-      <Button icon="edit" flexShrink={0} flexGrow={1} alignSelf="start" onClick={showEditThresholdModal} />
+      <Button
+        icon="edit"
+        flexShrink={0}
+        flexGrow={1}
+        alignSelf="start"
+        onClick={showEditThresholdModal}
+        aria-label="Change confidence thershold"
+      />
 
       {isEditThresholdModalOpen && (
         <EditThresholdDialog
