@@ -78,6 +78,7 @@ type UnionAsIntersection<U> = (U extends any ? (x: U) => void : never) extends (
 // [X | Y] & [Z] -> (X & Z) | (Y & Z)
 type UnwrapTypes<T> = T extends [any] ? T[0] : never
 
+// eslint-disable-next-line no-redeclare
 export function Validator<T extends S, S>(
   validate: (value: S) => T,
   strip: (value: S) => T = validate,
