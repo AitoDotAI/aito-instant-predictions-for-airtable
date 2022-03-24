@@ -1,12 +1,12 @@
 import { Table, View, ViewType } from '@airtable/blocks/models'
 import { useBase, useCursor, useGlobalConfig, useSettingsButton, ViewportConstraint } from '@airtable/blocks/ui'
-import React, { useCallback, useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import * as GlobalConfigKeys from '../GlobalConfigKeys'
 import SettingsMenu, { Settings } from './SettingsMenu'
 import TableView from './TableView'
 
-import { isBoolean, isString } from '../validator/validation'
-import { isTableConfig, isTablesConfig, TableColumnMap, TableConfig, UserConfig } from '../schema/config'
+import { isBoolean, isMapOf, isString, isUnknown } from '../validator/validation'
+import { isTableConfig, TableConfig, UserConfig } from '../schema/config'
 import OnboardingDialog from './OnboardingDialog'
 import GlobalConfig from '@airtable/blocks/dist/types/src/global_config'
 import { useMemo } from 'react'
@@ -17,7 +17,6 @@ import { LocalConfig, readLocalConfig, writeLocalConfig } from '../LocalConfig'
 import { normalizeAitoUrl } from '../credentials'
 
 const VIEWPORT_MIN_WIDTH = 345
-const VIEWPORT_MIN_HEIGHT = 200
 const VIEWPORT_FULLSCREEN_MAX_WIDTH = 600
 
 const asBoolean = (value: unknown): boolean | undefined => {
@@ -32,16 +31,21 @@ const asString = (value: unknown): string | undefined => {
   }
 }
 
-const asTablesConfig = (value: unknown): Record<string, TableConfig> | undefined => {
-  if (isTablesConfig(value)) {
+const isRecord = isMapOf(isUnknown)
+
+const asRecord = (value: unknown): Record<string, unknown> | undefined => {
+  if (isRecord(value)) {
+    return value
+  }
+}
+
+const asTableConfig = (value: unknown): TableConfig | undefined => {
+  if (isTableConfig(value)) {
     return value
   }
 }
 
 const AitoUploaderApp: React.FC = () => {
-  // useBase will re-render the app whenever the base's configuration changes: this includes
-  // updates to names, descriptions and field options, as well as tables/fields being added or
-  // removed. This means the app will always show the latest structure.
   const globalConfig = useGlobalConfig()
   const hasSetupOnce = asBoolean(globalConfig.get(GlobalConfigKeys.HAS_SETUP_ONCE))
 
@@ -62,7 +66,6 @@ const AitoUploaderApp: React.FC = () => {
       <ViewportConstraint
         minSize={{
           width: VIEWPORT_MIN_WIDTH,
-          height: VIEWPORT_MIN_HEIGHT,
         }}
         maxFullscreenSize={{
           width: VIEWPORT_FULLSCREEN_MAX_WIDTH,
@@ -88,6 +91,25 @@ const MainView: React.FC<{
   const aitoKey = asString(globalConfig.get(GlobalConfigKeys.AITO_KEY))
 
   const canUpdateSettings = globalConfig.hasPermissionToSet()
+  const tablesConfig = asRecord(globalConfig.get(GlobalConfigKeys.TABLE_SETTINGS))
+
+  useEffect(() => {
+    // Remove table configurations of old tables
+    if (!canUpdateSettings || !tablesConfig) {
+      return
+    }
+
+    const oldTableIds: string[] = Object.keys(tablesConfig).filter((tableId) => !base.getTableByIdIfExists(tableId))
+
+    if (oldTableIds.length > 0) {
+      globalConfig.setPathsAsync(
+        oldTableIds.map((tableId) => ({
+          path: [GlobalConfigKeys.TABLE_SETTINGS, tableId],
+          value: undefined,
+        })),
+      )
+    }
+  })
 
   // Use settings menu to hide away table pickers
   const [isShowingSettings, setIsShowingSettings] = useState(false)
@@ -164,10 +186,9 @@ const MainView: React.FC<{
     // table can be null if it's a new table being created and activeViewId can be null while the
     // table is loading, so we use "ifExists" to allow for these situations.
     const table = cursor.activeTableId ? base.getTableByIdIfExists(cursor.activeTableId) : null
-    const tablesConfig = table && asTablesConfig(globalConfig.get([GlobalConfigKeys.TABLE_SETTINGS]))
 
     if (table) {
-      let tableConfig = tablesConfig?.[table.id]
+      const tableConfig = tablesConfig && asTableConfig(tablesConfig[table.id])
       let viewId: string | undefined = tableConfig?.airtableViewId
 
       const activeView = cursor.activeViewId !== null ? table.getViewByIdIfExists(cursor.activeViewId) : null

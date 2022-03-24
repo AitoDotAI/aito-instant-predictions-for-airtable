@@ -14,6 +14,7 @@ import {
   useSession,
   useViewMetadata,
   ViewPicker,
+  Link,
 } from '@airtable/blocks/ui'
 import React, { useCallback, useEffect, useState } from 'react'
 import AcceptedFields, { isAcceptedField } from '../AcceptedFields'
@@ -281,7 +282,16 @@ const UploadView: React.FC<{
           new training.
         </Text>
 
-        <Button onClick={goToPredict}>Click here to start predicting</Button>
+        <Box display="flex" flexDirection="row" flexWrap="wrap">
+          <Button onClick={goToPredict} marginRight={2}>
+            Click here to start predicting
+          </Button>
+          <Text style={{ whiteSpace: 'nowrap' }} lineHeight="32px">
+            <Link href="https://console.aito.ai/" target="_blank">
+              or evaluate the accuracy in Aito console
+            </Link>
+          </Text>
+        </Box>
       </Box>
     </>
   )
