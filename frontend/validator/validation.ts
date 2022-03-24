@@ -226,6 +226,10 @@ export const isAny: Validator<any> = satisfiesCondition<any, unknown>(
   () => true,
   () => 'anything is any',
 )
+export const isUnknown: Validator<unknown> = satisfiesCondition<unknown, unknown>(
+  () => true,
+  () => 'anything is unknown',
+)
 export const isArray: Validator<unknown[]> = satisfiesCondition<unknown[], unknown>(
   Array.isArray,
   (v) => `${v} is not an array`,

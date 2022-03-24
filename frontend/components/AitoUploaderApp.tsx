@@ -5,8 +5,8 @@ import * as GlobalConfigKeys from '../GlobalConfigKeys'
 import SettingsMenu, { Settings } from './SettingsMenu'
 import TableView from './TableView'
 
-import { isBoolean, isString } from '../validator/validation'
-import { isTableConfig, isTablesConfig, TableConfig, UserConfig } from '../schema/config'
+import { isBoolean, isMapOf, isString, isUnknown } from '../validator/validation'
+import { isTableConfig, TableConfig, UserConfig } from '../schema/config'
 import OnboardingDialog from './OnboardingDialog'
 import GlobalConfig from '@airtable/blocks/dist/types/src/global_config'
 import { useMemo } from 'react'
@@ -32,8 +32,16 @@ const asString = (value: unknown): string | undefined => {
   }
 }
 
-const asTablesConfig = (value: unknown): Record<string, TableConfig> | undefined => {
-  if (isTablesConfig(value)) {
+const isRecord = isMapOf(isUnknown)
+
+const asRecord = (value: unknown): Record<string, unknown> | undefined => {
+  if (isRecord(value)) {
+    return value
+  }
+}
+
+const asTableConfig = (value: unknown): TableConfig | undefined => {
+  if (isTableConfig(value)) {
     return value
   }
 }
@@ -164,10 +172,13 @@ const MainView: React.FC<{
     // table can be null if it's a new table being created and activeViewId can be null while the
     // table is loading, so we use "ifExists" to allow for these situations.
     const table = cursor.activeTableId ? base.getTableByIdIfExists(cursor.activeTableId) : null
-    const tablesConfig = table && asTablesConfig(globalConfig.get([GlobalConfigKeys.TABLE_SETTINGS]))
+
+    // Don't validate the format of every table, we only need the current table to contain
+    // valid content. After (re-)uploading data it will be restored to valid configuration.
+    const tablesConfig = table && asRecord(globalConfig.get([GlobalConfigKeys.TABLE_SETTINGS]))
 
     if (table) {
-      let tableConfig = tablesConfig?.[table.id]
+      const tableConfig = tablesConfig && asTableConfig(tablesConfig[table.id])
       let viewId: string | undefined = tableConfig?.airtableViewId
 
       const activeView = cursor.activeViewId !== null ? table.getViewByIdIfExists(cursor.activeViewId) : null
