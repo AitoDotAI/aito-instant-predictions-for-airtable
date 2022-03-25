@@ -536,7 +536,7 @@ const makeWhereClause = (selectedField: Field, fields: Field[], schema: TableSch
         return acc
       } else {
         return {
-          [columnName]: aitoValue === null ? null : conversion.toAitoQuery(field, aitoValue),
+          [columnName]: aitoValue === null ? null : conversion.toAitoQuery(aitoValue, field.config),
           ...acc,
         }
       }
