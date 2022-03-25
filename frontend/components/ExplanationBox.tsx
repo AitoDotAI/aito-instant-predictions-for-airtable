@@ -102,7 +102,7 @@ const ExplanationBox: React.FC<{
       }
       const conversion = AcceptedFields[field.type]
       if (conversion) {
-        convert = (x) => conversion.toCellValue(x)
+        convert = (x) => conversion.toCellValue(x, field.config)
       }
 
       const negativeMargin =

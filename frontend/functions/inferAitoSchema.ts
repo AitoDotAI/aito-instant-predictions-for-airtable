@@ -10,8 +10,8 @@ function fieldToColumnSchema(field: Field): ColumnSchema {
   if (!conversion) {
     throw new Error('Unknown field type')
   }
-  const aitoType = conversion.toAitoType(field)
-  const analyzer = conversion.toAitoAnalyzer()
+  const aitoType = conversion.toAitoType(field.config)
+  const analyzer = conversion.toAitoAnalyzer(field.config)
 
   return isColumnSchema.validate({
     type: aitoType,

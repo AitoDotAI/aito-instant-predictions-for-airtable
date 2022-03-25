@@ -24,13 +24,13 @@ type AitoValue = string | boolean | number | null
 interface SupportedField {
   toAitoValue: (f: Field, r: Record) => AitoValue
   isValid: (f: Field, r: Record) => boolean
-  toAitoType: (f: Field) => AitoType
-  toAitoAnalyzer: () => Analyzer | undefined
-  toCellValue: (value: unknown) => unknown
-  toTextValue: (value: unknown) => string
-  cellValueToText: (value: unknown, f: Field) => string
+  toAitoType: (f: FieldConfig) => AitoType
+  toAitoAnalyzer: (f: FieldConfig) => Analyzer | undefined
+  toCellValue: (value: unknown, f: FieldConfig) => unknown
+  toTextValue: (value: unknown, f: FieldConfig) => string
+  cellValueToText: (value: unknown, f: FieldConfig) => string
   toAitoQuery: (value: AitoValue, f: FieldConfig) => unknown
-  hasFeature: (cell: unknown, feature: unknown) => boolean
+  hasFeature: (cell: unknown, feature: unknown, f: FieldConfig) => boolean
 }
 
 const textConversion = (analyzer: Analyzer): SupportedField => ({
