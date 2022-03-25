@@ -351,6 +351,100 @@ const multipleCollaborators: SupportedField = {
 
 const DateFormat = 'yyyy-MM-dd'
 
+type FormulaFieldConfig = FieldConfig & { type: FieldType.FORMULA }
+
+function assertFormulaType(config: FieldConfig): asserts config is FormulaFieldConfig {
+  if (config.type !== FieldType.FORMULA) {
+    throw new Error('Argument is not of the expected type')
+  }
+}
+
+const getResultFieldType = (config: FormulaFieldConfig): SupportedField | undefined => {
+  if (!config.options.isValid) {
+    return
+  }
+  const supportedField = AcceptedFields[config.options.result.type]
+  if (!supportedField) {
+    throw new Error('Expected formula result type to be supported at this point')
+  }
+  return supportedField
+}
+
+// When a formula field is invalid then use the following type
+const FALLBACK_RESULT_TYPE = 'String'
+
+const formula: SupportedField = {
+  toAitoValue: (f, r) => {
+    assertFormulaType(f.config)
+    const resultFieldType = getResultFieldType(f.config)
+    if (!resultFieldType) {
+      // formula is invalid
+      return null
+    }
+    return resultFieldType.toAitoValue(f, r)
+  },
+  toAitoType: (config) => {
+    assertFormulaType(config)
+    const resultFieldType = getResultFieldType(config)
+    return resultFieldType ? resultFieldType.toAitoType(config.options.result) : FALLBACK_RESULT_TYPE
+  },
+  toAitoAnalyzer: (config) => {
+    assertFormulaType(config)
+    const resultFieldType = getResultFieldType(config)
+    if (resultFieldType) {
+      return resultFieldType.toAitoAnalyzer(config.options.result)
+    }
+  },
+  isValid: (f, r) => {
+    assertFormulaType(f.config)
+    const resultFieldType = getResultFieldType(f.config)
+    if (!resultFieldType) {
+      return false
+    }
+    return resultFieldType.isValid(f, r)
+  },
+  toCellValue: (v, config) => {
+    assertFormulaType(config)
+    const resultFieldType = getResultFieldType(config)
+    if (!resultFieldType) {
+      return null
+    }
+    return resultFieldType.toCellValue(v, config.options.result)
+  },
+  toTextValue: (v, config) => {
+    assertFormulaType(config)
+    const resultFieldType = getResultFieldType(config)
+    if (!resultFieldType) {
+      return ''
+    }
+    return resultFieldType.toTextValue(v, config.options.result)
+  },
+  cellValueToText: (v, config) => {
+    assertFormulaType(config)
+    const resultFieldType = getResultFieldType(config)
+    if (!resultFieldType) {
+      return String(v)
+    }
+    return resultFieldType.cellValueToText(v, config.options.result)
+  },
+  toAitoQuery: (v, config) => {
+    assertFormulaType(config)
+    const resultFieldType = getResultFieldType(config)
+    if (!resultFieldType) {
+      return String(v)
+    }
+    return resultFieldType.toAitoQuery(v, config.options.result)
+  },
+  hasFeature: (cell, feature, config) => {
+    assertFormulaType(config)
+    const resultFieldType = getResultFieldType(config)
+    if (!resultFieldType) {
+      return false
+    }
+    return resultFieldType.hasFeature(cell, feature, config.options.result)
+  },
+}
+
 /**
 Airtable to Aito datatype mapping
 - Single line text          -> string (getCellValueAsString)
@@ -369,17 +463,16 @@ Airtable to Aito datatype mapping
 - Created by                -> string (getCellValueAsString)
 - Last modified by          -> string (getCellValueAsString)
 - Autonumber                -> int (getCellValue)
-
-NOT SUPPORTED IN MVP:
 - Date                      -> int (convert to unix time)
 - Created time              -> int (convert to unix time)
 - Last modified time        -> int (convert to unix time)
 - Duration                  -> int
+- Formula                   -> depends on the formula
+
 
 NOT SUPPORTED (automatically ignored in the upload)
 - Link to another record
 - Attachment
-- Formula
 - Rollup
 - Lookup
 - Barcode
@@ -447,8 +540,16 @@ const AcceptedFields: Partial<globalThis.Record<FieldType, SupportedField>> = {
   ),
 
   [FieldType.DURATION]: timeConversion(),
+
+  [FieldType.FORMULA]: formula,
 }
 
-export const isAcceptedField = (field: Field): boolean => field.type in AcceptedFields
+export const isAcceptedField = (field: Field): boolean => {
+  const config = field.config
+  if (config.type === FieldType.FORMULA) {
+    return !config.options.isValid || config.options.result.type in AcceptedFields
+  }
+  return config.type in AcceptedFields
+}
 
 export default AcceptedFields
