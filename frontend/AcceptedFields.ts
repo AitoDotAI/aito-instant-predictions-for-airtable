@@ -2,7 +2,7 @@ import { Field, FieldConfig, FieldType, Record } from '@airtable/blocks/models'
 import _ from 'lodash'
 import { formatISO9075, parse } from 'date-fns'
 
-import { isArrayOf, isObjectOf, isString } from './validator/validation'
+import { isArrayOf, isObjectOf, isSomeOf, isString, isUndefined, ValidatedType } from './validator/validation'
 import { AitoType, Analyzer } from './schema/aito'
 
 const isBoolean = (u: unknown): boolean => {
@@ -65,6 +65,55 @@ const stringConversion: (convert?: (string: string) => string) => SupportedField
   toAitoQuery: (v) => v,
   hasFeature: (cell: unknown, feature: unknown): boolean => cell === feature,
 })
+
+const isBarcodeCell = isObjectOf({
+  text: isString,
+  type: isSomeOf(isString, isUndefined),
+})
+
+/**
+ * Barcode-field
+ *
+ * Barcode values are represented in cells as BarcodeCell, e.g.
+ * { type: "ean8", text: "12345678" }. In aito we store it as
+ * string
+ */
+const barcode: SupportedField = {
+  toAitoValue: (f, r) => {
+    const value = r.getCellValue(f)
+    if (value === null) {
+      return null
+    }
+    if (isBarcodeCell(value)) {
+      return JSON.stringify({ type: value.type, text: value.text })
+    }
+    const stringValue = r.getCellValueAsString(f)
+    return JSON.stringify({ text: stringValue })
+  },
+  toAitoType: () => 'String',
+  isValid: () => true,
+  toAitoAnalyzer: () => undefined,
+  toCellValue: (v) => {
+    try {
+      return JSON.parse(String(v))
+    } catch (e) {
+      console.error('Invalid barcode:', v, e)
+      return null
+    }
+  },
+  toTextValue: (v) => JSON.stringify(String(v)),
+  cellValueToText: (v) => {
+    if (isBarcodeCell(v)) {
+      return v.text
+    } else {
+      return String(v)
+    }
+  },
+  toAitoQuery: (v) => v,
+  hasFeature: (cell: unknown, feature: unknown): boolean => cell === feature, // ???
+}
+
+
 
 /**
  *  Numeric field conversion.
@@ -468,14 +517,13 @@ Airtable to Aito datatype mapping
 - Last modified time        -> int (convert to unix time)
 - Duration                  -> int
 - Formula                   -> depends on the formula
-
+- Barcode                   -> JSON string
 
 NOT SUPPORTED (automatically ignored in the upload)
 - Link to another record
 - Attachment
 - Rollup
 - Lookup
-- Barcode
 - Button
 - Count
 */
@@ -542,6 +590,8 @@ const AcceptedFields: Partial<globalThis.Record<FieldType, SupportedField>> = {
   [FieldType.DURATION]: timeConversion(),
 
   [FieldType.FORMULA]: formula,
+
+  [FieldType.BARCODE]: barcode,
 }
 
 export const isAcceptedField = (field: Field): boolean => {
