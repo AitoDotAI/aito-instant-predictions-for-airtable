@@ -495,6 +495,7 @@ const isSuitablePrediction = (field: Field): boolean =>
     FieldType.RATING,
     FieldType.LAST_MODIFIED_BY,
     FieldType.CREATED_BY,
+    FieldType.BARCODE,
   ].includes(field.type)
 
 const isMultipleSelectField = (field: Field): boolean =>
