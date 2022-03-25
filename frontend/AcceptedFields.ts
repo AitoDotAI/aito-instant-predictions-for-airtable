@@ -1,8 +1,8 @@
-import { Field, FieldType, Record } from '@airtable/blocks/models'
+import { Field, FieldConfig, FieldType, Record } from '@airtable/blocks/models'
 import _ from 'lodash'
 import { formatISO9075, parse } from 'date-fns'
 
-import { isArrayOf, isNumber, isObjectOf, isString } from './validator/validation'
+import { isArrayOf, isObjectOf, isString } from './validator/validation'
 import { AitoType, Analyzer } from './schema/aito'
 
 const isBoolean = (u: unknown): boolean => {
@@ -18,19 +18,22 @@ const toBoolean = (u: unknown): boolean => {
     return false
   }
 }
+
+type AitoValue = string | boolean | number | null
+
 interface SupportedField {
-  toAitoValue: (f: Field, r: Record) => string | boolean | number | null
+  toAitoValue: (f: Field, r: Record) => AitoValue
   isValid: (f: Field, r: Record) => boolean
-  toAitoType: (f: Field) => AitoType
-  toAitoAnalyzer: () => Analyzer | undefined
-  toCellValue: (value: unknown) => unknown
-  toTextValue: (value: unknown) => string
-  cellValueToText: (value: unknown, f: Field) => string
-  toAitoQuery: (f: Field, value: unknown) => unknown
-  hasFeature: (cell: unknown, feature: unknown) => boolean
+  toAitoType: (f: FieldConfig) => AitoType
+  toAitoAnalyzer: (f: FieldConfig) => Analyzer | undefined
+  toCellValue: (value: unknown, f: FieldConfig) => unknown
+  toTextValue: (value: unknown, f: FieldConfig) => string
+  cellValueToText: (value: unknown, f: FieldConfig) => string
+  toAitoQuery: (value: AitoValue, f: FieldConfig) => unknown
+  hasFeature: (cell: unknown, feature: unknown, f: FieldConfig) => boolean
 }
 
-const textConversion: (analyzer: Analyzer) => SupportedField = (analyzer) => ({
+const textConversion = (analyzer: Analyzer): SupportedField => ({
   toAitoValue: (f, r) => r.getCellValueAsString(f),
   toAitoType: () => 'Text',
   toAitoAnalyzer: () => analyzer,
@@ -38,7 +41,7 @@ const textConversion: (analyzer: Analyzer) => SupportedField = (analyzer) => ({
   toCellValue: (v) => String(v),
   toTextValue: (v) => JSON.stringify(String(v)),
   cellValueToText: (v) => String(v),
-  toAitoQuery: (_f, v) => v,
+  toAitoQuery: (v) => v,
   hasFeature: (): boolean => false,
 })
 
@@ -59,12 +62,8 @@ const stringConversion: (convert?: (string: string) => string) => SupportedField
   toCellValue: (v) => String(v),
   toTextValue: (v) => JSON.stringify(String(v)),
   cellValueToText: (v) => String(v),
-  toAitoQuery: (_f, v) => v,
+  toAitoQuery: (v) => v,
   hasFeature: (cell: unknown, feature: unknown): boolean => cell === feature,
-})
-
-const isNumberOptions = isObjectOf({
-  precision: isNumber,
 })
 
 /**
@@ -98,8 +97,8 @@ const numberConversion: (t: 'Decimal' | 'Int', convert?: (string: string) => num
   toCellValue: (v) => Number(v),
   toTextValue: (v) => Number(v).toString(),
   cellValueToText: (v) => String(v),
-  toAitoQuery: (f, v) => {
-    if (f.type === FieldType.NUMBER && isNumberOptions(f.options)) {
+  toAitoQuery: (v, f) => {
+    if (f.type === FieldType.NUMBER) {
       if (f.options.precision > 0) {
         return { $numeric: v }
       }
@@ -122,7 +121,7 @@ const currency: SupportedField = {
   toCellValue: (v) => Number(v),
   toTextValue: (v) => Number(v).toString(),
   cellValueToText: (v) => String(v),
-  toAitoQuery: (_f, v) => ({ $numeric: v }),
+  toAitoQuery: (v) => ({ $numeric: v }),
   hasFeature: (cell: unknown, feature: unknown): boolean => cell === feature,
 }
 
@@ -139,7 +138,7 @@ const percent: SupportedField = {
   toCellValue: (v) => Number(v),
   toTextValue: (v) => Number(v).toString(),
   cellValueToText: (v) => String(v),
-  toAitoQuery: (_f, v) => ({ $numeric: v }),
+  toAitoQuery: (v) => ({ $numeric: v }),
   hasFeature: (cell: unknown, feature: unknown): boolean => cell === feature,
 }
 
@@ -195,7 +194,7 @@ const dateTimeConversion = (fromString: (d: string) => Date, toString: (d: Date)
   toAitoAnalyzer: () => undefined,
   toCellValue: (v) => toString(epochSecondsToDate(Number(v))),
   toTextValue: (v) => toString(epochSecondsToDate(Number(v))),
-  toAitoQuery: (_f, v) => ({ $numeric: v }),
+  toAitoQuery: (v) => ({ $numeric: v }),
   hasFeature: (cell: unknown, feature: unknown): boolean => cell === feature,
 })
 
@@ -219,7 +218,7 @@ const timeConversion: (convert?: (s: string) => number) => SupportedField = (
   toCellValue: (v) => Number(v),
   toTextValue: (v) => Number(v).toString(),
   cellValueToText: (v) => String(v),
-  toAitoQuery: (f_, v) => ({ $numeric: v }),
+  toAitoQuery: (v) => ({ $numeric: v }),
   hasFeature: (cell: unknown, feature: unknown): boolean => cell === feature,
 })
 
@@ -253,7 +252,7 @@ const singleSelect: SupportedField = {
       return String(v)
     }
   },
-  toAitoQuery: (_f, v) => v,
+  toAitoQuery: (v) => v,
   hasFeature: (cell: unknown, feature: unknown): boolean =>
     hasName(cell) && hasName(feature) && cell.name === feature.name,
 }
@@ -287,7 +286,7 @@ const multipleSelects: SupportedField = {
       return String(v)
     }
   },
-  toAitoQuery: (_f, v) => v,
+  toAitoQuery: (v) => v,
   hasFeature: (cell: unknown, feature: unknown) =>
     isMultipleNames(cell) && isMultipleNames(feature) && Boolean(cell.find((c) => c.name === feature[0]?.name)),
 }
@@ -313,7 +312,7 @@ const singleCollaborator: SupportedField = {
       return String(v)
     }
   },
-  toAitoQuery: (_f, v) => v,
+  toAitoQuery: (v) => v,
   hasFeature: (cell: unknown, feature: unknown) => hasId(cell) && hasId(feature) && cell.id === feature.id,
 }
 
@@ -345,12 +344,106 @@ const multipleCollaborators: SupportedField = {
       return String(v)
     }
   },
-  toAitoQuery: (_f, v) => v,
+  toAitoQuery: (v) => v,
   hasFeature: (cell: unknown, feature: unknown) =>
     isMultipleIds(cell) && isMultipleIds(feature) && Boolean(cell.find((c) => c.id === feature[0]?.id)),
 }
 
 const DateFormat = 'yyyy-MM-dd'
+
+type FormulaFieldConfig = FieldConfig & { type: FieldType.FORMULA }
+
+function assertFormulaType(config: FieldConfig): asserts config is FormulaFieldConfig {
+  if (config.type !== FieldType.FORMULA) {
+    throw new Error('Argument is not of the expected type')
+  }
+}
+
+const getResultFieldType = (config: FormulaFieldConfig): SupportedField | undefined => {
+  if (!config.options.isValid) {
+    return
+  }
+  const supportedField = AcceptedFields[config.options.result.type]
+  if (!supportedField) {
+    throw new Error('Expected formula result type to be supported at this point')
+  }
+  return supportedField
+}
+
+// When a formula field is invalid then use the following type
+const FALLBACK_RESULT_TYPE = 'String'
+
+const formula: SupportedField = {
+  toAitoValue: (f, r) => {
+    assertFormulaType(f.config)
+    const resultFieldType = getResultFieldType(f.config)
+    if (!resultFieldType) {
+      // formula is invalid
+      return null
+    }
+    return resultFieldType.toAitoValue(f, r)
+  },
+  toAitoType: (config) => {
+    assertFormulaType(config)
+    const resultFieldType = getResultFieldType(config)
+    return resultFieldType ? resultFieldType.toAitoType(config.options.result) : FALLBACK_RESULT_TYPE
+  },
+  toAitoAnalyzer: (config) => {
+    assertFormulaType(config)
+    const resultFieldType = getResultFieldType(config)
+    if (resultFieldType) {
+      return resultFieldType.toAitoAnalyzer(config.options.result)
+    }
+  },
+  isValid: (f, r) => {
+    assertFormulaType(f.config)
+    const resultFieldType = getResultFieldType(f.config)
+    if (!resultFieldType) {
+      return false
+    }
+    return resultFieldType.isValid(f, r)
+  },
+  toCellValue: (v, config) => {
+    assertFormulaType(config)
+    const resultFieldType = getResultFieldType(config)
+    if (!resultFieldType) {
+      return null
+    }
+    return resultFieldType.toCellValue(v, config.options.result)
+  },
+  toTextValue: (v, config) => {
+    assertFormulaType(config)
+    const resultFieldType = getResultFieldType(config)
+    if (!resultFieldType) {
+      return ''
+    }
+    return resultFieldType.toTextValue(v, config.options.result)
+  },
+  cellValueToText: (v, config) => {
+    assertFormulaType(config)
+    const resultFieldType = getResultFieldType(config)
+    if (!resultFieldType) {
+      return String(v)
+    }
+    return resultFieldType.cellValueToText(v, config.options.result)
+  },
+  toAitoQuery: (v, config) => {
+    assertFormulaType(config)
+    const resultFieldType = getResultFieldType(config)
+    if (!resultFieldType) {
+      return String(v)
+    }
+    return resultFieldType.toAitoQuery(v, config.options.result)
+  },
+  hasFeature: (cell, feature, config) => {
+    assertFormulaType(config)
+    const resultFieldType = getResultFieldType(config)
+    if (!resultFieldType) {
+      return false
+    }
+    return resultFieldType.hasFeature(cell, feature, config.options.result)
+  },
+}
 
 /**
 Airtable to Aito datatype mapping
@@ -370,17 +463,16 @@ Airtable to Aito datatype mapping
 - Created by                -> string (getCellValueAsString)
 - Last modified by          -> string (getCellValueAsString)
 - Autonumber                -> int (getCellValue)
-
-NOT SUPPORTED IN MVP:
 - Date                      -> int (convert to unix time)
 - Created time              -> int (convert to unix time)
 - Last modified time        -> int (convert to unix time)
 - Duration                  -> int
+- Formula                   -> depends on the formula
+
 
 NOT SUPPORTED (automatically ignored in the upload)
 - Link to another record
 - Attachment
-- Formula
 - Rollup
 - Lookup
 - Barcode
@@ -398,7 +490,7 @@ const AcceptedFields: Partial<globalThis.Record<FieldType, SupportedField>> = {
     toAitoAnalyzer: () => undefined,
     toCellValue: (v) => v,
     toTextValue: (v) => String(v),
-    toAitoQuery: (_f, v) => v,
+    toAitoQuery: (v) => v,
     cellValueToText: (v) => String(v),
     hasFeature: (cell, feature) => Boolean(cell) === Boolean(feature),
   },
@@ -448,8 +540,16 @@ const AcceptedFields: Partial<globalThis.Record<FieldType, SupportedField>> = {
   ),
 
   [FieldType.DURATION]: timeConversion(),
+
+  [FieldType.FORMULA]: formula,
 }
 
-export const isAcceptedField = (field: Field): boolean => field.type in AcceptedFields
+export const isAcceptedField = (field: Field): boolean => {
+  const config = field.config
+  if (config.type === FieldType.FORMULA) {
+    return !config.options.isValid || config.options.result.type in AcceptedFields
+  }
+  return config.type in AcceptedFields
+}
 
 export default AcceptedFields

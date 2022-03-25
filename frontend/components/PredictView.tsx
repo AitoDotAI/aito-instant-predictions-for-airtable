@@ -475,8 +475,8 @@ const hasFeature = (record: Record, field: Field, feature: any): boolean => {
   const conversion = AcceptedFields[field.type]
   if (conversion) {
     const value = record.getCellValue(field)
-    const convertedFeature = conversion.toCellValue(feature)
-    return conversion.hasFeature(value, convertedFeature)
+    const convertedFeature = conversion.toCellValue(feature, field.config)
+    return conversion.hasFeature(value, convertedFeature, field.config)
   }
   return false
 }
@@ -514,7 +514,7 @@ const renderCellDefault = (field: Field) => {
     try {
       const af = AcceptedFields[field.type]
       if (af) {
-        value = af.cellValueToText(cellValue, field)
+        value = af.cellValueToText(cellValue, field.config)
       }
     } catch {
       // Ignore
@@ -536,7 +536,7 @@ const makeWhereClause = (selectedField: Field, fields: Field[], schema: TableSch
         return acc
       } else {
         return {
-          [columnName]: aitoValue === null ? null : conversion.toAitoQuery(field, aitoValue),
+          [columnName]: aitoValue === null ? null : conversion.toAitoQuery(aitoValue, field.config),
           ...acc,
         }
       }
@@ -633,7 +633,7 @@ const FieldPrediction: React.FC<{
         const value = record.getCellValue(selectedField.id)
         if (_.isEmpty(value)) {
           const conversion = AcceptedFields[selectedField.type]
-          const convertedValue = conversion ? conversion.toCellValue(hit.feature) : hit.feature
+          const convertedValue = conversion ? conversion.toCellValue(hit.feature, selectedField.config) : hit.feature
           hasAutomaticallySet.current = true
           setCellValue(record, selectedField, convertedValue)
         }
@@ -788,7 +788,7 @@ const FieldPrediction: React.FC<{
       const valueString = record.getCellValueAsString(selectedField.id)
 
       const conversion = AcceptedFields[selectedField.type]
-      const convertedValue = conversion ? conversion.toCellValue(feature) : feature
+      const convertedValue = conversion ? conversion.toCellValue(feature, selectedField.config) : feature
       if (isMultipleSelectField(selectedField)) {
         if (isMultipleSelection(value)) {
           const predicate: (v: HasNameOrId) => boolean =
@@ -960,7 +960,7 @@ const FieldPrediction: React.FC<{
           prediction &&
           prediction.hits.map(({ $p, feature, $why }, i) => {
             const conversion = AcceptedFields[selectedField.type]
-            const value = conversion ? conversion.toCellValue(feature) : feature
+            const value = conversion ? conversion.toCellValue(feature, selectedField.config) : feature
 
             const hitCount = prediction.hits.length
             const hitsBoxHeight = 16 + 49.5 * hitCount
