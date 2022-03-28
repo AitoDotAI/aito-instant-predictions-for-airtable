@@ -473,6 +473,17 @@ const formula: SupportedField = {
   },
 }
 
+const ignore: SupportedField = {
+  cellValueToText: () => '',
+  hasFeature: () => false,
+  isValid: () => false,
+  toAitoAnalyzer: () => undefined,
+  toAitoQuery: _.identity,
+  toAitoType: () => 'String',
+  toAitoValue: () => null,
+  toCellValue: () => null,
+}
+
 /**
 Airtable to Aito datatype mapping
 - Single line text          -> string (getCellValueAsString)
@@ -570,6 +581,9 @@ const AcceptedFields: Partial<globalThis.Record<FieldType, SupportedField>> = {
   [FieldType.FORMULA]: formula,
 
   [FieldType.BARCODE]: barcode,
+
+  [FieldType.MULTIPLE_LOOKUP_VALUES]: ignore,
+  [FieldType.BUTTON]: ignore,
 }
 
 export const isAcceptedField = (field: Field): boolean => {
