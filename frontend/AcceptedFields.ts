@@ -112,75 +112,41 @@ const barcode: SupportedField = {
 /**
  *  Numeric field conversion.
  *
- * The convert-method can be used to implement conversions into numeric values. Possible applications
- * include date -> epoch conversion.
+ * The convert-method can be used to implement conversions into numeric values.
  *
  * @param t the type of number. Accepted types are Decimal and Int
  * @param convert convert the string-valued field to a number-format
  * @returns
  */
-const numberConversion: (t: 'Decimal' | 'Int', convert?: (string: string) => number) => SupportedField = (
-  t,
-  convert = (s) => Number(s),
-) => ({
+const numberConversion = (t: 'Decimal' | 'Int', alwaysNumeric: boolean = false): SupportedField => ({
   toAitoType: () => t,
   toAitoValue: (f, r) => {
-    const convertedValue = convert(r.getCellValueAsString(f))
+    const value = r.getCellValue(f) as number | null
+    if (value) {
+      const convertedValue = value
 
-    if (t === 'Int') return Number(convertedValue?.toFixed())
-    else return convertedValue
-  },
-  isValid: (f, r) => {
-    const convertedValue = convert(r.getCellValueAsString(f))
-
-    if (t === 'Int') return Number.isInteger(convertedValue)
-    else return !Number.isNaN(convertedValue)
-  },
-  toAitoAnalyzer: () => undefined,
-  toCellValue: (v) => Number(v),
-  cellValueToText: (v) => String(v),
-  toAitoQuery: (v, f) => {
-    if (f.type === FieldType.NUMBER) {
-      if (f.options.precision > 0) {
-        return { $numeric: v }
+      if (t === 'Int') {
+        return Number(convertedValue.toFixed())
       }
     }
-    return v
+    return value
   },
+  isValid: () => true,
+  toAitoAnalyzer: () => undefined,
+  toCellValue: (v) => Number(v),
+  cellValueToText: (v) => String(v),
+  toAitoQuery: alwaysNumeric
+    ? (v) => ({ $numeric: v })
+    : (v, f) => {
+        if (f.type === FieldType.NUMBER || f.type === FieldType.PERCENT || f.type === FieldType.CURRENCY) {
+          if (f.options.precision > 0) {
+            return { $numeric: v }
+          }
+        }
+        return v
+      },
   hasFeature: (cell: unknown, feature: unknown): boolean => cell === feature,
 })
-
-const currency: SupportedField = {
-  toAitoType: () => 'Decimal',
-  toAitoValue: (f, r) => {
-    return Number(r.getCellValue(f))
-  },
-  isValid: (f, r) => {
-    const convertedValue = Number(r.getCellValue(f))
-    return !Number.isNaN(convertedValue)
-  },
-  toAitoAnalyzer: () => undefined,
-  toCellValue: (v) => Number(v),
-  cellValueToText: (v) => String(v),
-  toAitoQuery: (v) => ({ $numeric: v }),
-  hasFeature: (cell: unknown, feature: unknown): boolean => cell === feature,
-}
-
-const percent: SupportedField = {
-  toAitoType: () => 'Decimal',
-  toAitoValue: (f, r) => {
-    return Number(r.getCellValue(f))
-  },
-  isValid: (f, r) => {
-    const convertedValue = Number(r.getCellValue(f))
-    return !Number.isNaN(convertedValue)
-  },
-  toAitoAnalyzer: () => undefined,
-  toCellValue: (v) => Number(v),
-  cellValueToText: (v) => String(v),
-  toAitoQuery: (v) => ({ $numeric: v }),
-  hasFeature: (cell: unknown, feature: unknown): boolean => cell === feature,
-}
 
 /**
  * Millisecond times can't fit into a standard JVM integer-field, so we need to
@@ -507,13 +473,13 @@ Airtable to Aito datatype mapping
 - Formula                   -> depends on the formula
 - Barcode                   -> JSON string
 - Rollup                    -> depends on the formula
+- Count                     -> int
 
 NOT SUPPORTED (automatically ignored in the upload)
 - Link to another record
 - Attachment
 - Lookup
 - Button
-- Count
 */
 const AcceptedFields: Partial<globalThis.Record<FieldType, SupportedField>> = {
   /**
@@ -552,10 +518,11 @@ const AcceptedFields: Partial<globalThis.Record<FieldType, SupportedField>> = {
    * Numeric fields
    */
   [FieldType.AUTO_NUMBER]: numberConversion('Int'),
+  [FieldType.COUNT]: numberConversion('Int', true),
   [FieldType.RATING]: numberConversion('Int'),
   [FieldType.NUMBER]: numberConversion('Decimal'),
-  [FieldType.CURRENCY]: currency,
-  [FieldType.PERCENT]: percent,
+  [FieldType.CURRENCY]: numberConversion('Decimal', true),
+  [FieldType.PERCENT]: numberConversion('Decimal', true),
 
   [FieldType.DATE]: dateTimeConversion(
     (d) => parse(d, DateFormat, referenceDate),
