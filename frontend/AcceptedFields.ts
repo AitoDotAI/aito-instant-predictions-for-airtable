@@ -594,4 +594,8 @@ export const isAcceptedField = (field: Field): boolean => {
   return config.type in AcceptedFields
 }
 
+export const isIgnoredField = (field: Field): boolean => {
+  return AcceptedFields[field.type] === ignore
+}
+
 export default AcceptedFields
