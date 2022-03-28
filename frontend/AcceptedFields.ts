@@ -109,8 +109,6 @@ const barcode: SupportedField = {
   hasFeature: (cell: unknown, feature: unknown): boolean => cell === feature, // ???
 }
 
-
-
 /**
  *  Numeric field conversion.
  *

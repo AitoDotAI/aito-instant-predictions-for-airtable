@@ -369,8 +369,8 @@ const FieldRow: React.FC<{
       <Cell width={FIELD_INCLUDE_CELL_WIDTH_PERCENTAGE} flexGrow={0} flexShrink={0}>
         <Box display="flex" justifyContent="center">
           {isIgnored ? (
-            <Icon name="check" size={16} fillColor="#757575"/>
-          ): isAccepted ? (
+            <Icon name="check" size={16} fillColor="#757575" />
+          ) : isAccepted ? (
             <Icon name="check" size={16} fillColor="green" />
           ) : (
             <Icon name="warning" size={16} fillColor="red" />
