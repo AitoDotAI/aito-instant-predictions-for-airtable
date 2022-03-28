@@ -385,10 +385,10 @@ const multipleCollaborators: SupportedField = {
 
 const DateFormat = 'yyyy-MM-dd'
 
-type FormulaFieldConfig = FieldConfig & { type: FieldType.FORMULA }
+type FormulaFieldConfig = FieldConfig & { type: FieldType.FORMULA | FieldType.ROLLUP }
 
 function assertFormulaType(config: FieldConfig): asserts config is FormulaFieldConfig {
-  if (config.type !== FieldType.FORMULA) {
+  if (config.type !== FieldType.FORMULA && config.type !== FieldType.ROLLUP) {
     throw new Error('Argument is not of the expected type')
   }
 }
@@ -407,7 +407,7 @@ const getResultFieldType = (config: FormulaFieldConfig): SupportedField | undefi
 // When a formula field is invalid then use the following type
 const FALLBACK_RESULT_TYPE = 'String'
 
-const formula: SupportedField = {
+const formulaOrRollup: SupportedField = {
   toAitoValue: (f, r) => {
     assertFormulaType(f.config)
     const resultFieldType = getResultFieldType(f.config)
@@ -506,11 +506,11 @@ Airtable to Aito datatype mapping
 - Duration                  -> int
 - Formula                   -> depends on the formula
 - Barcode                   -> JSON string
+- Rollup                    -> depends on the formula
 
 NOT SUPPORTED (automatically ignored in the upload)
 - Link to another record
 - Attachment
-- Rollup
 - Lookup
 - Button
 - Count
@@ -576,7 +576,8 @@ const AcceptedFields: Partial<globalThis.Record<FieldType, SupportedField>> = {
 
   [FieldType.DURATION]: timeConversion(),
 
-  [FieldType.FORMULA]: formula,
+  [FieldType.FORMULA]: formulaOrRollup,
+  [FieldType.ROLLUP]: formulaOrRollup,
 
   [FieldType.BARCODE]: barcode,
 
