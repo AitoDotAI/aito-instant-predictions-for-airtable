@@ -2,7 +2,7 @@ import { Field, FieldConfig, FieldType, Record } from '@airtable/blocks/models'
 import _ from 'lodash'
 import { formatISO9075, parse } from 'date-fns'
 
-import { isArrayOf, isObjectOf, isSomeOf, isString, isUndefined, ValidatedType } from './validator/validation'
+import { isArrayOf, isObjectOf, isSomeOf, isString, isUndefined } from './validator/validation'
 import { AitoType, Analyzer } from './schema/aito'
 
 const isBoolean = (u: unknown): boolean => {
@@ -27,7 +27,6 @@ interface SupportedField {
   toAitoType: (f: FieldConfig) => AitoType
   toAitoAnalyzer: (f: FieldConfig) => Analyzer | undefined
   toCellValue: (value: unknown, f: FieldConfig) => unknown
-  toTextValue: (value: unknown, f: FieldConfig) => string
   cellValueToText: (value: unknown, f: FieldConfig) => string
   toAitoQuery: (value: AitoValue, f: FieldConfig) => unknown
   hasFeature: (cell: unknown, feature: unknown, f: FieldConfig) => boolean
@@ -39,7 +38,6 @@ const textConversion = (analyzer: Analyzer): SupportedField => ({
   toAitoAnalyzer: () => analyzer,
   isValid: () => true,
   toCellValue: (v) => String(v),
-  toTextValue: (v) => JSON.stringify(String(v)),
   cellValueToText: (v) => String(v),
   toAitoQuery: (v) => v,
   hasFeature: (): boolean => false,
@@ -60,7 +58,6 @@ const stringConversion: (convert?: (string: string) => string) => SupportedField
   isValid: () => true,
   toAitoAnalyzer: () => undefined,
   toCellValue: (v) => String(v),
-  toTextValue: (v) => JSON.stringify(String(v)),
   cellValueToText: (v) => String(v),
   toAitoQuery: (v) => v,
   hasFeature: (cell: unknown, feature: unknown): boolean => cell === feature,
@@ -101,7 +98,6 @@ const barcode: SupportedField = {
       return null
     }
   },
-  toTextValue: (v) => JSON.stringify(String(v)),
   cellValueToText: (v) => {
     if (isBarcodeCell(v)) {
       return v.text
@@ -112,8 +108,6 @@ const barcode: SupportedField = {
   toAitoQuery: (v) => v,
   hasFeature: (cell: unknown, feature: unknown): boolean => cell === feature, // ???
 }
-
-
 
 /**
  *  Numeric field conversion.
@@ -144,7 +138,6 @@ const numberConversion: (t: 'Decimal' | 'Int', convert?: (string: string) => num
   },
   toAitoAnalyzer: () => undefined,
   toCellValue: (v) => Number(v),
-  toTextValue: (v) => Number(v).toString(),
   cellValueToText: (v) => String(v),
   toAitoQuery: (v, f) => {
     if (f.type === FieldType.NUMBER) {
@@ -168,7 +161,6 @@ const currency: SupportedField = {
   },
   toAitoAnalyzer: () => undefined,
   toCellValue: (v) => Number(v),
-  toTextValue: (v) => Number(v).toString(),
   cellValueToText: (v) => String(v),
   toAitoQuery: (v) => ({ $numeric: v }),
   hasFeature: (cell: unknown, feature: unknown): boolean => cell === feature,
@@ -185,7 +177,6 @@ const percent: SupportedField = {
   },
   toAitoAnalyzer: () => undefined,
   toCellValue: (v) => Number(v),
-  toTextValue: (v) => Number(v).toString(),
   cellValueToText: (v) => String(v),
   toAitoQuery: (v) => ({ $numeric: v }),
   hasFeature: (cell: unknown, feature: unknown): boolean => cell === feature,
@@ -242,7 +233,6 @@ const dateTimeConversion = (fromString: (d: string) => Date, toString: (d: Date)
   cellValueToText: (v) => String(v),
   toAitoAnalyzer: () => undefined,
   toCellValue: (v) => toString(epochSecondsToDate(Number(v))),
-  toTextValue: (v) => toString(epochSecondsToDate(Number(v))),
   toAitoQuery: (v) => ({ $numeric: v }),
   hasFeature: (cell: unknown, feature: unknown): boolean => cell === feature,
 })
@@ -265,7 +255,6 @@ const timeConversion: (convert?: (s: string) => number) => SupportedField = (
   },
   toAitoAnalyzer: () => undefined,
   toCellValue: (v) => Number(v),
-  toTextValue: (v) => Number(v).toString(),
   cellValueToText: (v) => String(v),
   toAitoQuery: (v) => ({ $numeric: v }),
   hasFeature: (cell: unknown, feature: unknown): boolean => cell === feature,
@@ -292,7 +281,6 @@ const singleSelect: SupportedField = {
   isValid: () => true,
   toAitoAnalyzer: () => undefined,
   toCellValue: (name) => ({ name }),
-  toTextValue: (v) => String(v),
   cellValueToText: (v) => {
     const obj = v as any
     if ('name' in obj && obj.name) {
@@ -327,7 +315,6 @@ const multipleSelects: SupportedField = {
           .split(delimiter)
           .map((name) => ({ name }))
       : [],
-  toTextValue: (v) => (v ? String(v).split(delimiter).join(' and ') : ''),
   cellValueToText: (v) => {
     try {
       return (v as any).map((o: any) => o.name).join(', ')
@@ -353,7 +340,6 @@ const singleCollaborator: SupportedField = {
   isValid: () => true,
   toAitoAnalyzer: () => undefined,
   toCellValue: (id) => ({ id }),
-  toTextValue: (id) => String(id),
   cellValueToText: (v) => {
     try {
       return (v as any).id
@@ -385,7 +371,6 @@ const multipleCollaborators: SupportedField = {
           .split(delimiter)
           .map((id) => ({ id }))
       : [],
-  toTextValue: (v) => (v ? String(v).split(delimiter).join(' and ') : ''),
   cellValueToText: (v) => {
     try {
       return (v as any).map((o: any) => o.id).join(', ')
@@ -460,14 +445,6 @@ const formula: SupportedField = {
     }
     return resultFieldType.toCellValue(v, config.options.result)
   },
-  toTextValue: (v, config) => {
-    assertFormulaType(config)
-    const resultFieldType = getResultFieldType(config)
-    if (!resultFieldType) {
-      return ''
-    }
-    return resultFieldType.toTextValue(v, config.options.result)
-  },
   cellValueToText: (v, config) => {
     assertFormulaType(config)
     const resultFieldType = getResultFieldType(config)
@@ -492,6 +469,17 @@ const formula: SupportedField = {
     }
     return resultFieldType.hasFeature(cell, feature, config.options.result)
   },
+}
+
+const ignore: SupportedField = {
+  cellValueToText: () => '',
+  hasFeature: () => false,
+  isValid: () => false,
+  toAitoAnalyzer: () => undefined,
+  toAitoQuery: _.identity,
+  toAitoType: () => 'String',
+  toAitoValue: () => null,
+  toCellValue: () => null,
 }
 
 /**
@@ -537,7 +525,6 @@ const AcceptedFields: Partial<globalThis.Record<FieldType, SupportedField>> = {
     isValid: (f, r) => isBoolean(r.getCellValue(f)),
     toAitoAnalyzer: () => undefined,
     toCellValue: (v) => v,
-    toTextValue: (v) => String(v),
     toAitoQuery: (v) => v,
     cellValueToText: (v) => String(v),
     hasFeature: (cell, feature) => Boolean(cell) === Boolean(feature),
@@ -592,6 +579,9 @@ const AcceptedFields: Partial<globalThis.Record<FieldType, SupportedField>> = {
   [FieldType.FORMULA]: formula,
 
   [FieldType.BARCODE]: barcode,
+
+  [FieldType.MULTIPLE_LOOKUP_VALUES]: ignore,
+  [FieldType.BUTTON]: ignore,
 }
 
 export const isAcceptedField = (field: Field): boolean => {
@@ -600,6 +590,10 @@ export const isAcceptedField = (field: Field): boolean => {
     return !config.options.isValid || config.options.result.type in AcceptedFields
   }
   return config.type in AcceptedFields
+}
+
+export const isIgnoredField = (field: Field): boolean => {
+  return AcceptedFields[field.type] === ignore
 }
 
 export default AcceptedFields

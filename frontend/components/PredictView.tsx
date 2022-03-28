@@ -949,9 +949,15 @@ const FieldPrediction: React.FC<{
             {predictionError === 'empty-field' && (
               <Text variant="paragraph">It seems there are no examples of this field in the training set.</Text>
             )}
-            {predictionError === 'unknown-field' && (
-              <Text variant="paragraph">This field is not part of the training set and cannot be predicted.</Text>
-            )}
+            {predictionError === 'unknown-field' &&
+              ((selectedField.type === FieldType.BUTTON && (
+                <Text variant="paragraph">Button fields can not be predicted.</Text>
+              )) ||
+                (selectedField.type === FieldType.MULTIPLE_LOOKUP_VALUES && (
+                  <Text variant="paragraph">Lookup fields can not be predicted.</Text>
+                )) || (
+                  <Text variant="paragraph">This field is not part of the training set and cannot be predicted.</Text>
+                ))}
             {predictionError === 'quota-exceeded' && <QueryQuotaExceeded />}
             {predictionError === 'error' && <Text variant="paragraph">Unable to predict {selectedField.name}.</Text>}
           </Box>

@@ -75,7 +75,7 @@ async function fetchRecordsAndUpload(
 
         const columnName = fieldIdToName[field.id].name
 
-        let columnValue: any
+        let columnValue: string | number | boolean | null
         if (!conversion || !conversion.isValid(field, record)) {
           console.error(
             `The value for record ${record.id} is not valid according to the field schema. Type is ${field.type}. Setting to null.`,

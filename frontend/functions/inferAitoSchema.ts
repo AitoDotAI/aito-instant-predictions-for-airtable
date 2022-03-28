@@ -1,7 +1,7 @@
 import _ from 'lodash'
 import { Field } from '@airtable/blocks/models'
 
-import AcceptedFields, { isAcceptedField } from '../AcceptedFields'
+import AcceptedFields, { isAcceptedField, isIgnoredField } from '../AcceptedFields'
 import { isColumnSchema, ColumnSchema, TableSchema, isTableSchema } from '../schema/aito'
 import { TableColumnMap } from '../schema/config'
 
@@ -35,18 +35,20 @@ export const mapColumnNames = (fields: Field[]): TableColumnMap =>
 
 // Aito schema creation
 export default function inferAitoSchema(fields: Field[], fieldIdToName: TableColumnMap): TableSchema {
-  if (_.size(fields) <= 0) {
-    throw new Error(`Cannot infer schema. No fields provided`)
+  const fieldsToUse = fields.filter((fld) => !isIgnoredField(fld))
+
+  if (_.size(fieldsToUse) <= 0) {
+    throw new Error(`Cannot infer schema. No usable fields provided`)
   }
 
-  const invalidFields = fields.filter((fld) => !isAcceptedField(fld))
+  const invalidFields = fieldsToUse.filter((fld) => !isAcceptedField(fld))
   if (_.size(invalidFields) > 0) {
     throw new Error(
       `The table contains unsupported fields: ${invalidFields.map((f) => `${f.name}/${f.type}`).join(', ')}`,
     )
   }
 
-  const columns = fields.map((field) => ({
+  const columns = fieldsToUse.map((field) => ({
     [fieldIdToName[field.id].name]: fieldToColumnSchema(field),
   }))
 

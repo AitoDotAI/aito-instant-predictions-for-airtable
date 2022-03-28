@@ -17,7 +17,7 @@ import {
   Link,
 } from '@airtable/blocks/ui'
 import React, { useCallback, useEffect, useState } from 'react'
-import AcceptedFields, { isAcceptedField } from '../AcceptedFields'
+import { isAcceptedField, isIgnoredField } from '../AcceptedFields'
 import AitoClient from '../AitoClient'
 import { UploadResult } from '../functions/uploadView'
 import { TableColumnMap, TableConfig } from '../schema/config'
@@ -64,6 +64,7 @@ const UploadView: React.FC<{
   const airtableViewId = pendingTableConfig?.airtableViewId
   const selectedView = airtableViewId ? table.getViewByIdIfExists(airtableViewId) : null
   const [fieldsAreAcceptable, setFieldsAreAcceptable] = useState<boolean | undefined>(undefined)
+  const [fieldsAreIgnored, setFieldsAreIgnored] = useState<boolean | undefined>(undefined)
   const [numberOfRows, setNumberOfRows] = useState<number | undefined>(undefined)
   const [uploadedRows, setUploadedRows] = useState(0)
   const [isQuotaExceeded, setQuotaExceeded] = useState(false)
@@ -117,6 +118,7 @@ const UploadView: React.FC<{
   if (isNameEmpty) uploadValidationStatus = 'empty'
   if (!isNameValid) uploadValidationStatus = 'invalid'
   if (isNameTooLong) uploadValidationStatus = 'too-long'
+  if (fieldsAreIgnored) uploadValidationStatus = 'ignored-fields'
   if (fieldsAreAcceptable === false) uploadValidationStatus = 'unsupported'
   if (isQuotaExceeded) uploadValidationStatus = 'quota-exceeded'
 
@@ -186,6 +188,7 @@ const UploadView: React.FC<{
               <FieldTable
                 view={selectedView}
                 setFieldsAreAcceptable={setFieldsAreAcceptable}
+                setFieldsAreIgnored={setFieldsAreIgnored}
                 setNumberOfRows={setNumberOfRows}
               />
             </React.Suspense>
@@ -235,10 +238,13 @@ const UploadView: React.FC<{
             <Text data-message="invalid" variant="paragraph" textColor="red" size="small">
               The name contains invalid characters. It may only contain digits, letters, underscores, and hyphens.
             </Text>
+            <Text data-message="ignored-fields" variant="paragraph" textColor="light" size="small">
+              NOTE: Button fields and lookup fields will not be added to your Aito table&apos;s schema.
+            </Text>
             <Text data-message="unsupported" variant="paragraph" textColor="red" size="small">
               <strong>{selectedView?.name || ''}</strong> contains fields that are unsupported by Aito. Please hide them
               from the view before uploading. TIP: create a new view that only contains the fields you want to copy to
-              Aito as training data - and hides the rest.
+              Aito as training data - and hide the rest.
             </Text>
             <QueryQuotaExceeded data-message="quota-exceeded" />
           </StatusMessage>
@@ -300,8 +306,9 @@ const UploadView: React.FC<{
 const FieldTable: React.FC<{
   view: View
   setFieldsAreAcceptable: (value: boolean | undefined) => void
+  setFieldsAreIgnored: (value: boolean | undefined) => void
   setNumberOfRows: (value: number | undefined) => void
-}> = ({ view, setNumberOfRows, setFieldsAreAcceptable }) => {
+}> = ({ view, setNumberOfRows, setFieldsAreAcceptable, setFieldsAreIgnored }) => {
   const viewMetadata = useViewMetadata(view)
   const visibleFields = viewMetadata.visibleFields
 
@@ -319,6 +326,12 @@ const FieldTable: React.FC<{
     setFieldsAreAcceptable(fieldsAreAcceptable)
     return () => setFieldsAreAcceptable(undefined)
   }, [setFieldsAreAcceptable, fieldsAreAcceptable])
+
+  const fieldsAreIgnored = Boolean(viewMetadata && viewMetadata.visibleFields.some(isIgnoredField))
+  useEffect(() => {
+    setFieldsAreIgnored(fieldsAreIgnored)
+    return () => setFieldsAreIgnored(undefined)
+  }, [setFieldsAreIgnored, fieldsAreIgnored])
 
   return (
     <>
@@ -348,13 +361,16 @@ const FieldRow: React.FC<{
   field: Field
 }> = ({ field }) => {
   const fieldType = getHumanReadableFieldType(field)
-  const isAccepted = field.type in AcceptedFields
+  const isAccepted = isAcceptedField(field)
+  const isIgnored = isIgnoredField(field)
 
   return (
     <Row>
       <Cell width={FIELD_INCLUDE_CELL_WIDTH_PERCENTAGE} flexGrow={0} flexShrink={0}>
         <Box display="flex" justifyContent="center">
-          {isAccepted ? (
+          {isIgnored ? (
+            <Icon name="check" size={16} fillColor="#757575" />
+          ) : isAccepted ? (
             <Icon name="check" size={16} fillColor="green" />
           ) : (
             <Icon name="warning" size={16} fillColor="red" />
@@ -365,7 +381,7 @@ const FieldRow: React.FC<{
         <Text
           width="100%"
           fontWeight="strong"
-          textColor={isAccepted ? undefined : 'red'}
+          textColor={isIgnored ? 'light' : isAccepted ? undefined : 'red'}
           overflowX="hidden"
           style={{ whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}
           paddingRight={1}
