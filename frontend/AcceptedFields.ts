@@ -534,6 +534,7 @@ Airtable to Aito datatype mapping
 - Rollup                    -> depends on the formula
 - Count                     -> int
 - Attachment                -> delimited list of ids
+- External sync source      -> like Multiple select, but read-only
 
 NOT SUPPORTED (automatically ignored in the upload)
 - Link to another record
@@ -571,6 +572,8 @@ const AcceptedFields: Partial<globalThis.Record<FieldType, SupportedField>> = {
   [FieldType.LAST_MODIFIED_BY]: singleCollaborator,
   [FieldType.SINGLE_COLLABORATOR]: singleCollaborator,
   [FieldType.MULTIPLE_COLLABORATORS]: multipleCollaborators,
+
+  [FieldType.EXTERNAL_SYNC_SOURCE]: singleCollaborator,
 
   [FieldType.SINGLE_SELECT]: singleSelect,
   [FieldType.MULTIPLE_SELECTS]: multipleSelects,

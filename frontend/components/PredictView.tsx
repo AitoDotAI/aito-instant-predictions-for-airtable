@@ -511,10 +511,10 @@ const isSuitablePrediction = (field: Field): boolean =>
     FieldType.LAST_MODIFIED_BY,
     FieldType.CREATED_BY,
     FieldType.BARCODE,
+    FieldType.EXTERNAL_SYNC_SOURCE,
   ].includes(field.type)
 
-const isMultipleSelectField = (field: Field): boolean =>
-  Boolean(AcceptedFields[field.type]?.isMultipleSelect)
+const isMultipleSelectField = (field: Field): boolean => Boolean(AcceptedFields[field.type]?.isMultipleSelect)
 
 const renderCellDefault = (field: Field) => {
   const RenderCell = (cellValue: unknown): React.ReactElement => {
