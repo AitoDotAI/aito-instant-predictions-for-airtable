@@ -26,7 +26,7 @@ import { mapColumnNames } from '../functions/inferAitoSchema'
 import { TableSchema } from '../schema/aito'
 import { TableColumnMap, TableConfig } from '../schema/config'
 import { useLocalConfig } from '../LocalConfig'
-import { isArrayOf, isMissing, isObjectOf, isString, ValidatedType } from '../validator/validation'
+import { isArrayOf, isMissing, isObjectOf, isString } from '../validator/validation'
 import { Cell, Row } from './table'
 import Semaphore from 'semaphore-async-await'
 import QueryQuotaExceeded from './QueryQuotaExceeded'
@@ -234,6 +234,15 @@ const PredictView: React.FC<{
     }
   }
 
+  const fieldsToPredict = cursor.selectedFieldIds.reduce<Field[]>((acc, fieldId) => {
+    const field = table.getFieldByIdIfExists(fieldId)
+    if (field) {
+      return [...acc, field]
+    } else {
+      return acc
+    }
+  }, [])
+
   if (schema === 'quota-exceeded') {
     return (
       <Box padding={3}>
@@ -287,15 +296,6 @@ const PredictView: React.FC<{
       </Box>
     )
   }
-
-  const fieldsToPredict = cursor.selectedFieldIds.reduce<Field[]>((acc, fieldId) => {
-    const field = table.getFieldByIdIfExists(fieldId)
-    if (field) {
-      return [...acc, field]
-    } else {
-      return acc
-    }
-  }, [])
 
   const currentTableColumnMap = metadata ? mapColumnNames(metadata.visibleFields) : {}
   const isSchemaOutOfSync = !!Object.entries(currentTableColumnMap).find(([fieldId, { type }]) => {
@@ -469,16 +469,31 @@ const isMultipleSelection = isArrayOf(
   }),
 )
 
-type HasNameOrId = ValidatedType<typeof isMultipleSelection>[0]
-
-const hasFeature = (record: Record, field: Field, feature: any): boolean => {
+const hasFeature = (record: Record, field: Field, value: any): boolean => {
   const conversion = AcceptedFields[field.type]
   if (conversion) {
-    const value = record.getCellValue(field)
-    const convertedFeature = conversion.toCellValue(feature, field.config)
-    return conversion.hasFeature(value, convertedFeature, field.config)
+    const cellValue = record.getCellValue(field)
+    return conversion.hasFeature(cellValue, value, field.config)
   }
   return false
+}
+
+const addFeature = (record: Record, field: Field, value: any): unknown => {
+  const cellValue = record.getCellValue(field)
+  const conversion = AcceptedFields[field.type]
+  if (conversion) {
+    return conversion.addFeature(cellValue, value, field.config)
+  }
+  return cellValue
+}
+
+const removeFeature = (record: Record, field: Field, value: any): unknown => {
+  const cellValue = record.getCellValue(field)
+  const conversion = AcceptedFields[field.type]
+  if (conversion) {
+    return conversion.removeFeature(cellValue, value, field.config)
+  }
+  return cellValue
 }
 
 const isSuitablePrediction = (field: Field): boolean =>
@@ -571,7 +586,7 @@ const fieldChoiceExists = (field: Field, name: string): Boolean => {
   if (config.type === FieldType.SINGLE_SELECT || config.type === FieldType.MULTIPLE_SELECTS) {
     return Boolean(config.options.choices.find((choice) => choice.name === name))
   }
-  return false
+  return true
 }
 
 const addFieldChoice = async (field: Field, name: string): Promise<void> => {
@@ -790,25 +805,15 @@ const FieldPrediction: React.FC<{
 
       const conversion = AcceptedFields[selectedField.type]
       const convertedValue = conversion ? conversion.toCellValue(feature, selectedField.config) : feature
+
       if (isMultipleSelectField(selectedField)) {
         if (isMultipleSelection(value)) {
-          const predicate: (v: HasNameOrId) => boolean =
-            selectedField.type === FieldType.MULTIPLE_COLLABORATORS
-              ? (v) => v.id === feature
-              : (v) => v.name === feature
+          // Look for existing value to toggle
+          const newCellValue = hasFeature(record, selectedField, convertedValue)
+            ? removeFeature(record, selectedField, convertedValue)
+            : addFeature(record, selectedField, convertedValue)
 
-          // Look for existing value
-          if (value.find(predicate)) {
-            // Remove it
-            setCellValue(
-              record,
-              selectedField,
-              value.filter((v) => !predicate(v)),
-            )
-          } else {
-            // Add it
-            setCellValue(record, selectedField, [...value, ...(convertedValue as HasNameOrId[])])
-          }
+          setCellValue(record, selectedField, newCellValue)
         } else if (value === null || (Array.isArray(value) && value.length === 0)) {
           setCellValue(record, selectedField, convertedValue)
         }
@@ -955,6 +960,9 @@ const FieldPrediction: React.FC<{
               )) ||
                 (selectedField.type === FieldType.MULTIPLE_LOOKUP_VALUES && (
                   <Text variant="paragraph">Lookup fields can not be predicted.</Text>
+                )) ||
+                (selectedField.type === FieldType.MULTIPLE_ATTACHMENTS && (
+                  <Text variant="paragraph">Attachment fields can not be predicted.</Text>
                 )) || (
                   <Text variant="paragraph">This field is not part of the training set and cannot be predicted.</Text>
                 ))}
@@ -967,16 +975,20 @@ const FieldPrediction: React.FC<{
           prediction &&
           prediction.hits.map(({ $p, feature, $why }, i) => {
             const conversion = AcceptedFields[selectedField.type]
-            const value = conversion ? conversion.toCellValue(feature, selectedField.config) : feature
+            let value = conversion ? conversion.toCellValue(feature, selectedField.config) : feature
 
+            const canUse = true
             const hitCount = prediction.hits.length
             const hitsBoxHeight = 16 + 49.5 * hitCount
             const beforeFraction = (16 + 49.5 * i) / hitsBoxHeight
             const afterFraction = (hitsBoxHeight - (i + 1) * 49.5) / hitsBoxHeight
             const disallowedReason = whyIsFieldChoiceNotAllowed(selectedField, String(feature))
+            const canRemove = true
+            const fieldHasFeature = hasFeature(record, selectedField, value)
+            const isRemoveAction = fieldHasFeature && canRemove
 
             return (
-              <Row key={i} highlight={hasFeature(record, selectedField, feature)}>
+              <Row key={i} highlight={fieldHasFeature}>
                 <Cell flexGrow={1} flexShrink={1}>
                   <Box display="flex" height="100%" overflowX="hidden">
                     <CellRenderer
@@ -1045,13 +1057,15 @@ const FieldPrediction: React.FC<{
                       {isMultipleSelectField(selectedField) ? (
                         <Button
                           marginX={2}
-                          icon={hasFeature(record, selectedField, feature) ? 'minus' : 'plus'}
+                          icon={isRemoveAction ? 'minus' : 'plus'}
                           onClick={() => onClick(feature)}
                           size="small"
                           alignSelf="center"
-                          disabled={!canUpdate || Boolean(disallowedReason)}
+                          disabled={
+                            !canUse || !canUpdate || Boolean(disallowedReason) || (fieldHasFeature && !canRemove)
+                          }
                           aria-label="Toggle feature"
-                          variant={hasFeature(record, selectedField, feature) ? 'danger' : 'primary'}
+                          variant={isRemoveAction ? 'danger' : 'primary'}
                         />
                       ) : (
                         <Button
@@ -1059,9 +1073,7 @@ const FieldPrediction: React.FC<{
                           size="small"
                           alignSelf="center"
                           variant="default"
-                          disabled={
-                            !canUpdate || hasFeature(record, selectedField, feature) || Boolean(disallowedReason)
-                          }
+                          disabled={!canUpdate || fieldHasFeature || Boolean(disallowedReason)}
                           marginX={2}
                         >
                           Use
