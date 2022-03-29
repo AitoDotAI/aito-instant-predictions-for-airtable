@@ -14,7 +14,6 @@ import {
   Why,
 } from '../explanations'
 import { TableColumnMap } from '../schema/config'
-import { AttachmentMap, getAttachments } from './useAttachments'
 
 const defaultMessage = (
   <Box marginBottom={1}>

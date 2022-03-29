@@ -960,6 +960,9 @@ const FieldPrediction: React.FC<{
               )) ||
                 (selectedField.type === FieldType.MULTIPLE_LOOKUP_VALUES && (
                   <Text variant="paragraph">Lookup fields can not be predicted.</Text>
+                )) ||
+                (selectedField.type === FieldType.MULTIPLE_ATTACHMENTS && (
+                  <Text variant="paragraph">Attachment fields can not be predicted.</Text>
                 )) || (
                   <Text variant="paragraph">This field is not part of the training set and cannot be predicted.</Text>
                 ))}
@@ -1034,12 +1037,7 @@ const FieldPrediction: React.FC<{
                             borderRadius="default"
                           >
                             {$why ? (
-                              <ExplanationBox
-                                $p={$p}
-                                $why={$why}
-                                fields={fields}
-                                tableColumnMap={tableColumnMap}
-                              />
+                              <ExplanationBox $p={$p} $why={$why} fields={fields} tableColumnMap={tableColumnMap} />
                             ) : (
                               <DefaultExplanationBox />
                             )}
