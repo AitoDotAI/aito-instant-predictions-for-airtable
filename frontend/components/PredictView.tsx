@@ -26,7 +26,7 @@ import { mapColumnNames } from '../functions/inferAitoSchema'
 import { TableSchema } from '../schema/aito'
 import { TableColumnMap, TableConfig } from '../schema/config'
 import { useLocalConfig } from '../LocalConfig'
-import { isArrayOf, isMissing, isObjectOf, isString, ValidatedType } from '../validator/validation'
+import { isArrayOf, isMissing, isObjectOf, isString } from '../validator/validation'
 import { Cell, Row } from './table'
 import Semaphore from 'semaphore-async-await'
 import QueryQuotaExceeded from './QueryQuotaExceeded'
@@ -469,16 +469,31 @@ const isMultipleSelection = isArrayOf(
   }),
 )
 
-type HasNameOrId = ValidatedType<typeof isMultipleSelection>[0]
-
-const hasFeature = (record: Record, field: Field, feature: any): boolean => {
+const hasFeature = (record: Record, field: Field, value: any): boolean => {
   const conversion = AcceptedFields[field.type]
   if (conversion) {
-    const value = record.getCellValue(field)
-    const convertedFeature = conversion.toCellValue(feature, field.config)
-    return conversion.hasFeature(value, convertedFeature, field.config)
+    const cellValue = record.getCellValue(field)
+    return conversion.hasFeature(cellValue, value, field.config)
   }
   return false
+}
+
+const addFeature = (record: Record, field: Field, value: any): unknown => {
+  const cellValue = record.getCellValue(field)
+  const conversion = AcceptedFields[field.type]
+  if (conversion) {
+    return conversion.addFeature(cellValue, value, field.config)
+  }
+  return cellValue
+}
+
+const removeFeature = (record: Record, field: Field, value: any): unknown => {
+  const cellValue = record.getCellValue(field)
+  const conversion = AcceptedFields[field.type]
+  if (conversion) {
+    return conversion.removeFeature(cellValue, value, field.config)
+  }
+  return cellValue
 }
 
 const isSuitablePrediction = (field: Field): boolean =>
@@ -790,25 +805,15 @@ const FieldPrediction: React.FC<{
 
       const conversion = AcceptedFields[selectedField.type]
       const convertedValue = conversion ? conversion.toCellValue(feature, selectedField.config) : feature
+
       if (isMultipleSelectField(selectedField)) {
         if (isMultipleSelection(value)) {
-          const predicate: (v: HasNameOrId) => boolean =
-            selectedField.type === FieldType.MULTIPLE_COLLABORATORS
-              ? (v) => v.id === feature
-              : (v) => v.name === feature
+          // Look for existing value to toggle
+          const newCellValue = hasFeature(record, selectedField, convertedValue)
+            ? removeFeature(record, selectedField, convertedValue)
+            : addFeature(record, selectedField, convertedValue)
 
-          // Look for existing value
-          if (value.find(predicate)) {
-            // Remove it
-            setCellValue(
-              record,
-              selectedField,
-              value.filter((v) => !predicate(v)),
-            )
-          } else {
-            // Add it
-            setCellValue(record, selectedField, [...value, ...(convertedValue as HasNameOrId[])])
-          }
+          setCellValue(record, selectedField, newCellValue)
         } else if (value === null || (Array.isArray(value) && value.length === 0)) {
           setCellValue(record, selectedField, convertedValue)
         }

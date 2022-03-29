@@ -30,6 +30,12 @@ interface SupportedField {
   cellValueToText: (value: unknown, f: FieldConfig) => string
   toAitoQuery: (value: AitoValue, f: FieldConfig) => unknown
   hasFeature: (cell: unknown, feature: unknown, f: FieldConfig) => boolean
+
+  /** add `feature` to `cell` and return combination */
+  addFeature: (cell: unknown, feature: unknown, f: FieldConfig) => unknown
+
+  /** remove `feature` from `cell` and return the new cell value */
+  removeFeature: (cell: unknown, feature: unknown, f: FieldConfig) => unknown
 }
 
 const textConversion = (analyzer: Analyzer): SupportedField => ({
@@ -41,6 +47,8 @@ const textConversion = (analyzer: Analyzer): SupportedField => ({
   cellValueToText: (v) => String(v),
   toAitoQuery: (v) => v,
   hasFeature: (): boolean => false,
+  addFeature: (cell) => cell,
+  removeFeature: (cell) => cell,
 })
 
 /**
@@ -61,6 +69,8 @@ const stringConversion: (convert?: (string: string) => string) => SupportedField
   cellValueToText: (v) => String(v),
   toAitoQuery: (v) => v,
   hasFeature: (cell: unknown, feature: unknown): boolean => cell === feature,
+  addFeature: (cell) => cell,
+  removeFeature: (cell) => cell,
 })
 
 const isBarcodeCell = isObjectOf({
@@ -107,6 +117,8 @@ const barcode: SupportedField = {
   },
   toAitoQuery: (v) => v,
   hasFeature: (cell: unknown, feature: unknown): boolean => cell === feature, // ???
+  addFeature: (cell) => cell,
+  removeFeature: (cell) => cell,
 }
 
 /**
@@ -146,6 +158,8 @@ const numberConversion = (t: 'Decimal' | 'Int', alwaysNumeric: boolean = false):
         return v
       },
   hasFeature: (cell: unknown, feature: unknown): boolean => cell === feature,
+  addFeature: (cell) => cell,
+  removeFeature: (cell) => cell,
 })
 
 /**
@@ -201,6 +215,8 @@ const dateTimeConversion = (fromString: (d: string) => Date, toString: (d: Date)
   toCellValue: (v) => toString(epochSecondsToDate(Number(v))),
   toAitoQuery: (v) => ({ $numeric: v }),
   hasFeature: (cell: unknown, feature: unknown): boolean => cell === feature,
+  addFeature: (cell) => cell,
+  removeFeature: (cell) => cell,
 })
 
 const timeConversion: (convert?: (s: string) => number) => SupportedField = (
@@ -224,6 +240,8 @@ const timeConversion: (convert?: (s: string) => number) => SupportedField = (
   cellValueToText: (v) => String(v),
   toAitoQuery: (v) => ({ $numeric: v }),
   hasFeature: (cell: unknown, feature: unknown): boolean => cell === feature,
+  addFeature: (cell) => cell,
+  removeFeature: (cell) => cell,
 })
 
 const hasName = isObjectOf({
@@ -258,6 +276,8 @@ const singleSelect: SupportedField = {
   toAitoQuery: (v) => v,
   hasFeature: (cell: unknown, feature: unknown): boolean =>
     hasName(cell) && hasName(feature) && cell.name === feature.name,
+  addFeature: (cell) => cell,
+  removeFeature: (cell) => cell,
 }
 
 const isMultipleNames = isArrayOf(hasName)
@@ -291,6 +311,12 @@ const multipleSelects: SupportedField = {
   toAitoQuery: (v) => v,
   hasFeature: (cell: unknown, feature: unknown) =>
     isMultipleNames(cell) && isMultipleNames(feature) && Boolean(cell.find((c) => c.name === feature[0]?.name)),
+  addFeature: (cell, feature) =>
+    isMultipleNames(cell) && isMultipleNames(feature) && !cell.find(({ name }) => name === feature[0].name)
+      ? [...cell, ...feature]
+      : cell,
+  removeFeature: (cell, feature) =>
+    isMultipleNames(cell) && isMultipleNames(feature) ? cell.filter((v) => v.name === feature[0]?.name) : cell,
 }
 
 const singleCollaborator: SupportedField = {
@@ -315,6 +341,8 @@ const singleCollaborator: SupportedField = {
   },
   toAitoQuery: (v) => v,
   hasFeature: (cell: unknown, feature: unknown) => hasId(cell) && hasId(feature) && cell.id === feature.id,
+  addFeature: (cell) => cell,
+  removeFeature: (cell) => cell,
 }
 
 const isMultipleIds = isArrayOf(hasId)
@@ -347,8 +375,13 @@ const multipleCollaborators: SupportedField = {
   toAitoQuery: (v) => v,
   hasFeature: (cell: unknown, feature: unknown) =>
     isMultipleIds(cell) && isMultipleIds(feature) && Boolean(cell.find((c) => c.id === feature[0]?.id)),
+  addFeature: (cell, feature) =>
+    isMultipleIds(cell) && isMultipleIds(feature) && !cell.find(({ id }) => id === feature[0].id)
+      ? [...cell, ...feature]
+      : cell,
+  removeFeature: (cell, feature) =>
+    isMultipleIds(cell) && isMultipleIds(feature) ? cell.filter((v) => v.id === feature[0]?.id) : cell,
 }
-
 
 const isAttachment = isObjectOf({
   id: isString,
@@ -384,6 +417,12 @@ const multipleAttachments: SupportedField = {
   toAitoQuery: (v) => v,
   hasFeature: (cell: unknown, feature: unknown) =>
     isMultipleAttachments(cell) && isMultipleAttachments(feature) && Boolean(cell.find((c) => c.id === feature[0]?.id)),
+  addFeature: (cell, feature) =>
+    isMultipleIds(cell) && isMultipleIds(feature) && !cell.find(({ id }) => id === feature[0].id)
+      ? [...cell, ...feature]
+      : cell,
+  removeFeature: (cell, feature) =>
+    isMultipleIds(cell) && isMultipleIds(feature) ? cell.filter((v) => v.id === feature[0]?.id) : cell,
 }
 
 const DateFormat = 'yyyy-MM-dd'
@@ -472,6 +511,22 @@ const formulaOrRollup: SupportedField = {
     }
     return resultFieldType.hasFeature(cell, feature, config.options.result)
   },
+  addFeature: (cell, feature, config) => {
+    assertFormulaType(config)
+    const resultFieldType = getResultFieldType(config)
+    if (!resultFieldType) {
+      return cell
+    }
+    return resultFieldType.addFeature(cell, feature, config.options.result)
+  },
+  removeFeature: (cell, feature, config) => {
+    assertFormulaType(config)
+    const resultFieldType = getResultFieldType(config)
+    if (!resultFieldType) {
+      return cell
+    }
+    return resultFieldType.removeFeature(cell, feature, config.options.result)
+  },
 }
 
 const ignore: SupportedField = {
@@ -483,6 +538,8 @@ const ignore: SupportedField = {
   toAitoType: () => 'String',
   toAitoValue: () => null,
   toCellValue: () => null,
+  addFeature: () => null,
+  removeFeature: () => null,
 }
 
 /**
@@ -531,6 +588,8 @@ const AcceptedFields: Partial<globalThis.Record<FieldType, SupportedField>> = {
     toAitoQuery: (v) => v,
     cellValueToText: (v) => String(v),
     hasFeature: (cell, feature) => Boolean(cell) === Boolean(feature),
+    addFeature: (cell) => cell,
+    removeFeature: (cell) => cell,
   },
   /**
    * Text fields. All currently use the same conversion
