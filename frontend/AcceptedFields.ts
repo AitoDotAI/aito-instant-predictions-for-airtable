@@ -383,48 +383,6 @@ const multipleCollaborators: SupportedField = {
     isMultipleIds(cell) && isMultipleIds(feature) ? cell.filter((v) => v.id === feature[0]?.id) : cell,
 }
 
-const isAttachment = isObjectOf({
-  id: isString,
-  filename: isString,
-})
-const isMultipleAttachments = isArrayOf(isAttachment)
-
-const multipleAttachments: SupportedField = {
-  toAitoValue: (f, r) => {
-    const values = r.getCellValue(f)
-    if (isMultipleAttachments(values)) {
-      return values.map(({ id }) => id.substring(0, 128)).join(delimiter)
-    } else {
-      return null
-    }
-  },
-  toAitoType: () => 'Text',
-  toAitoAnalyzer: () => ({ type: 'delimiter', delimiter, trimWhitespace: false }),
-  isValid: () => true,
-  toCellValue: (v) =>
-    v
-      ? String(v)
-          .split(delimiter)
-          .map((id) => ({ id }))
-      : [],
-  cellValueToText: (v) => {
-    try {
-      return (v as any).map((o: any) => o.filename).join(', ')
-    } catch (e) {
-      return String(v)
-    }
-  },
-  toAitoQuery: (v) => v,
-  hasFeature: (cell: unknown, feature: unknown) =>
-    isMultipleAttachments(cell) && isMultipleAttachments(feature) && Boolean(cell.find((c) => c.id === feature[0]?.id)),
-  addFeature: (cell, feature) =>
-    isMultipleIds(cell) && isMultipleIds(feature) && !cell.find(({ id }) => id === feature[0].id)
-      ? [...cell, ...feature]
-      : cell,
-  removeFeature: (cell, feature) =>
-    isMultipleIds(cell) && isMultipleIds(feature) ? cell.filter((v) => v.id === feature[0]?.id) : cell,
-}
-
 const DateFormat = 'yyyy-MM-dd'
 
 type FormulaFieldConfig = FieldConfig & { type: FieldType.FORMULA | FieldType.ROLLUP }
@@ -610,7 +568,7 @@ const AcceptedFields: Partial<globalThis.Record<FieldType, SupportedField>> = {
   [FieldType.SINGLE_SELECT]: singleSelect,
   [FieldType.MULTIPLE_SELECTS]: multipleSelects,
 
-  [FieldType.MULTIPLE_ATTACHMENTS]: multipleAttachments,
+  [FieldType.MULTIPLE_ATTACHMENTS]: ignore,
 
   /**
    * Numeric fields

@@ -42,8 +42,7 @@ const ExplanationBox: React.FC<{
   tableColumnMap: TableColumnMap
   fields: Field[]
   limit?: number
-  attachmentMap: AttachmentMap
-}> = ({ $p, $why, tableColumnMap, fields, attachmentMap, limit = 5 }) => {
+}> = ({ $p, $why, tableColumnMap, fields, limit = 5 }) => {
   if (!$why) {
     return <React.Fragment />
   }
@@ -104,14 +103,7 @@ const ExplanationBox: React.FC<{
       }
       const conversion = AcceptedFields[field.type]
       if (conversion) {
-        convert = (x) => {
-          let result = conversion.toCellValue(x, field.config)
-          if (field.type === FieldType.MULTIPLE_ATTACHMENTS) {
-            result = getAttachments(attachmentMap, result)
-          }
-
-          return result
-        }
+        convert = (x) => conversion.toCellValue(x, field.config)
       }
 
       const negativeMargin =
