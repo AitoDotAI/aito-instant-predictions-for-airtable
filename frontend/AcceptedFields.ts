@@ -349,6 +349,48 @@ const multipleCollaborators: SupportedField = {
     isMultipleIds(cell) && isMultipleIds(feature) && Boolean(cell.find((c) => c.id === feature[0]?.id)),
 }
 
+
+const isAttachment = isObjectOf({
+  id: isString,
+  filename: isString,
+})
+const isMultipleAttachments = isArrayOf(isAttachment)
+
+const multipleAttachments: SupportedField = {
+  toAitoValue: (f, r) => {
+    const values = r.getCellValue(f)
+    if (isMultipleAttachments(values)) {
+      return values.map(({ id, filename }) => `${id}:${filename}`.substring(0, 128)).join(delimiter)
+    } else {
+      return null
+    }
+  },
+  toAitoType: () => 'Text',
+  toAitoAnalyzer: () => ({ type: 'delimiter', delimiter, trimWhitespace: false }),
+  isValid: () => true,
+  toCellValue: (v) =>
+    v
+      ? String(v)
+          .split(delimiter)
+          .map((line) => {
+            const idLen = line.indexOf(':')
+            const id = line.substring(0, idLen)
+            const filename = line.substring(idLen + 1)
+            return { id, filename }
+          })
+      : [],
+  cellValueToText: (v) => {
+    try {
+      return (v as any).map((o: any) => o.filename).join(', ')
+    } catch (e) {
+      return String(v)
+    }
+  },
+  toAitoQuery: (v) => v,
+  hasFeature: (cell: unknown, feature: unknown) =>
+    isMultipleAttachments(cell) && isMultipleAttachments(feature) && Boolean(cell.find((c) => c.id === feature[0]?.id)),
+}
+
 const DateFormat = 'yyyy-MM-dd'
 
 type FormulaFieldConfig = FieldConfig & { type: FieldType.FORMULA | FieldType.ROLLUP }
@@ -474,10 +516,10 @@ Airtable to Aito datatype mapping
 - Barcode                   -> JSON string
 - Rollup                    -> depends on the formula
 - Count                     -> int
+- Attachment                -> delimited list of id/name pairs
 
 NOT SUPPORTED (automatically ignored in the upload)
 - Link to another record
-- Attachment
 - Lookup
 - Button
 */
@@ -513,6 +555,8 @@ const AcceptedFields: Partial<globalThis.Record<FieldType, SupportedField>> = {
 
   [FieldType.SINGLE_SELECT]: singleSelect,
   [FieldType.MULTIPLE_SELECTS]: multipleSelects,
+
+  [FieldType.MULTIPLE_ATTACHMENTS]: multipleAttachments,
 
   /**
    * Numeric fields
