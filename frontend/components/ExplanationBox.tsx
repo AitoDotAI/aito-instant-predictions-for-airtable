@@ -14,6 +14,7 @@ import {
   Why,
 } from '../explanations'
 import { TableColumnMap } from '../schema/config'
+import { AttachmentMap, getAttachments } from './useAttachments'
 
 const defaultMessage = (
   <Box marginBottom={1}>
@@ -41,7 +42,8 @@ const ExplanationBox: React.FC<{
   tableColumnMap: TableColumnMap
   fields: Field[]
   limit?: number
-}> = ({ $p, $why, tableColumnMap, fields, limit = 5 }) => {
+  attachmentMap: AttachmentMap
+}> = ({ $p, $why, tableColumnMap, fields, attachmentMap, limit = 5 }) => {
   if (!$why) {
     return <React.Fragment />
   }
@@ -102,7 +104,14 @@ const ExplanationBox: React.FC<{
       }
       const conversion = AcceptedFields[field.type]
       if (conversion) {
-        convert = (x) => conversion.toCellValue(x, field.config)
+        convert = (x) => {
+          let result = conversion.toCellValue(x, field.config)
+          if (field.type === FieldType.MULTIPLE_ATTACHMENTS) {
+            result = getAttachments(attachmentMap, result)
+          }
+
+          return result
+        }
       }
 
       const negativeMargin =

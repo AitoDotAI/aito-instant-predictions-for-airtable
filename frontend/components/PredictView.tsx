@@ -996,8 +996,8 @@ const FieldPrediction: React.FC<{
             // We don't store complete attachments in Aito, merely its ID. We need to map the ID to
             // the actual attachments which exist.
             if (isAttachment) {
- const attachment = getAttachments(attachmentMap, value)
- canUse = Boolean(attachment)
+              const attachment = getAttachments(attachmentMap, value)
+              canUse = Boolean(attachment)
               value = attachment || value
             }
 
@@ -1060,7 +1060,13 @@ const FieldPrediction: React.FC<{
                             borderRadius="default"
                           >
                             {$why ? (
-                              <ExplanationBox $p={$p} $why={$why} fields={fields} tableColumnMap={tableColumnMap} />
+                              <ExplanationBox
+                                $p={$p}
+                                $why={$why}
+                                fields={fields}
+                                tableColumnMap={tableColumnMap}
+                                attachmentMap={attachmentMap}
+                              />
                             ) : (
                               <DefaultExplanationBox />
                             )}
@@ -1084,7 +1090,9 @@ const FieldPrediction: React.FC<{
                           onClick={() => onClick(feature)}
                           size="small"
                           alignSelf="center"
-                          disabled={!canUse || !canUpdate || Boolean(disallowedReason) || (fieldHasFeature && !canRemove)}
+                          disabled={
+                            !canUse || !canUpdate || Boolean(disallowedReason) || (fieldHasFeature && !canRemove)
+                          }
                           aria-label="Toggle feature"
                           variant={isRemoveAction ? 'danger' : 'primary'}
                         />
