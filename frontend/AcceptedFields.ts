@@ -22,6 +22,8 @@ const toBoolean = (u: unknown): boolean => {
 type AitoValue = string | boolean | number | null
 
 interface SupportedField {
+  isMultipleSelect?: boolean
+
   toAitoValue: (f: Field, r: Record) => AitoValue
   isValid: (f: Field, r: Record) => boolean
   toAitoType: (f: FieldConfig) => AitoType
@@ -39,6 +41,7 @@ interface SupportedField {
 }
 
 const textConversion = (analyzer: Analyzer): SupportedField => ({
+  isMultipleSelect: true,
   toAitoValue: (f, r) => r.getCellValueAsString(f),
   toAitoType: () => 'Text',
   toAitoAnalyzer: () => analyzer,
@@ -60,7 +63,7 @@ const textConversion = (analyzer: Analyzer): SupportedField => ({
  * @param convert takes a string, returns a string.
  * @returns
  */
-const stringConversion: (convert?: (string: string) => string) => SupportedField = (convert = _.identity) => ({
+const stringConversion = (convert: (string: string) => string = _.identity): SupportedField => ({
   toAitoValue: (f, r) => convert(r.getCellValueAsString(f)),
   toAitoType: () => 'String',
   isValid: () => true,
@@ -284,6 +287,8 @@ const isMultipleNames = isArrayOf(hasName)
 const delimiter = '\x1f' // ASCII Unit separator
 
 const multipleSelects: SupportedField = {
+  isMultipleSelect: true,
+
   toAitoValue: (f, r) => {
     const values = r.getCellValue(f)
     if (isMultipleNames(values)) {
@@ -348,6 +353,8 @@ const singleCollaborator: SupportedField = {
 const isMultipleIds = isArrayOf(hasId)
 
 const multipleCollaborators: SupportedField = {
+  isMultipleSelect: true,
+
   toAitoValue: (f, r) => {
     const values = r.getCellValue(f)
     if (isMultipleIds(values)) {
@@ -527,6 +534,7 @@ Airtable to Aito datatype mapping
 - Rollup                    -> depends on the formula
 - Count                     -> int
 - Attachment                -> delimited list of ids
+- External sync source      -> like Multiple select, but read-only
 
 NOT SUPPORTED (automatically ignored in the upload)
 - Link to another record
@@ -564,6 +572,8 @@ const AcceptedFields: Partial<globalThis.Record<FieldType, SupportedField>> = {
   [FieldType.LAST_MODIFIED_BY]: singleCollaborator,
   [FieldType.SINGLE_COLLABORATOR]: singleCollaborator,
   [FieldType.MULTIPLE_COLLABORATORS]: multipleCollaborators,
+
+  [FieldType.EXTERNAL_SYNC_SOURCE]: singleCollaborator,
 
   [FieldType.SINGLE_SELECT]: singleSelect,
   [FieldType.MULTIPLE_SELECTS]: multipleSelects,
