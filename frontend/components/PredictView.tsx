@@ -34,6 +34,7 @@ import { Why } from '../explanations'
 import ExplanationBox, { DefaultExplanationBox } from './ExplanationBox'
 import styled from 'styled-components'
 import { PermissionCheckResult } from '@airtable/blocks/dist/types/src/types/mutations'
+import useAttachments, { AttachmentMap, getAttachments } from './useAttachments'
 
 const DEFAULT_CONFIDENCE_THRESHOLD = 90
 
@@ -234,6 +235,17 @@ const PredictView: React.FC<{
     }
   }
 
+  const fieldsToPredict = cursor.selectedFieldIds.reduce<Field[]>((acc, fieldId) => {
+    const field = table.getFieldByIdIfExists(fieldId)
+    if (field) {
+      return [...acc, field]
+    } else {
+      return acc
+    }
+  }, [])
+
+  const attachmentMap = useAttachments(table, fieldsToPredict)
+
   if (schema === 'quota-exceeded') {
     return (
       <Box padding={3}>
@@ -287,15 +299,6 @@ const PredictView: React.FC<{
       </Box>
     )
   }
-
-  const fieldsToPredict = cursor.selectedFieldIds.reduce<Field[]>((acc, fieldId) => {
-    const field = table.getFieldByIdIfExists(fieldId)
-    if (field) {
-      return [...acc, field]
-    } else {
-      return acc
-    }
-  }, [])
 
   const currentTableColumnMap = metadata ? mapColumnNames(metadata.visibleFields) : {}
   const isSchemaOutOfSync = !!Object.entries(currentTableColumnMap).find(([fieldId, { type }]) => {
@@ -353,6 +356,7 @@ const PredictView: React.FC<{
           canUpdate={canUpdate}
           autoFill={autoFill && canUpdate.hasPermission}
           threshold={threshold}
+          attachmentMap={attachmentMap}
         />
       ))}
     </>
@@ -416,6 +420,7 @@ const RecordPrediction: React.FC<{
   autoFill: boolean
   threshold: number
   canUpdate: PermissionCheckResult
+  attachmentMap: AttachmentMap
 }> = ({
   offset,
   recordId,
@@ -430,6 +435,7 @@ const RecordPrediction: React.FC<{
   threshold,
   canUpdate,
   tableColumnMap,
+  attachmentMap,
 }) => {
   const record = useRecordById(recordsQuery, recordId)
 
@@ -456,6 +462,7 @@ const RecordPrediction: React.FC<{
           autoFill={autoFill}
           threshold={threshold}
           canUpdate={canUpdate}
+          attachmentMap={attachmentMap}
         />
       ))}
     </Box>
@@ -515,6 +522,7 @@ const isSuitablePrediction = (field: Field): boolean =>
 
 const isMultipleSelectField = (field: Field): boolean =>
   [
+    FieldType.MULTIPLE_ATTACHMENTS,
     FieldType.MULTIPLE_COLLABORATORS,
     FieldType.MULTIPLE_SELECTS,
     FieldType.RICH_TEXT,
@@ -523,6 +531,9 @@ const isMultipleSelectField = (field: Field): boolean =>
 
 const renderCellDefault = (field: Field) => {
   const RenderCell = (cellValue: unknown): React.ReactElement => {
+    if (field.type === FieldType.MULTIPLE_ATTACHMENTS) {
+      return <i>Unknown attachment</i>
+    }
     if (field.type === FieldType.SINGLE_COLLABORATOR || field.type === FieldType.MULTIPLE_COLLABORATORS) {
       return <i>Unknown collaborator</i>
     }
@@ -612,6 +623,7 @@ const FieldPrediction: React.FC<{
   autoFill: boolean
   threshold: number
   canUpdate: PermissionCheckResult
+  attachmentMap: AttachmentMap
 }> = ({
   selectedField,
   fields,
@@ -624,6 +636,7 @@ const FieldPrediction: React.FC<{
   autoFill,
   threshold,
   canUpdate: hasPermissionToUpdate,
+  attachmentMap,
 }) => {
   const delayedRequest = useRef<ReturnType<typeof setTimeout> | undefined>()
 
@@ -804,7 +817,10 @@ const FieldPrediction: React.FC<{
       const valueString = record.getCellValueAsString(selectedField.id)
 
       const conversion = AcceptedFields[selectedField.type]
-      const convertedValue = conversion ? conversion.toCellValue(feature, selectedField.config) : feature
+      let convertedValue = conversion ? conversion.toCellValue(feature, selectedField.config) : feature
+      if (selectedField.type === FieldType.MULTIPLE_ATTACHMENTS) {
+        convertedValue = getAttachments(attachmentMap, convertedValue)
+      }
 
       if (isMultipleSelectField(selectedField)) {
         if (isMultipleSelection(value)) {
@@ -830,7 +846,7 @@ const FieldPrediction: React.FC<{
       }
       setConfirmation(undefined)
     },
-    [record, selectedField, setCellValue, setConfirmation],
+    [record, selectedField, setCellValue, setConfirmation, attachmentMap],
   )
 
   const onClick = useCallback((feature: unknown): Promise<void> => updateField(feature), [updateField])
@@ -972,16 +988,29 @@ const FieldPrediction: React.FC<{
           prediction &&
           prediction.hits.map(({ $p, feature, $why }, i) => {
             const conversion = AcceptedFields[selectedField.type]
-            const value = conversion ? conversion.toCellValue(feature, selectedField.config) : feature
+            let value = conversion ? conversion.toCellValue(feature, selectedField.config) : feature
+            const isAttachment = selectedField.type === FieldType.MULTIPLE_ATTACHMENTS
+
+            // We don't store complete attachments in Aito, merely its ID. We need to map the ID to
+            // the actual attachments which exist.
+            if (isAttachment) {
+              const attachments = getAttachments(attachmentMap, value)
+              if (attachments.length > 0) {
+                value = attachments
+              }
+            }
 
             const hitCount = prediction.hits.length
             const hitsBoxHeight = 16 + 49.5 * hitCount
             const beforeFraction = (16 + 49.5 * i) / hitsBoxHeight
             const afterFraction = (hitsBoxHeight - (i + 1) * 49.5) / hitsBoxHeight
             const disallowedReason = whyIsFieldChoiceNotAllowed(selectedField, String(feature))
+            const canRemove = !isAttachment
+            const fieldHasFeature = hasFeature(record, selectedField, value)
+            const isRemoveAction = fieldHasFeature && canRemove
 
             return (
-              <Row key={i} highlight={hasFeature(record, selectedField, feature)}>
+              <Row key={i} highlight={fieldHasFeature}>
                 <Cell flexGrow={1} flexShrink={1}>
                   <Box display="flex" height="100%" overflowX="hidden">
                     <CellRenderer
@@ -1050,13 +1079,13 @@ const FieldPrediction: React.FC<{
                       {isMultipleSelectField(selectedField) ? (
                         <Button
                           marginX={2}
-                          icon={hasFeature(record, selectedField, feature) ? 'minus' : 'plus'}
+                          icon={isRemoveAction ? 'minus' : 'plus'}
                           onClick={() => onClick(feature)}
                           size="small"
                           alignSelf="center"
-                          disabled={!canUpdate || Boolean(disallowedReason)}
+                          disabled={!canUpdate || Boolean(disallowedReason) || (fieldHasFeature && !canRemove)}
                           aria-label="Toggle feature"
-                          variant={hasFeature(record, selectedField, feature) ? 'danger' : 'primary'}
+                          variant={isRemoveAction ? 'danger' : 'primary'}
                         />
                       ) : (
                         <Button
@@ -1064,9 +1093,7 @@ const FieldPrediction: React.FC<{
                           size="small"
                           alignSelf="center"
                           variant="default"
-                          disabled={
-                            !canUpdate || hasFeature(record, selectedField, feature) || Boolean(disallowedReason)
-                          }
+                          disabled={!canUpdate || fieldHasFeature || Boolean(disallowedReason)}
                           marginX={2}
                         >
                           Use
