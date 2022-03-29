@@ -514,12 +514,7 @@ const isSuitablePrediction = (field: Field): boolean =>
   ].includes(field.type)
 
 const isMultipleSelectField = (field: Field): boolean =>
-  [
-    FieldType.MULTIPLE_COLLABORATORS,
-    FieldType.MULTIPLE_SELECTS,
-    FieldType.RICH_TEXT,
-    FieldType.MULTILINE_TEXT,
-  ].includes(field.type)
+  Boolean(AcceptedFields[field.type]?.isMultipleSelect)
 
 const renderCellDefault = (field: Field) => {
   const RenderCell = (cellValue: unknown): React.ReactElement => {
