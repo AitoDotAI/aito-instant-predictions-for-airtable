@@ -384,8 +384,8 @@ const FieldRow: React.FC<{
         </Text>
       </Cell>
       <Cell width={FIELD_DESCRIPTION_CELL_WIDTH_PERCENTAGE}>
-        <Text textColor="light" display="flex" alignItems="center" marginTop={1}>
-          <FieldIcon field={field} marginRight={1} /> {fieldType}
+        <Text textColor={isIgnored ? 'light' : undefined} display="flex" alignItems="center" marginTop={1}>
+          <FieldIcon fillColor={isIgnored ? '#aaaaaa' : 'gray'} field={field} marginRight={1} /> {fieldType}
         </Text>
       </Cell>
     </Row>
