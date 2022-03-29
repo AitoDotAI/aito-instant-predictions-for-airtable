@@ -360,7 +360,7 @@ const multipleAttachments: SupportedField = {
   toAitoValue: (f, r) => {
     const values = r.getCellValue(f)
     if (isMultipleAttachments(values)) {
-      return values.map(({ id, filename }) => `${id}:${filename}`.substring(0, 128)).join(delimiter)
+      return values.map(({ id }) => id.substring(0, 128)).join(delimiter)
     } else {
       return null
     }
@@ -372,12 +372,7 @@ const multipleAttachments: SupportedField = {
     v
       ? String(v)
           .split(delimiter)
-          .map((line) => {
-            const idLen = line.indexOf(':')
-            const id = line.substring(0, idLen)
-            const filename = line.substring(idLen + 1)
-            return { id, filename }
-          })
+          .map((id) => ({ id }))
       : [],
   cellValueToText: (v) => {
     try {
@@ -516,7 +511,7 @@ Airtable to Aito datatype mapping
 - Barcode                   -> JSON string
 - Rollup                    -> depends on the formula
 - Count                     -> int
-- Attachment                -> delimited list of id/name pairs
+- Attachment                -> delimited list of ids
 
 NOT SUPPORTED (automatically ignored in the upload)
 - Link to another record
