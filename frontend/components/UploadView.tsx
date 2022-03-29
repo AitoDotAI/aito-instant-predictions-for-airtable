@@ -118,9 +118,10 @@ const UploadView: React.FC<{
   if (isNameEmpty) uploadValidationStatus = 'empty'
   if (!isNameValid) uploadValidationStatus = 'invalid'
   if (isNameTooLong) uploadValidationStatus = 'too-long'
-  if (fieldsAreIgnored) uploadValidationStatus = 'ignored-fields'
   if (fieldsAreAcceptable === false) uploadValidationStatus = 'unsupported'
   if (isQuotaExceeded) uploadValidationStatus = 'quota-exceeded'
+
+  const schemaStatus = fieldsAreIgnored ? 'ignored-fields' : ''
 
   useEffect(() => {
     if (uploadState === 'error') {
@@ -196,11 +197,18 @@ const UploadView: React.FC<{
         </Box>
         <Box marginX={3} marginTop={3} marginBottom={2}>
           <Text variant="paragraph" textColor="light">
-            The {typeof numberOfRows === 'undefined' ? null : numberOfRows} records visible in the view{' '}
+            The {typeof numberOfRows === 'undefined' ? null : numberOfRows} records that are visible in the view{' '}
             <em>{selectedView?.name || 'the view'}</em> will be uploaded to your Aito instance{' '}
             <strong>{client.name}</strong> to a table called <strong>{pendingTableConfig.aitoTableName}</strong>. If a
             table with that name already exists then it will be replaced.
           </Text>
+
+          {schemaStatus === 'ignored-fields' && (
+            <Text variant="paragraph" textColor="light">
+              NOTE: Button fields, attachment fields and lookup fields will not be added to your Aito table&apos;s
+              schema.
+            </Text>
+          )}
 
           {lastUploader && (
             <Box marginBottom={3}>
@@ -229,18 +237,6 @@ const UploadView: React.FC<{
           </Box>
 
           <StatusMessage message={uploadValidationStatus} marginTop={[2]}>
-            <Text data-message="empty" variant="paragraph" textColor="red" size="small">
-              The name cannot be empty.
-            </Text>
-            <Text data-message="too-long" variant="paragraph" textColor="red" size="small">
-              The name is too long. It must be 60 characters or shorter.
-            </Text>
-            <Text data-message="invalid" variant="paragraph" textColor="red" size="small">
-              The name contains invalid characters. It may only contain digits, letters, underscores, and hyphens.
-            </Text>
-            <Text data-message="ignored-fields" variant="paragraph" textColor="light" size="small">
-              NOTE: Button fields and lookup fields will not be added to your Aito table&apos;s schema.
-            </Text>
             <Text data-message="unsupported" variant="paragraph" textColor="red" size="small">
               <strong>{selectedView?.name || ''}</strong> contains fields that are unsupported by Aito. Please hide them
               from the view before uploading. TIP: create a new view that only contains the fields you want to copy to
