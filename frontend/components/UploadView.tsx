@@ -220,7 +220,7 @@ const UploadView: React.FC<{
               variant="primary"
               icon="upload"
             >
-              Upload{numberOfRows === undefined ? null : ` ${numberOfRows} rows`}
+              Upload{numberOfRows === undefined ? null : ` ${numberOfRows} records`}
             </Button>
 
             <Button disabled={isUploading} onClick={goToPredict} variant="secondary">
