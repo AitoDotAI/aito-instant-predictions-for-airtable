@@ -35,11 +35,13 @@ const useAttachments = (table: Table, fields: Field[]): AttachmentMap => {
   return result
 }
 
-export const getAttachments = (attachmentMap: AttachmentMap, feature: unknown): unknown[] => {
+export const getAttachments = (attachmentMap: AttachmentMap, feature: unknown): unknown[] | undefined => {
   if (isAttachmentsLike(feature)) {
-    return feature.map(({ id }) => attachmentMap[id]).filter(Boolean)
+    const features = feature.map(({ id }) => attachmentMap[id]).filter(Boolean)
+    if (features.length > 0) {
+      return features
+    }
   }
-  return []
 }
 
 export default useAttachments

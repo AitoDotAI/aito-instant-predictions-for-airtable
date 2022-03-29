@@ -991,13 +991,14 @@ const FieldPrediction: React.FC<{
             let value = conversion ? conversion.toCellValue(feature, selectedField.config) : feature
             const isAttachment = selectedField.type === FieldType.MULTIPLE_ATTACHMENTS
 
+            let canUse = true
+
             // We don't store complete attachments in Aito, merely its ID. We need to map the ID to
             // the actual attachments which exist.
             if (isAttachment) {
-              const attachments = getAttachments(attachmentMap, value)
-              if (attachments.length > 0) {
-                value = attachments
-              }
+ const attachment = getAttachments(attachmentMap, value)
+ canUse = Boolean(attachment)
+              value = attachment || value
             }
 
             const hitCount = prediction.hits.length
@@ -1083,7 +1084,7 @@ const FieldPrediction: React.FC<{
                           onClick={() => onClick(feature)}
                           size="small"
                           alignSelf="center"
-                          disabled={!canUpdate || Boolean(disallowedReason) || (fieldHasFeature && !canRemove)}
+                          disabled={!canUse || !canUpdate || Boolean(disallowedReason) || (fieldHasFeature && !canRemove)}
                           aria-label="Toggle feature"
                           variant={isRemoveAction ? 'danger' : 'primary'}
                         />
