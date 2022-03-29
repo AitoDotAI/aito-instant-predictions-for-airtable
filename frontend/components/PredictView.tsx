@@ -597,7 +597,7 @@ const fieldChoiceExists = (field: Field, name: string): Boolean => {
   if (config.type === FieldType.SINGLE_SELECT || config.type === FieldType.MULTIPLE_SELECTS) {
     return Boolean(config.options.choices.find((choice) => choice.name === name))
   }
-  return false
+  return true
 }
 
 const addFieldChoice = async (field: Field, name: string): Promise<void> => {
