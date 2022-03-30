@@ -2,7 +2,6 @@ import { Field, Table, View, ViewType } from '@airtable/blocks/models'
 import {
   Box,
   Button,
-  CollaboratorToken,
   FieldIcon,
   FormField,
   Icon,
@@ -48,11 +47,6 @@ const UploadView: React.FC<{
   canUpdateSettings: boolean
   client: AitoClient
 }> = ({ table, onUpload, tableConfig, setTableConfig, setTab, canUpdateSettings, client }) => {
-  // We read the fields from viewMetadata instead of using table.fields because fields are only
-  // ordered in the context of a specific view.
-  // Also, this allows us to only show the fields visible within the selected view.
-  const base = useBase()
-
   type UploadState = 'idle' | 'uploading' | 'done' | 'error'
   const [uploadState, setUploadState] = useState<UploadState>('idle')
   const [pendingTableConfig, setPendingConfig] = useState(tableConfig)
@@ -135,9 +129,6 @@ const UploadView: React.FC<{
 
   const goToPredict = useCallback(() => setTab('predict'), [setTab])
 
-  const lastUploader =
-    base.activeCollaborators.find((c) => c.id === tableConfig.lastUpdatedBy?.id) || tableConfig.lastUpdatedBy
-
   return (
     <>
       <Box
@@ -153,7 +144,7 @@ const UploadView: React.FC<{
           <Heading marginBottom={1}>Upload training data</Heading>
           <Text variant="paragraph" textColor="light">
             Training data is required for making predictions. Select or create a <em>grid view</em> to use for training.
-            The records and fields that are visible are uploaded to your Aito cloud instance. More tips at Aito.ai{' '}
+            The records and fields that are visible can be uploaded to your Aito cloud instance. More tips at Aito.ai{' '}
             <a target="_blank" href="https://aito.document360.io/docs/airtable" rel="noopener noreferrer">
               blog
             </a>
