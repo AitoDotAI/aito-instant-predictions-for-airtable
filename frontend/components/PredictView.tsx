@@ -289,10 +289,12 @@ const PredictView: React.FC<{
 
   if (!hasSelection) {
     return (
-      <Box padding={3}>
-        <Text variant="paragraph" textColor="light">
-          Please select an empty cell
-        </Text>
+      <Box padding={3} flexGrow={1} flexBasis="100%" display="flex" alignItems="center" justifyContent="center">
+        <Box>
+          <Text variant="paragraph" textColor="#bbb" size="xlarge" fontWeight="bold" margin={0} flexGrow={0}>
+            Please select an empty cell
+          </Text>
+        </Box>
       </Box>
     )
   }
@@ -324,7 +326,7 @@ const PredictView: React.FC<{
   const maxRecords = 10
 
   return (
-    <>
+    <Box>
       <PredictionSettingsToolbar
         disabled={!canUpdate.hasPermission}
         autoFill={autoFill}
@@ -355,7 +357,7 @@ const PredictView: React.FC<{
           threshold={threshold}
         />
       ))}
-    </>
+    </Box>
   )
 }
 

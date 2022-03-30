@@ -70,7 +70,7 @@ const TableView: React.FC<{
     // tab === 'predict
     return (
       <Box display="flex" flexDirection="column" minHeight="100vh">
-        <Box flexGrow={1} flexBasis="100%">
+        <Box flexGrow={1} flexBasis="100%" display="flex" flexDirection="column">
           <React.Suspense fallback={<Spinner />}>
             <PredictView
               key={table.id}
@@ -89,7 +89,7 @@ const TableView: React.FC<{
 }
 
 const Spinner: React.FC = () => (
-  <Box padding={3} display="flex" justifyContent="center" alignItems="center">
+  <Box padding={3} flexGrow={1} display="flex" flexBasis="100%" justifyContent="center" alignItems="center">
     <Loader scale={0.3} />
   </Box>
 )
