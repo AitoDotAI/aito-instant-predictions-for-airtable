@@ -1,4 +1,4 @@
-import { Field, FieldType, Table, View, ViewType } from '@airtable/blocks/models'
+import { Field, Table, View, ViewType } from '@airtable/blocks/models'
 import {
   Box,
   Button,
@@ -27,11 +27,6 @@ import Footer from './Footer'
 import QueryQuotaExceeded from './QueryQuotaExceeded'
 import StatusMessage from './StatusMessage'
 import { Tab } from './Tab'
-import { Cell, Row } from './table'
-
-const FIELD_INCLUDE_CELL_WIDTH_PERCENTAGE = '24px'
-const FIELD_CELL_WIDTH_PERCENTAGE = '45%'
-const FIELD_DESCRIPTION_CELL_WIDTH_PERCENTAGE = '45%'
 
 const TABLE_NAME_PATTERN = /^[a-zA-Z0-9_-]*$/
 const MAX_TABLE_NAME_LENGTH = 60
@@ -66,7 +61,6 @@ const UploadView: React.FC<{
   const airtableViewId = pendingTableConfig?.airtableViewId
   const selectedView = airtableViewId ? table.getViewByIdIfExists(airtableViewId) : null
   const [fieldsAreAcceptable, setFieldsAreAcceptable] = useState<boolean | undefined>(undefined)
-  const [fieldsAreIgnored, setFieldsAreIgnored] = useState<boolean | undefined>(undefined)
   const [numberOfRows, setNumberOfRows] = useState<number | undefined>(undefined)
   const [uploadedRows, setUploadedRows] = useState(0)
   const [isQuotaExceeded, setQuotaExceeded] = useState(false)
@@ -122,8 +116,6 @@ const UploadView: React.FC<{
   if (isNameTooLong) uploadValidationStatus = 'too-long'
   if (fieldsAreAcceptable === false) uploadValidationStatus = 'unsupported'
   if (isQuotaExceeded) uploadValidationStatus = 'quota-exceeded'
-
-  const schemaStatus = fieldsAreIgnored ? 'ignored-fields' : ''
 
   useEffect(() => {
     if (uploadState === 'error') {
@@ -191,26 +183,16 @@ const UploadView: React.FC<{
                 view={selectedView}
                 aitoTableName={pendingTableConfig.aitoTableName}
                 setFieldsAreAcceptable={setFieldsAreAcceptable}
-                setFieldsAreIgnored={setFieldsAreIgnored}
                 setNumberOfRows={setNumberOfRows}
               />
             </React.Suspense>
           )}
         </Box>
-        <Box marginX={3} marginTop={3} marginBottom={2}>
+        <Box marginX={3} marginTop={4} marginBottom={2}>
           <Text variant="paragraph" textColor="light">
-            The {typeof numberOfRows === 'undefined' ? null : numberOfRows} records that are visible in the view{' '}
-            <em>{selectedView?.name || 'the view'}</em> will be uploaded to your Aito instance{' '}
-            <strong>{client.name}</strong> to a table called <strong>{pendingTableConfig.aitoTableName}</strong>. If a
-            table with that name already exists then it will be replaced.
+            Press the button below to upload the table records to your Aito instance <strong>{client.name}</strong>. Any
+            existing table named <strong>{pendingTableConfig.aitoTableName}</strong> will be replaced.
           </Text>
-
-          {schemaStatus === 'ignored-fields' && (
-            <Text variant="paragraph" textColor="light">
-              NOTE: Button fields, attachment fields and lookup fields will not be added to your Aito table&apos;s
-              schema.
-            </Text>
-          )}
 
           {lastUploader && (
             <Box marginBottom={3}>
@@ -330,9 +312,8 @@ const FieldTable: React.FC<{
   view: View
   aitoTableName: string
   setFieldsAreAcceptable: (value: boolean | undefined) => void
-  setFieldsAreIgnored: (value: boolean | undefined) => void
   setNumberOfRows: (value: number | undefined) => void
-}> = ({ view, aitoTableName, setNumberOfRows, setFieldsAreAcceptable, setFieldsAreIgnored }) => {
+}> = ({ view, aitoTableName, setNumberOfRows, setFieldsAreAcceptable }) => {
   const viewMetadata = useViewMetadata(view)
   const visibleFields = viewMetadata.visibleFields
 
@@ -350,12 +331,6 @@ const FieldTable: React.FC<{
     setFieldsAreAcceptable(fieldsAreAcceptable)
     return () => setFieldsAreAcceptable(undefined)
   }, [setFieldsAreAcceptable, fieldsAreAcceptable])
-
-  const fieldsAreIgnored = viewMetadata.visibleFields.some(isIgnoredField)
-  useEffect(() => {
-    setFieldsAreIgnored(fieldsAreIgnored)
-    return () => setFieldsAreIgnored(undefined)
-  }, [setFieldsAreIgnored, fieldsAreIgnored])
 
   const acceptedFields = viewMetadata ? viewMetadata.visibleFields.filter(isAcceptedField) : []
   const includedFields = acceptedFields.filter((x) => !isIgnoredField(x))
@@ -385,87 +360,6 @@ const FieldTable: React.FC<{
       )}
     </Box>
   )
-}
-
-// Presentational header row helper component.
-const HeaderRow: React.FC = () => {
-  return (
-    <Row isHeader={true}>
-      <Cell width={FIELD_INCLUDE_CELL_WIDTH_PERCENTAGE} flexGrow={0} flexShrink={0}></Cell>
-      <Cell width={FIELD_CELL_WIDTH_PERCENTAGE}>
-        <Text textColor="light">Field name</Text>
-      </Cell>
-      <Cell width={FIELD_DESCRIPTION_CELL_WIDTH_PERCENTAGE}>
-        <Text textColor="light">Field type</Text>
-      </Cell>
-    </Row>
-  )
-}
-
-const FieldRow: React.FC<{
-  field: Field
-}> = ({ field }) => {
-  const fieldType = getHumanReadableFieldType(field)
-  const isAccepted = isAcceptedField(field)
-  const isIgnored = isIgnoredField(field)
-
-  return (
-    <Row>
-      <Cell width={FIELD_INCLUDE_CELL_WIDTH_PERCENTAGE} flexGrow={0} flexShrink={0}>
-        <Box display="flex" justifyContent="center">
-          {isIgnored ? null : isAccepted ? (
-            <Icon name="check" size={16} fillColor="green" />
-          ) : (
-            <Icon name="warning" size={16} fillColor="red" />
-          )}
-        </Box>
-      </Cell>
-      <Cell width={FIELD_CELL_WIDTH_PERCENTAGE}>
-        <Text
-          width="100%"
-          fontWeight="strong"
-          textColor={isIgnored ? 'light' : isAccepted ? undefined : 'red'}
-          overflowX="hidden"
-          style={{ whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}
-          paddingRight={1}
-        >
-          {field.name}
-        </Text>
-      </Cell>
-      <Cell width={FIELD_DESCRIPTION_CELL_WIDTH_PERCENTAGE}>
-        <Text textColor={isIgnored ? 'light' : undefined} display="flex" alignItems="center" marginTop={1}>
-          <FieldIcon fillColor={isIgnored ? '#aaaaaa' : 'gray'} field={field} marginRight={1} /> {fieldType}
-        </Text>
-      </Cell>
-    </Row>
-  )
-}
-
-function getHumanReadableFieldType(field: Field): string {
-  // Format the field types to more closely match those in Airtable's UI
-  switch (field.type) {
-    case FieldType.DATE_TIME:
-      return 'Date with time'
-    case FieldType.MULTILINE_TEXT:
-      return 'Long text'
-    case FieldType.MULTIPLE_ATTACHMENTS:
-      return 'Attachments'
-    case FieldType.MULTIPLE_RECORD_LINKS:
-      return 'Linked records'
-    case FieldType.MULTIPLE_SELECTS:
-      return 'Multiple select'
-    case FieldType.URL:
-      return 'URL'
-    default:
-      // For everything else, just convert it from camel case
-      // https://stackoverflow.com/questions/4149276/how-to-convert-camelcase-to-camel-case
-      return field.type
-        .replace(/([A-Z])/g, ' $1')
-        .toLowerCase()
-        .replace(/^./, function (str) {
-          return str.toUpperCase()
-        })
-  }
 }
 
 export default UploadView
