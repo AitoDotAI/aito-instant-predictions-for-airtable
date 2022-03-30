@@ -344,7 +344,6 @@ const PredictView: React.FC<{
       {_.take(cursor.selectedRecordIds, maxRecords).map((recordId, i) => (
         <RecordPrediction
           key={recordId}
-          offset={i}
           recordId={recordId}
           viewFields={visibleFields}
           tableColumnMap={tableColumnMap}
@@ -407,7 +406,6 @@ const useAitoSchema = (
 }
 
 const RecordPrediction: React.FC<{
-  offset: number
   recordsQuery: TableOrViewQueryResult
   recordId: string
   viewFields: Field[]
@@ -421,7 +419,6 @@ const RecordPrediction: React.FC<{
   threshold: number
   canUpdate: PermissionCheckResult
 }> = ({
-  offset,
   recordId,
   recordsQuery,
   viewFields,
@@ -442,7 +439,7 @@ const RecordPrediction: React.FC<{
   }
 
   return (
-    <Box padding={3} borderTop={offset > 0 ? 'thick' : null}>
+    <Box padding={3}>
       <Heading size="xsmall" paddingBottom={2}>
         {record.name}
       </Heading>
