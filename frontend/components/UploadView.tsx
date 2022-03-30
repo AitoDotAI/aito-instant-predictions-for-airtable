@@ -15,6 +15,8 @@ import {
   useViewMetadata,
   ViewPicker,
   Link,
+  Label,
+  Tooltip,
 } from '@airtable/blocks/ui'
 import React, { useCallback, useEffect, useState } from 'react'
 import { isAcceptedField, isIgnoredField } from '../AcceptedFields'
@@ -185,9 +187,9 @@ const UploadView: React.FC<{
                 </Box>
               }
             >
-              <HeaderRow />
               <FieldTable
                 view={selectedView}
+                aitoTableName={pendingTableConfig.aitoTableName}
                 setFieldsAreAcceptable={setFieldsAreAcceptable}
                 setFieldsAreIgnored={setFieldsAreIgnored}
                 setNumberOfRows={setNumberOfRows}
@@ -299,12 +301,38 @@ const UploadView: React.FC<{
   )
 }
 
+const InlineFieldList: React.FC<{
+  fields: Field[]
+}> = ({ fields }) => (
+  <Text
+    variant="paragraph"
+    style={{
+      lineHeight: '24px',
+      paddingTop: '-4px',
+      paddingBottom: '-4px',
+      overflowX: 'hidden',
+      textOverflow: 'break-word',
+    }}
+  >
+    {fields.map((field, i) => (
+      <>
+        <span style={{ whiteSpace: 'nowrap', overflowWrap: 'break-word' }}>
+          <FieldIcon marginRight={1} style={{ verticalAlign: 'text-bottom' }} fillColor="gray" field={field} />
+          &nbsp;{field.name}
+        </span>
+        {i + 1 < fields.length && <span style={{ letterSpacing: '24px' }}> </span>}
+      </>
+    ))}
+  </Text>
+)
+
 const FieldTable: React.FC<{
   view: View
+  aitoTableName: string
   setFieldsAreAcceptable: (value: boolean | undefined) => void
   setFieldsAreIgnored: (value: boolean | undefined) => void
   setNumberOfRows: (value: number | undefined) => void
-}> = ({ view, setNumberOfRows, setFieldsAreAcceptable, setFieldsAreIgnored }) => {
+}> = ({ view, aitoTableName, setNumberOfRows, setFieldsAreAcceptable, setFieldsAreIgnored }) => {
   const viewMetadata = useViewMetadata(view)
   const visibleFields = viewMetadata.visibleFields
 
@@ -317,24 +345,45 @@ const FieldTable: React.FC<{
     return () => setNumberOfRows(undefined)
   }, [setNumberOfRows, count])
 
-  const fieldsAreAcceptable = Boolean(viewMetadata && viewMetadata.visibleFields.every(isAcceptedField))
+  const fieldsAreAcceptable = visibleFields.every(isAcceptedField)
   useEffect(() => {
     setFieldsAreAcceptable(fieldsAreAcceptable)
     return () => setFieldsAreAcceptable(undefined)
   }, [setFieldsAreAcceptable, fieldsAreAcceptable])
 
-  const fieldsAreIgnored = Boolean(viewMetadata && viewMetadata.visibleFields.some(isIgnoredField))
+  const fieldsAreIgnored = viewMetadata.visibleFields.some(isIgnoredField)
   useEffect(() => {
     setFieldsAreIgnored(fieldsAreIgnored)
     return () => setFieldsAreIgnored(undefined)
   }, [setFieldsAreIgnored, fieldsAreIgnored])
 
+  const acceptedFields = viewMetadata ? viewMetadata.visibleFields.filter(isAcceptedField) : []
+  const includedFields = acceptedFields.filter((x) => !isIgnoredField(x))
+  const excludedFields = acceptedFields.filter(isIgnoredField)
+
   return (
-    <>
-      {visibleFields.map((field) => (
-        <FieldRow key={field.id} field={field} />
-      ))}
-    </>
+    <Box marginTop={2}>
+      <Label>Aito Table Name</Label>
+      <Text variant="paragraph">{aitoTableName}</Text>
+      <Label>Content</Label>
+      <Text variant="paragraph">{count} records</Text>
+      <Label>Fields</Label>
+      <InlineFieldList fields={includedFields} />
+      {excludedFields.length > 0 && (
+        <>
+          <Label>
+            Excluded Fields{' '}
+            <Tooltip
+              style={{ height: 'auto', width: '300px', maxWidth: '300px', whiteSpace: 'normal' }}
+              content="Button fields, attachment fields and lookup fields are not supported and will not be uploaded to your Aito table. These fields cannot be predicted."
+            >
+              <Icon name="help" style={{ verticalAlign: 'bottom' }} />
+            </Tooltip>
+          </Label>
+          <InlineFieldList fields={excludedFields} />
+        </>
+      )}
+    </Box>
   )
 }
 
