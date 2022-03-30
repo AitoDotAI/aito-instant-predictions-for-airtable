@@ -8,7 +8,6 @@ import {
   Loader,
   Heading,
   Text,
-  useBase,
   useRecordIds,
   useSession,
   useViewMetadata,
@@ -139,72 +138,78 @@ const UploadView: React.FC<{
           overflow: 'hidden',
           transition: 'opacity 0.4s 0s, visibility 0s 0.5s, height 0s 0.5s',
         }}
+        display="flex"
+        flexGrow={1}
+        flexDirection="column"
       >
-        <Box paddingX={3} paddingTop={2}>
-          <Heading marginBottom={1}>Upload training data</Heading>
-          <Text variant="paragraph" textColor="light">
-            Training data is required for making predictions. Select or create a <em>grid view</em> to use for training.
-            The records and fields that are visible can be uploaded to your Aito cloud instance. More tips at Aito.ai{' '}
-            <a target="_blank" href="https://aito.document360.io/docs/airtable" rel="noopener noreferrer">
-              blog
-            </a>
-            .
-          </Text>
-        </Box>
-        <Box margin={3}>
-          <FormField label="Training data view" marginBottom={1}>
-            <ViewPicker
-              allowedTypes={[ViewType.GRID]}
-              table={table}
-              view={table.views.find((v) => v.id === pendingTableConfig.airtableViewId)}
-              disabled={!canUpdateSettings}
-              onChange={(e) => e && changeTableConfig({ ...pendingTableConfig, airtableViewId: e.id })}
-              placeholder="Select Grid View..."
-            />
-          </FormField>
-          {selectedView && (
-            <React.Suspense
-              fallback={
-                <Box display="flex" flexDirection="column">
-                  <Loader scale={0.3} alignSelf="center" />
-                </Box>
-              }
-            >
-              <FieldTable
-                view={selectedView}
-                aitoTableName={pendingTableConfig.aitoTableName}
-                setFieldsAreAcceptable={setFieldsAreAcceptable}
-                setNumberOfRows={setNumberOfRows}
-              />
-            </React.Suspense>
-          )}
-        </Box>
-        <Box marginX={3} marginTop={4} marginBottom={2}>
-          <Text variant="paragraph" textColor="light">
-            Press the button below to upload the table records to your Aito instance <strong>{client.name}</strong>. Any
-            existing table named <strong>{pendingTableConfig.aitoTableName}</strong> will be replaced.
-          </Text>
-
-          <Button
-            disabled={!fieldsAreAcceptable || isUploading || !canSaveName}
-            onClick={doUpload}
-            variant="primary"
-            icon="upload"
-          >
-            Upload{numberOfRows === undefined ? null : ` ${numberOfRows} records`}
-          </Button>
-
-          <StatusMessage message={uploadValidationStatus} marginTop={[2]}>
-            <Text data-message="unsupported" variant="paragraph" textColor="red" size="small">
-              <strong>{selectedView?.name || ''}</strong> contains fields that are unsupported by Aito. Please hide them
-              from the view before uploading. TIP: create a new view that only contains the fields you want to copy to
-              Aito as training data - and hide the rest.
+        <Box flexGrow={1}>
+          <Box paddingX={3} paddingTop={2}>
+            <Heading marginBottom={1}>Upload training data</Heading>
+            <Text variant="paragraph" textColor="light">
+              Training data is required for making predictions. Select or create a <em>grid view</em> to use for
+              training. The records and fields that are visible can be uploaded to your Aito cloud instance. More tips
+              at Aito.ai{' '}
+              <a target="_blank" href="https://aito.document360.io/docs/airtable" rel="noopener noreferrer">
+                blog
+              </a>
+              .
             </Text>
-            <QueryQuotaExceeded data-message="quota-exceeded" />
-          </StatusMessage>
-          <Box marginY={3}>
-            <Footer />
           </Box>
+          <Box margin={3}>
+            <FormField label="Training data view" marginBottom={1}>
+              <ViewPicker
+                allowedTypes={[ViewType.GRID]}
+                table={table}
+                view={table.views.find((v) => v.id === pendingTableConfig.airtableViewId)}
+                disabled={!canUpdateSettings}
+                onChange={(e) => e && changeTableConfig({ ...pendingTableConfig, airtableViewId: e.id })}
+                placeholder="Select Grid View..."
+              />
+            </FormField>
+            {selectedView && (
+              <React.Suspense
+                fallback={
+                  <Box display="flex" flexDirection="column">
+                    <Loader scale={0.3} alignSelf="center" />
+                  </Box>
+                }
+              >
+                <FieldTable
+                  view={selectedView}
+                  aitoTableName={pendingTableConfig.aitoTableName}
+                  setFieldsAreAcceptable={setFieldsAreAcceptable}
+                  setNumberOfRows={setNumberOfRows}
+                />
+              </React.Suspense>
+            )}
+          </Box>
+          <Box marginX={3} marginTop={4} marginBottom={2}>
+            <Text variant="paragraph" textColor="light">
+              Press the button below to upload the table records to your Aito instance <strong>{client.name}</strong>.
+              Any existing table named <strong>{pendingTableConfig.aitoTableName}</strong> will be replaced.
+            </Text>
+
+            <Button
+              disabled={!fieldsAreAcceptable || isUploading || !canSaveName}
+              onClick={doUpload}
+              variant="primary"
+              icon="upload"
+            >
+              Upload{numberOfRows === undefined ? null : ` ${numberOfRows} records`}
+            </Button>
+
+            <StatusMessage message={uploadValidationStatus} marginTop={[2]}>
+              <Text data-message="unsupported" variant="paragraph" textColor="red" size="small">
+                <strong>{selectedView?.name || ''}</strong> contains fields that are unsupported by Aito. Please hide
+                them from the view before uploading. TIP: create a new view that only contains the fields you want to
+                copy to Aito as training data - and hide the rest.
+              </Text>
+              <QueryQuotaExceeded data-message="quota-exceeded" />
+            </StatusMessage>
+          </Box>
+        </Box>
+        <Box margin={3} flexGrow={0}>
+          <Footer />
         </Box>
       </Box>
 

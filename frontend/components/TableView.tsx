@@ -49,7 +49,7 @@ const TableView: React.FC<{
   if (tab === 'train') {
     return (
       <Box display="flex" flexDirection="column" minHeight="100vh">
-        <Box flexGrow={1} flexBasis="100%">
+        <Box display="flex" flexGrow={1} flexBasis="100%">
           <React.Suspense fallback={<Spinner />}>
             <UploadView
               key={table.id}

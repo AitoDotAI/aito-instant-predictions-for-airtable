@@ -77,7 +77,7 @@ const SettingsMenu: React.FC<{
   )
 
   return (
-    <>
+    <Box display="flex" flexDirection="column" height="100vh">
       {isAuthenticationError && (
         <Box backgroundColor="#f82b60" borderColor="#404040" borderWidth="thick" width="100%" padding={3}>
           <Text variant="paragraph" size="large" textColor="white" margin={0} padding={0}>
@@ -85,7 +85,7 @@ const SettingsMenu: React.FC<{
           </Text>
         </Box>
       )}
-      <Box padding={3} minHeight="100vh">
+      <Box margin={3} flexGrow={1}>
         <Heading marginBottom={1}>Settings</Heading>
         <Text variant="paragraph" textColor="light">
           Credentials to an Aito.ai instance are required for making predictions and uploading training data.
@@ -154,10 +154,11 @@ const SettingsMenu: React.FC<{
             </Text>
           </StatusMessage>
         </div>
-
+      </Box>
+      <Box flexGrow={0} margin={3}>
         <Footer />
       </Box>
-    </>
+    </Box>
   )
 }
 
