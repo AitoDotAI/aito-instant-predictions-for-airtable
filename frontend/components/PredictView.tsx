@@ -4,6 +4,8 @@ import {
   Button,
   CellRenderer,
   ConfirmationDialog,
+  FieldIcon,
+  Heading,
   Icon,
   Input,
   Label,
@@ -441,9 +443,9 @@ const RecordPrediction: React.FC<{
 
   return (
     <Box padding={3} borderTop={offset > 0 ? 'thick' : null}>
-      <Text fontWeight="strong" paddingBottom={2}>
-        Record {record.name}
-      </Text>
+      <Heading size="xsmall" paddingBottom={2}>
+        {record.name}
+      </Heading>
       {fieldsToPredict.map((field) => (
         <FieldPrediction
           key={field.id}
@@ -897,50 +899,59 @@ const FieldPrediction: React.FC<{
 
       <Row isHeader={true}>
         <Cell flexGrow={1} flexShrink={1}>
-          <Tooltip
-            disabled={!disclaimer}
-            shouldHideTooltipOnClick={false}
-            placementX={Tooltip.placements.CENTER}
-            placementY={Tooltip.placements.BOTTOM}
-            style={{ height: 'auto', width: '300px', maxWidth: '300px', whiteSpace: 'normal' }}
-            content={() => (
-              <Text margin={2} textColor="white">
-                {disclaimer === 'numbers' ? (
-                  <>
-                    Aito is made for predicting categorical data and has limited support for continuous properties like
-                    amounts and dates. Unless the values of <em>{selectedField.name}</em> are categorical in nature,
-                    these predictions are not likely to be accurate.
-                  </>
-                ) : (
-                  <>
-                    Aito is not able to predict complete sentences, only words that are likely to occur in the text
-                    field.
-                  </>
-                )}
-              </Text>
-            )}
-          >
-            <Box style={{ overflowX: 'hidden', textOverflow: 'ellipsis' }}>
-              <Text display="inline" textColor="light" paddingX={3}>
-                {selectedField.name}
-                {disclaimer && (
-                  <Icon
-                    name="warning"
-                    aria-label="Warning"
-                    marginLeft={2}
-                    style={{ verticalAlign: 'text-bottom', width: '1em', height: '1em' }}
-                  />
-                )}
-              </Text>
-              {prediction === undefined && <Loader scale={0.2} />}
-            </Box>
-          </Tooltip>
+          <Box style={{ overflowX: 'hidden', textOverflow: 'ellipsis' }}>
+            <Text display="inline" textColor="light" paddingX={3}>
+              <FieldIcon
+                fillColor="#aaa"
+                field={selectedField}
+                style={{ verticalAlign: 'text-bottom' }}
+                marginRight={1}
+              />
+              {selectedField.name}
+            </Text>
+            {prediction === undefined && <Loader scale={0.2} />}
+          </Box>
         </Cell>
         <Cell width="110px" flexGrow={0}>
           {prediction && !predictionError && (
-            <Box display="flex" height="100%" justifyContent="left">
-              <Text textColor="light">Confidence</Text>
-            </Box>
+            <Tooltip
+              disabled={!disclaimer}
+              shouldHideTooltipOnClick={false}
+              placementX={Tooltip.placements.RIGHT}
+              placementY={Tooltip.placements.BOTTOM}
+              style={{ height: 'auto', width: '300px', maxWidth: '300px', whiteSpace: 'normal' }}
+              content={() => (
+                <Text margin={2} textColor="white">
+                  {disclaimer === 'numbers' ? (
+                    <>
+                      Aito is made for predicting categorical data and has limited support for continuous properties
+                      like amounts and dates. Unless the values of <em>{selectedField.name}</em> are categorical in
+                      nature, these predictions are not likely to be accurate.
+                    </>
+                  ) : (
+                    <>
+                      Aito is not able to predict complete sentences, only words that are likely to occur in the text
+                      field.
+                    </>
+                  )}
+                </Text>
+              )}
+            >
+              <Box display="flex" height="100%" justifyContent="left">
+                <Text textColor="light">
+                  Confidence
+                  {disclaimer && (
+                    <Icon
+                      fillColor="#aaa"
+                      name="warning"
+                      aria-label="Warning"
+                      marginLeft={2}
+                      style={{ verticalAlign: 'text-bottom' }}
+                    />
+                  )}
+                </Text>
+              </Box>
+            </Tooltip>
           )}
         </Cell>
         <Cell width="6px" flexGrow={0}></Cell>
