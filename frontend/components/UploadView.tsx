@@ -194,31 +194,14 @@ const UploadView: React.FC<{
             existing table named <strong>{pendingTableConfig.aitoTableName}</strong> will be replaced.
           </Text>
 
-          {lastUploader && (
-            <Box marginBottom={3}>
-              <Box as="span" display="inline-block" style={{ verticalAlign: 'middle' }}>
-                <CollaboratorToken collaborator={lastUploader || {}} flexGrow={0} />
-              </Box>{' '}
-              <Text as="span" textColor="light">
-                uploaded {tableConfig.lastRowCount} records at {new Date(tableConfig.lastUpdated || 0).toLocaleString()}
-              </Text>
-            </Box>
-          )}
-
-          <Box display="flex" justifyContent="space-between">
-            <Button
-              disabled={!fieldsAreAcceptable || isUploading || !canSaveName}
-              onClick={doUpload}
-              variant="primary"
-              icon="upload"
-            >
-              Upload{numberOfRows === undefined ? null : ` ${numberOfRows} records`}
-            </Button>
-
-            <Button disabled={isUploading} onClick={goToPredict} variant="secondary">
-              Cancel
-            </Button>
-          </Box>
+          <Button
+            disabled={!fieldsAreAcceptable || isUploading || !canSaveName}
+            onClick={doUpload}
+            variant="primary"
+            icon="upload"
+          >
+            Upload{numberOfRows === undefined ? null : ` ${numberOfRows} records`}
+          </Button>
 
           <StatusMessage message={uploadValidationStatus} marginTop={[2]}>
             <Text data-message="unsupported" variant="paragraph" textColor="red" size="small">
@@ -338,7 +321,7 @@ const FieldTable: React.FC<{
 
   return (
     <Box marginTop={2}>
-      <Label>Aito Table Name</Label>
+      <Label>Aito table name</Label>
       <Text variant="paragraph">{aitoTableName}</Text>
       <Label>Content</Label>
       <Text variant="paragraph">{count} records</Text>
