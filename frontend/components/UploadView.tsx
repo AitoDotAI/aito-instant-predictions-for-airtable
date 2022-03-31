@@ -1,20 +1,20 @@
-import { Field, FieldType, Table, View, ViewType } from '@airtable/blocks/models'
+import { Field, Table, View, ViewType } from '@airtable/blocks/models'
 import {
   Box,
   Button,
-  CollaboratorToken,
   FieldIcon,
   FormField,
   Icon,
   Loader,
   Heading,
   Text,
-  useBase,
   useRecordIds,
   useSession,
   useViewMetadata,
   ViewPicker,
   Link,
+  Label,
+  Tooltip,
 } from '@airtable/blocks/ui'
 import React, { useCallback, useEffect, useState } from 'react'
 import { isAcceptedField, isIgnoredField } from '../AcceptedFields'
@@ -25,11 +25,6 @@ import Footer from './Footer'
 import QueryQuotaExceeded from './QueryQuotaExceeded'
 import StatusMessage from './StatusMessage'
 import { Tab } from './Tab'
-import { Cell, Row } from './table'
-
-const FIELD_INCLUDE_CELL_WIDTH_PERCENTAGE = '24px'
-const FIELD_CELL_WIDTH_PERCENTAGE = '45%'
-const FIELD_DESCRIPTION_CELL_WIDTH_PERCENTAGE = '45%'
 
 const TABLE_NAME_PATTERN = /^[a-zA-Z0-9_-]*$/
 const MAX_TABLE_NAME_LENGTH = 60
@@ -51,11 +46,6 @@ const UploadView: React.FC<{
   canUpdateSettings: boolean
   client: AitoClient
 }> = ({ table, onUpload, tableConfig, setTableConfig, setTab, canUpdateSettings, client }) => {
-  // We read the fields from viewMetadata instead of using table.fields because fields are only
-  // ordered in the context of a specific view.
-  // Also, this allows us to only show the fields visible within the selected view.
-  const base = useBase()
-
   type UploadState = 'idle' | 'uploading' | 'done' | 'error'
   const [uploadState, setUploadState] = useState<UploadState>('idle')
   const [pendingTableConfig, setPendingConfig] = useState(tableConfig)
@@ -64,7 +54,6 @@ const UploadView: React.FC<{
   const airtableViewId = pendingTableConfig?.airtableViewId
   const selectedView = airtableViewId ? table.getViewByIdIfExists(airtableViewId) : null
   const [fieldsAreAcceptable, setFieldsAreAcceptable] = useState<boolean | undefined>(undefined)
-  const [fieldsAreIgnored, setFieldsAreIgnored] = useState<boolean | undefined>(undefined)
   const [numberOfRows, setNumberOfRows] = useState<number | undefined>(undefined)
   const [uploadedRows, setUploadedRows] = useState(0)
   const [isQuotaExceeded, setQuotaExceeded] = useState(false)
@@ -121,8 +110,6 @@ const UploadView: React.FC<{
   if (fieldsAreAcceptable === false) uploadValidationStatus = 'unsupported'
   if (isQuotaExceeded) uploadValidationStatus = 'quota-exceeded'
 
-  const schemaStatus = fieldsAreIgnored ? 'ignored-fields' : ''
-
   useEffect(() => {
     if (uploadState === 'error') {
       // Transition from 'error' to 'idle' after a short while unless
@@ -141,9 +128,6 @@ const UploadView: React.FC<{
 
   const goToPredict = useCallback(() => setTab('predict'), [setTab])
 
-  const lastUploader =
-    base.activeCollaborators.find((c) => c.id === tableConfig.lastUpdatedBy?.id) || tableConfig.lastUpdatedBy
-
   return (
     <>
       <Box
@@ -154,74 +138,57 @@ const UploadView: React.FC<{
           overflow: 'hidden',
           transition: 'opacity 0.4s 0s, visibility 0s 0.5s, height 0s 0.5s',
         }}
+        display="flex"
+        flexGrow={1}
+        flexDirection="column"
       >
-        <Box paddingX={3} paddingTop={2}>
-          <Heading marginBottom={1}>Upload training data</Heading>
-          <Text variant="paragraph" textColor="light">
-            Training data is required for making predictions. Select or create a <em>grid view</em> to use for training.
-            The records and fields that are visible are uploaded to your Aito cloud instance. More tips at Aito.ai{' '}
-            <a target="_blank" href="https://aito.document360.io/docs/airtable" rel="noopener noreferrer">
-              blog
-            </a>
-            .
-          </Text>
-        </Box>
-        <Box margin={3}>
-          <FormField label="Training data view" marginBottom={1}>
-            <ViewPicker
-              allowedTypes={[ViewType.GRID]}
-              table={table}
-              view={table.views.find((v) => v.id === pendingTableConfig.airtableViewId)}
-              disabled={!canUpdateSettings}
-              onChange={(e) => e && changeTableConfig({ ...pendingTableConfig, airtableViewId: e.id })}
-              placeholder="Select Grid View..."
-            />
-          </FormField>
-          {selectedView && (
-            <React.Suspense
-              fallback={
-                <Box display="flex" flexDirection="column">
-                  <Loader scale={0.3} alignSelf="center" />
-                </Box>
-              }
-            >
-              <HeaderRow />
-              <FieldTable
-                view={selectedView}
-                setFieldsAreAcceptable={setFieldsAreAcceptable}
-                setFieldsAreIgnored={setFieldsAreIgnored}
-                setNumberOfRows={setNumberOfRows}
-              />
-            </React.Suspense>
-          )}
-        </Box>
-        <Box marginX={3} marginTop={3} marginBottom={2}>
-          <Text variant="paragraph" textColor="light">
-            The {typeof numberOfRows === 'undefined' ? null : numberOfRows} records that are visible in the view{' '}
-            <em>{selectedView?.name || 'the view'}</em> will be uploaded to your Aito instance{' '}
-            <strong>{client.name}</strong> to a table called <strong>{pendingTableConfig.aitoTableName}</strong>. If a
-            table with that name already exists then it will be replaced.
-          </Text>
-
-          {schemaStatus === 'ignored-fields' && (
+        <Box flexGrow={1}>
+          <Box paddingX={3} paddingTop={2}>
+            <Heading marginBottom={1}>Upload training data</Heading>
             <Text variant="paragraph" textColor="light">
-              NOTE: Button fields, attachment fields and lookup fields will not be added to your Aito table&apos;s
-              schema.
+              Training data is required for making predictions. Select or create a <em>grid view</em> to use for
+              training. The records and fields that are visible can be uploaded to your Aito cloud instance. More tips
+              at Aito.ai{' '}
+              <a target="_blank" href="https://aito.document360.io/docs/airtable" rel="noopener noreferrer">
+                blog
+              </a>
+              .
             </Text>
-          )}
+          </Box>
+          <Box margin={3}>
+            <FormField label="Training data view" marginBottom={1}>
+              <ViewPicker
+                allowedTypes={[ViewType.GRID]}
+                table={table}
+                view={table.views.find((v) => v.id === pendingTableConfig.airtableViewId)}
+                disabled={!canUpdateSettings}
+                onChange={(e) => e && changeTableConfig({ ...pendingTableConfig, airtableViewId: e.id })}
+                placeholder="Select Grid View..."
+              />
+            </FormField>
+            {selectedView && (
+              <React.Suspense
+                fallback={
+                  <Box display="flex" flexDirection="column">
+                    <Loader scale={0.3} alignSelf="center" />
+                  </Box>
+                }
+              >
+                <FieldTable
+                  view={selectedView}
+                  aitoTableName={pendingTableConfig.aitoTableName}
+                  setFieldsAreAcceptable={setFieldsAreAcceptable}
+                  setNumberOfRows={setNumberOfRows}
+                />
+              </React.Suspense>
+            )}
+          </Box>
+          <Box marginX={3} marginTop={4} marginBottom={2}>
+            <Text variant="paragraph" textColor="light">
+              Press the button below to upload the table records to your Aito instance <strong>{client.name}</strong>.
+              Any existing table named <strong>{pendingTableConfig.aitoTableName}</strong> will be replaced.
+            </Text>
 
-          {lastUploader && (
-            <Box marginBottom={3}>
-              <Box as="span" display="inline-block" style={{ verticalAlign: 'middle' }}>
-                <CollaboratorToken collaborator={lastUploader || {}} flexGrow={0} />
-              </Box>{' '}
-              <Text as="span" textColor="light">
-                uploaded {tableConfig.lastRowCount} records at {new Date(tableConfig.lastUpdated || 0).toLocaleString()}
-              </Text>
-            </Box>
-          )}
-
-          <Box display="flex" justifyContent="space-between">
             <Button
               disabled={!fieldsAreAcceptable || isUploading || !canSaveName}
               onClick={doUpload}
@@ -231,22 +198,18 @@ const UploadView: React.FC<{
               Upload{numberOfRows === undefined ? null : ` ${numberOfRows} records`}
             </Button>
 
-            <Button disabled={isUploading} onClick={goToPredict} variant="secondary">
-              Cancel
-            </Button>
+            <StatusMessage message={uploadValidationStatus} marginTop={[2]}>
+              <Text data-message="unsupported" variant="paragraph" textColor="red" size="small">
+                <strong>{selectedView?.name || ''}</strong> contains fields that are unsupported by Aito. Please hide
+                them from the view before uploading. TIP: create a new view that only contains the fields you want to
+                copy to Aito as training data - and hide the rest.
+              </Text>
+              <QueryQuotaExceeded data-message="quota-exceeded" />
+            </StatusMessage>
           </Box>
-
-          <StatusMessage message={uploadValidationStatus} marginTop={[2]}>
-            <Text data-message="unsupported" variant="paragraph" textColor="red" size="small">
-              <strong>{selectedView?.name || ''}</strong> contains fields that are unsupported by Aito. Please hide them
-              from the view before uploading. TIP: create a new view that only contains the fields you want to copy to
-              Aito as training data - and hide the rest.
-            </Text>
-            <QueryQuotaExceeded data-message="quota-exceeded" />
-          </StatusMessage>
-          <Box marginY={3}>
-            <Footer />
-          </Box>
+        </Box>
+        <Box margin={3} flexGrow={0}>
+          <Footer />
         </Box>
       </Box>
 
@@ -299,12 +262,37 @@ const UploadView: React.FC<{
   )
 }
 
+const InlineFieldList: React.FC<{
+  fields: Field[]
+}> = ({ fields }) => (
+  <Text
+    variant="paragraph"
+    style={{
+      lineHeight: '24px',
+      paddingTop: '-4px',
+      paddingBottom: '-4px',
+      overflowX: 'hidden',
+      textOverflow: 'break-word',
+    }}
+  >
+    {fields.map((field, i) => (
+      <>
+        <span style={{ whiteSpace: 'nowrap', overflowWrap: 'break-word' }}>
+          <FieldIcon marginRight={1} style={{ verticalAlign: 'text-bottom' }} fillColor="gray" field={field} />
+          &nbsp;{field.name}
+        </span>
+        {i + 1 < fields.length && <span style={{ letterSpacing: '24px' }}> </span>}
+      </>
+    ))}
+  </Text>
+)
+
 const FieldTable: React.FC<{
   view: View
+  aitoTableName: string
   setFieldsAreAcceptable: (value: boolean | undefined) => void
-  setFieldsAreIgnored: (value: boolean | undefined) => void
   setNumberOfRows: (value: number | undefined) => void
-}> = ({ view, setNumberOfRows, setFieldsAreAcceptable, setFieldsAreIgnored }) => {
+}> = ({ view, aitoTableName, setNumberOfRows, setFieldsAreAcceptable }) => {
   const viewMetadata = useViewMetadata(view)
   const visibleFields = viewMetadata.visibleFields
 
@@ -317,106 +305,40 @@ const FieldTable: React.FC<{
     return () => setNumberOfRows(undefined)
   }, [setNumberOfRows, count])
 
-  const fieldsAreAcceptable = Boolean(viewMetadata && viewMetadata.visibleFields.every(isAcceptedField))
+  const fieldsAreAcceptable = visibleFields.every(isAcceptedField)
   useEffect(() => {
     setFieldsAreAcceptable(fieldsAreAcceptable)
     return () => setFieldsAreAcceptable(undefined)
   }, [setFieldsAreAcceptable, fieldsAreAcceptable])
 
-  const fieldsAreIgnored = Boolean(viewMetadata && viewMetadata.visibleFields.some(isIgnoredField))
-  useEffect(() => {
-    setFieldsAreIgnored(fieldsAreIgnored)
-    return () => setFieldsAreIgnored(undefined)
-  }, [setFieldsAreIgnored, fieldsAreIgnored])
+  const acceptedFields = viewMetadata ? viewMetadata.visibleFields.filter(isAcceptedField) : []
+  const includedFields = acceptedFields.filter((x) => !isIgnoredField(x))
+  const excludedFields = acceptedFields.filter(isIgnoredField)
 
   return (
-    <>
-      {visibleFields.map((field) => (
-        <FieldRow key={field.id} field={field} />
-      ))}
-    </>
+    <Box marginTop={2}>
+      <Label>Aito table name</Label>
+      <Text variant="paragraph">{aitoTableName}</Text>
+      <Label>Content</Label>
+      <Text variant="paragraph">{count} records</Text>
+      <Label>Fields</Label>
+      <InlineFieldList fields={includedFields} />
+      {excludedFields.length > 0 && (
+        <>
+          <Label>
+            Excluded Fields{' '}
+            <Tooltip
+              style={{ height: 'auto', width: '300px', maxWidth: '300px', whiteSpace: 'normal' }}
+              content="Button fields, attachment fields and lookup fields are not supported and will not be uploaded to your Aito table. These fields cannot be predicted."
+            >
+              <Icon name="help" style={{ verticalAlign: 'bottom' }} />
+            </Tooltip>
+          </Label>
+          <InlineFieldList fields={excludedFields} />
+        </>
+      )}
+    </Box>
   )
-}
-
-// Presentational header row helper component.
-const HeaderRow: React.FC = () => {
-  return (
-    <Row isHeader={true}>
-      <Cell width={FIELD_INCLUDE_CELL_WIDTH_PERCENTAGE} flexGrow={0} flexShrink={0}></Cell>
-      <Cell width={FIELD_CELL_WIDTH_PERCENTAGE}>
-        <Text textColor="light">Field name</Text>
-      </Cell>
-      <Cell width={FIELD_DESCRIPTION_CELL_WIDTH_PERCENTAGE}>
-        <Text textColor="light">Field type</Text>
-      </Cell>
-    </Row>
-  )
-}
-
-const FieldRow: React.FC<{
-  field: Field
-}> = ({ field }) => {
-  const fieldType = getHumanReadableFieldType(field)
-  const isAccepted = isAcceptedField(field)
-  const isIgnored = isIgnoredField(field)
-
-  return (
-    <Row>
-      <Cell width={FIELD_INCLUDE_CELL_WIDTH_PERCENTAGE} flexGrow={0} flexShrink={0}>
-        <Box display="flex" justifyContent="center">
-          {isIgnored ? null : isAccepted ? (
-            <Icon name="check" size={16} fillColor="green" />
-          ) : (
-            <Icon name="warning" size={16} fillColor="red" />
-          )}
-        </Box>
-      </Cell>
-      <Cell width={FIELD_CELL_WIDTH_PERCENTAGE}>
-        <Text
-          width="100%"
-          fontWeight="strong"
-          textColor={isIgnored ? 'light' : isAccepted ? undefined : 'red'}
-          overflowX="hidden"
-          style={{ whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}
-          paddingRight={1}
-        >
-          {field.name}
-        </Text>
-      </Cell>
-      <Cell width={FIELD_DESCRIPTION_CELL_WIDTH_PERCENTAGE}>
-        <Text textColor={isIgnored ? 'light' : undefined} display="flex" alignItems="center" marginTop={1}>
-          <FieldIcon fillColor={isIgnored ? '#aaaaaa' : 'gray'} field={field} marginRight={1} /> {fieldType}
-        </Text>
-      </Cell>
-    </Row>
-  )
-}
-
-function getHumanReadableFieldType(field: Field): string {
-  // Format the field types to more closely match those in Airtable's UI
-  switch (field.type) {
-    case FieldType.DATE_TIME:
-      return 'Date with time'
-    case FieldType.MULTILINE_TEXT:
-      return 'Long text'
-    case FieldType.MULTIPLE_ATTACHMENTS:
-      return 'Attachments'
-    case FieldType.MULTIPLE_RECORD_LINKS:
-      return 'Linked records'
-    case FieldType.MULTIPLE_SELECTS:
-      return 'Multiple select'
-    case FieldType.URL:
-      return 'URL'
-    default:
-      // For everything else, just convert it from camel case
-      // https://stackoverflow.com/questions/4149276/how-to-convert-camelcase-to-camel-case
-      return field.type
-        .replace(/([A-Z])/g, ' $1')
-        .toLowerCase()
-        .replace(/^./, function (str) {
-          return str.toUpperCase()
-        })
-  }
 }
 
 export default UploadView

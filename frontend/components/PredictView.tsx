@@ -4,6 +4,8 @@ import {
   Button,
   CellRenderer,
   ConfirmationDialog,
+  expandRecord,
+  FieldIcon,
   Icon,
   Input,
   Label,
@@ -224,9 +226,20 @@ const PredictView: React.FC<{
 
   // Make sure that the selected rows and fields are up to date
   const recordsQuery = useMemo(() => table.selectRecords(), [table])
-  useLoadable([cursor, metadata])
+  useLoadable([cursor, metadata, recordsQuery])
 
-  const canUpdate = table.checkPermissionsForUpdateRecords(cursor.selectedRecordIds.map((id) => ({ id })))
+  const selectedFieldCount = cursor.selectedFieldIds.length
+  const selectedRecordCount = cursor.selectedRecordIds.length
+  const hasSelection = selectedFieldCount > 0 && selectedRecordCount > 0
+
+  const maxRecords = 10
+  const recordIdsToPredict = _.take(cursor.selectedRecordIds, maxRecords)
+
+  const canUpdate = table.checkPermissionsForUpdateRecords(recordIdsToPredict.map((id) => ({ id })))
+
+  const selectedRecords = recordIdsToPredict
+    .map((recordId) => recordsQuery.getRecordByIdIfExists(recordId))
+    .filter((x): x is Record => Boolean(x))
 
   const setCellValue = async (record: Record, field: Field, value: unknown): Promise<void> => {
     if (canUpdate.hasPermission) {
@@ -272,11 +285,6 @@ const PredictView: React.FC<{
     }
   }
 
-  const selectedFieldCount = cursor.selectedFieldIds.length
-  const selectedRecordCount = cursor.selectedRecordIds.length
-
-  const hasSelection = selectedFieldCount > 0 && selectedRecordCount > 0
-
   if (view?.type !== ViewType.GRID) {
     return (
       <Box padding={3}>
@@ -289,10 +297,12 @@ const PredictView: React.FC<{
 
   if (!hasSelection) {
     return (
-      <Box padding={3}>
-        <Text variant="paragraph" textColor="light">
-          Please select an empty cell
-        </Text>
+      <Box padding={3} flexGrow={1} flexBasis="100%" display="flex" alignItems="center" justifyContent="center">
+        <Box>
+          <Text variant="paragraph" textColor="#bbb" size="xlarge" fontWeight="bold" margin={0} flexGrow={0}>
+            Please select an empty cell
+          </Text>
+        </Box>
       </Box>
     )
   }
@@ -321,10 +331,8 @@ const PredictView: React.FC<{
     )
   }
 
-  const maxRecords = 10
-
   return (
-    <>
+    <Box>
       <PredictionSettingsToolbar
         disabled={!canUpdate.hasPermission}
         autoFill={autoFill}
@@ -332,16 +340,16 @@ const PredictView: React.FC<{
         threshold={threshold}
         saveThreshold={saveThreshold}
       />
-      {cursor.selectedRecordIds.length > maxRecords && (
+      {selectedRecordCount > maxRecords && (
         <Text fontStyle="oblique" textColor="light" variant="paragraph" marginX={3} marginTop={3}>
-          Showing predictions for {maxRecords} of the {cursor.selectedRecordIds.length} selected records.
+          Showing predictions for {maxRecords} of the {selectedRecordCount} selected records.
         </Text>
       )}
-      {_.take(cursor.selectedRecordIds, maxRecords).map((recordId, i) => (
+      {recordIdsToPredict.map((recordId) => (
         <RecordPrediction
           key={recordId}
-          offset={i}
           recordId={recordId}
+          selectedRecords={selectedRecords}
           viewFields={visibleFields}
           tableColumnMap={tableColumnMap}
           fieldsToPredict={fieldsToPredict}
@@ -355,7 +363,7 @@ const PredictView: React.FC<{
           threshold={threshold}
         />
       ))}
-    </>
+    </Box>
   )
 }
 
@@ -403,9 +411,9 @@ const useAitoSchema = (
 }
 
 const RecordPrediction: React.FC<{
-  offset: number
   recordsQuery: TableOrViewQueryResult
   recordId: string
+  selectedRecords: Record[]
   viewFields: Field[]
   tableColumnMap: TableColumnMap
   fieldsToPredict: Field[]
@@ -417,8 +425,8 @@ const RecordPrediction: React.FC<{
   threshold: number
   canUpdate: PermissionCheckResult
 }> = ({
-  offset,
   recordId,
+  selectedRecords,
   recordsQuery,
   viewFields,
   fieldsToPredict,
@@ -437,10 +445,22 @@ const RecordPrediction: React.FC<{
     return null
   }
 
+  const openRecord = () => expandRecord(record, { records: selectedRecords })
+
   return (
-    <Box padding={3} borderTop={offset > 0 ? 'thick' : null}>
-      <Text fontWeight="strong" paddingBottom={2}>
-        Record {record.name}
+    <Box marginBottom={3}>
+      <Text
+        marginX={3}
+        marginTop={3}
+        marginBottom={2}
+        paddingBottom={2}
+        borderBottom="thick"
+        style={{ textOverflow: 'ellipsis', overflowX: 'hidden' }}
+      >
+        <span style={{ cursor: 'pointer', whiteSpace: 'nowrap' }} onClick={openRecord}>
+          <Icon name="expand" marginRight={1} style={{ verticalAlign: 'text-bottom' }} />
+          <strong>{record.name}</strong>
+        </span>
       </Text>
       {fieldsToPredict.map((field) => (
         <FieldPrediction
@@ -893,52 +913,61 @@ const FieldPrediction: React.FC<{
         />
       )}
 
-      <Row isHeader={true}>
+      <Row>
         <Cell flexGrow={1} flexShrink={1}>
-          <Tooltip
-            disabled={!disclaimer}
-            shouldHideTooltipOnClick={false}
-            placementX={Tooltip.placements.CENTER}
-            placementY={Tooltip.placements.BOTTOM}
-            style={{ height: 'auto', width: '300px', maxWidth: '300px', whiteSpace: 'normal' }}
-            content={() => (
-              <Text margin={2} textColor="white">
-                {disclaimer === 'numbers' ? (
-                  <>
-                    Aito is made for predicting categorical data and has limited support for continuous properties like
-                    amounts and dates. Unless the values of <em>{selectedField.name}</em> are categorical in nature,
-                    these predictions are not likely to be accurate.
-                  </>
-                ) : (
-                  <>
-                    Aito is not able to predict complete sentences, only words that are likely to occur in the text
-                    field.
-                  </>
-                )}
-              </Text>
-            )}
-          >
-            <Box style={{ overflowX: 'hidden', textOverflow: 'ellipsis' }}>
-              <Text display="inline" textColor="light" paddingX={3}>
-                {selectedField.name}
-                {disclaimer && (
-                  <Icon
-                    name="warning"
-                    aria-label="Warning"
-                    marginLeft={2}
-                    style={{ verticalAlign: 'text-bottom', width: '1em', height: '1em' }}
-                  />
-                )}
-              </Text>
-              {prediction === undefined && <Loader scale={0.2} />}
-            </Box>
-          </Tooltip>
+          <Box style={{ overflowX: 'hidden', textOverflow: 'ellipsis' }}>
+            <Text display="inline" textColor="light" paddingX={3}>
+              <FieldIcon
+                fillColor="#aaa"
+                field={selectedField}
+                style={{ verticalAlign: 'text-bottom' }}
+                marginRight={1}
+              />
+              {selectedField.name}
+            </Text>
+            {prediction === undefined && <Loader scale={0.2} />}
+          </Box>
         </Cell>
         <Cell width="110px" flexGrow={0}>
           {prediction && !predictionError && (
-            <Box display="flex" height="100%" justifyContent="left">
-              <Text textColor="light">Confidence</Text>
-            </Box>
+            <Tooltip
+              disabled={!disclaimer}
+              shouldHideTooltipOnClick={false}
+              placementX={Tooltip.placements.RIGHT}
+              placementY={Tooltip.placements.BOTTOM}
+              style={{ height: 'auto', width: '300px', maxWidth: '300px', whiteSpace: 'normal' }}
+              content={() => (
+                <Text margin={2} textColor="white">
+                  {disclaimer === 'numbers' ? (
+                    <>
+                      Aito is made for predicting categorical data and has limited support for continuous properties
+                      like amounts and dates. Unless the values of <em>{selectedField.name}</em> are categorical in
+                      nature, these predictions are not likely to be accurate.
+                    </>
+                  ) : (
+                    <>
+                      Aito is not able to predict complete sentences, only words that are likely to occur in the text
+                      field.
+                    </>
+                  )}
+                </Text>
+              )}
+            >
+              <Box display="flex" height="100%" justifyContent="left">
+                <Text textColor="light">
+                  Confidence
+                  {disclaimer && (
+                    <Icon
+                      fillColor="#aaa"
+                      name="warning"
+                      aria-label="Warning"
+                      marginLeft={2}
+                      style={{ verticalAlign: 'text-bottom' }}
+                    />
+                  )}
+                </Text>
+              </Box>
+            </Tooltip>
           )}
         </Cell>
         <Cell width="6px" flexGrow={0}></Cell>
