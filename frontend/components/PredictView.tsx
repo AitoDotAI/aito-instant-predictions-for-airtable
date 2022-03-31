@@ -6,7 +6,6 @@ import {
   ConfirmationDialog,
   expandRecord,
   FieldIcon,
-  Heading,
   Icon,
   Input,
   Label,
@@ -449,13 +448,20 @@ const RecordPrediction: React.FC<{
   const openRecord = () => expandRecord(record, { records: selectedRecords })
 
   return (
-    <Box padding={3}>
-      <Heading size="xsmall" paddingBottom={2}>
-        <span style={{ cursor: 'pointer' }} onClick={openRecord}>
-          <Icon name="expand" size={19} marginRight={2} style={{ verticalAlign: 'text-bottom' }} />
-          {record.name}
+    <Box marginBottom={3}>
+      <Text
+        marginX={3}
+        marginTop={3}
+        marginBottom={2}
+        paddingBottom={2}
+        borderBottom="thick"
+        style={{ textOverflow: 'ellipsis', overflowX: 'hidden' }}
+      >
+        <span style={{ cursor: 'pointer', whiteSpace: 'nowrap' }} onClick={openRecord}>
+          <Icon name="expand" marginRight={1} style={{ verticalAlign: 'text-bottom' }} />
+          <strong>{record.name}</strong>
         </span>
-      </Heading>
+      </Text>
       {fieldsToPredict.map((field) => (
         <FieldPrediction
           key={field.id}
@@ -907,7 +913,7 @@ const FieldPrediction: React.FC<{
         />
       )}
 
-      <Row isHeader={true}>
+      <Row>
         <Cell flexGrow={1} flexShrink={1}>
           <Box style={{ overflowX: 'hidden', textOverflow: 'ellipsis' }}>
             <Text display="inline" textColor="light" paddingX={3}>
