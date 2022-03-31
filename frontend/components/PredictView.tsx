@@ -4,6 +4,7 @@ import {
   Button,
   CellRenderer,
   ConfirmationDialog,
+  expandRecord,
   FieldIcon,
   Heading,
   Icon,
@@ -226,9 +227,20 @@ const PredictView: React.FC<{
 
   // Make sure that the selected rows and fields are up to date
   const recordsQuery = useMemo(() => table.selectRecords(), [table])
-  useLoadable([cursor, metadata])
+  useLoadable([cursor, metadata, recordsQuery])
 
-  const canUpdate = table.checkPermissionsForUpdateRecords(cursor.selectedRecordIds.map((id) => ({ id })))
+  const selectedFieldCount = cursor.selectedFieldIds.length
+  const selectedRecordCount = cursor.selectedRecordIds.length
+  const hasSelection = selectedFieldCount > 0 && selectedRecordCount > 0
+
+  const maxRecords = 10
+  const recordIdsToPredict = _.take(cursor.selectedRecordIds, maxRecords)
+
+  const canUpdate = table.checkPermissionsForUpdateRecords(recordIdsToPredict.map((id) => ({ id })))
+
+  const selectedRecords = recordIdsToPredict
+    .map((recordId) => recordsQuery.getRecordByIdIfExists(recordId))
+    .filter((x): x is Record => Boolean(x))
 
   const setCellValue = async (record: Record, field: Field, value: unknown): Promise<void> => {
     if (canUpdate.hasPermission) {
@@ -273,11 +285,6 @@ const PredictView: React.FC<{
       )
     }
   }
-
-  const selectedFieldCount = cursor.selectedFieldIds.length
-  const selectedRecordCount = cursor.selectedRecordIds.length
-
-  const hasSelection = selectedFieldCount > 0 && selectedRecordCount > 0
 
   if (view?.type !== ViewType.GRID) {
     return (
@@ -325,8 +332,6 @@ const PredictView: React.FC<{
     )
   }
 
-  const maxRecords = 10
-
   return (
     <Box>
       <PredictionSettingsToolbar
@@ -336,15 +341,16 @@ const PredictView: React.FC<{
         threshold={threshold}
         saveThreshold={saveThreshold}
       />
-      {cursor.selectedRecordIds.length > maxRecords && (
+      {selectedRecordCount > maxRecords && (
         <Text fontStyle="oblique" textColor="light" variant="paragraph" marginX={3} marginTop={3}>
-          Showing predictions for {maxRecords} of the {cursor.selectedRecordIds.length} selected records.
+          Showing predictions for {maxRecords} of the {selectedRecordCount} selected records.
         </Text>
       )}
-      {_.take(cursor.selectedRecordIds, maxRecords).map((recordId, i) => (
+      {recordIdsToPredict.map((recordId) => (
         <RecordPrediction
           key={recordId}
           recordId={recordId}
+          selectedRecords={selectedRecords}
           viewFields={visibleFields}
           tableColumnMap={tableColumnMap}
           fieldsToPredict={fieldsToPredict}
@@ -408,6 +414,7 @@ const useAitoSchema = (
 const RecordPrediction: React.FC<{
   recordsQuery: TableOrViewQueryResult
   recordId: string
+  selectedRecords: Record[]
   viewFields: Field[]
   tableColumnMap: TableColumnMap
   fieldsToPredict: Field[]
@@ -420,6 +427,7 @@ const RecordPrediction: React.FC<{
   canUpdate: PermissionCheckResult
 }> = ({
   recordId,
+  selectedRecords,
   recordsQuery,
   viewFields,
   fieldsToPredict,
@@ -438,10 +446,15 @@ const RecordPrediction: React.FC<{
     return null
   }
 
+  const openRecord = () => expandRecord(record, { records: selectedRecords })
+
   return (
     <Box padding={3}>
       <Heading size="xsmall" paddingBottom={2}>
-        {record.name}
+        <span style={{ cursor: 'pointer' }} onClick={openRecord}>
+          <Icon name="expand" size={19} marginRight={2} style={{ verticalAlign: 'text-bottom' }} />
+          {record.name}
+        </span>
       </Heading>
       {fieldsToPredict.map((field) => (
         <FieldPrediction
