@@ -321,7 +321,7 @@ const multipleSelects: SupportedField = {
       ? [...cell, ...feature]
       : cell,
   removeFeature: (cell, feature) =>
-    isMultipleNames(cell) && isMultipleNames(feature) ? cell.filter((v) => v.name === feature[0]?.name) : cell,
+    isMultipleNames(cell) && isMultipleNames(feature) ? cell.filter((v) => v.name !== feature[0]?.name) : cell,
 }
 
 const singleCollaborator: SupportedField = {
@@ -387,7 +387,7 @@ const multipleCollaborators: SupportedField = {
       ? [...cell, ...feature]
       : cell,
   removeFeature: (cell, feature) =>
-    isMultipleIds(cell) && isMultipleIds(feature) ? cell.filter((v) => v.id === feature[0]?.id) : cell,
+    isMultipleIds(cell) && isMultipleIds(feature) ? cell.filter((v) => v.id !== feature[0]?.id) : cell,
 }
 
 const DateFormat = 'yyyy-MM-dd'
