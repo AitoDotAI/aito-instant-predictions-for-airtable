@@ -1,5 +1,5 @@
 import { Field, FieldType } from '@airtable/blocks/models'
-import { Text, Box, CellRenderer, Icon, colors, colorUtils } from '@airtable/blocks/ui'
+import { Text, Box, CellRenderer, Icon, colors, colorUtils, FieldIcon } from '@airtable/blocks/ui'
 import _ from 'lodash'
 import React from 'react'
 import AcceptedFields from '../AcceptedFields'
@@ -126,6 +126,12 @@ const ExplanationBox: React.FC<{
 
       const fieldHeader = (
         <Text textColor="white">
+          <FieldIcon
+            field={field}
+            style={{ verticalAlign: 'text-bottom' }}
+            marginRight={1}
+          />
+
           <b>{fieldName}</b>
         </Text>
       )
