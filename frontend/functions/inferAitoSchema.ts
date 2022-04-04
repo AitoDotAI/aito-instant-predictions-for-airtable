@@ -1,7 +1,7 @@
 import _ from 'lodash'
 import { Field } from '@airtable/blocks/models'
 
-import AcceptedFields, { isAcceptedField, isIgnoredField } from '../AcceptedFields'
+import AcceptedFields, { isAcceptedField, isDataField } from '../AcceptedFields'
 import { isColumnSchema, ColumnSchema, TableSchema, isTableSchema } from '../schema/aito'
 import { TableColumnMap } from '../schema/config'
 
@@ -20,14 +20,12 @@ function fieldToColumnSchema(field: Field): ColumnSchema {
   })
 }
 
-const sanitizeName = (name: string): string => name.trim().replace(/[\s/".$]/g, '_')
-
 export const mapColumnNames = (fields: Field[]): TableColumnMap =>
   fields.reduce((mapping, field) => {
     return {
       ...mapping,
       [field.id]: {
-        name: sanitizeName(field.name),
+        name: field.id,
         type: field.type,
       },
     }
@@ -35,7 +33,7 @@ export const mapColumnNames = (fields: Field[]): TableColumnMap =>
 
 // Aito schema creation
 export default function inferAitoSchema(fields: Field[], fieldIdToName: TableColumnMap): TableSchema {
-  const fieldsToUse = fields.filter((fld) => !isIgnoredField(fld))
+  const fieldsToUse = fields.filter((fld) => isDataField(fld))
 
   if (_.size(fieldsToUse) <= 0) {
     throw new Error(`Cannot infer schema. No usable fields provided`)
@@ -54,6 +52,11 @@ export default function inferAitoSchema(fields: Field[], fieldIdToName: TableCol
 
   return isTableSchema.validate({
     type: 'table',
-    columns: Object.assign({}, ...columns),
+    columns: Object.assign(
+      {
+        id: { type: 'String', nullable: false },
+      },
+      ...columns,
+    ),
   })
 }

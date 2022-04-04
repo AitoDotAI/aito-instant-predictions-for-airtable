@@ -495,7 +495,7 @@ const formulaOrRollup: SupportedField = {
 }
 
 const multipleRecordLinks: SupportedField = {
-  toAitoValue: (f, r) => {
+  toAitoValue: () => {
     throw new Error(`Don't store links inside aito records`)
   },
   toAitoType: () => {
@@ -656,6 +656,10 @@ export const isAcceptedField = (field: Field): boolean => {
 
 export const isIgnoredField = (field: Field): boolean => {
   return AcceptedFields[field.type] === ignore
+}
+
+export const isDataField = (field: Field): boolean => {
+  return !isIgnoredField(field) && field.type !== FieldType.MULTIPLE_RECORD_LINKS
 }
 
 export default AcceptedFields
