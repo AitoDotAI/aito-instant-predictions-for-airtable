@@ -1,4 +1,4 @@
-import { Field, Table, View, ViewType } from '@airtable/blocks/models'
+import { Field, FieldType, Table, View, ViewType } from '@airtable/blocks/models'
 import {
   Box,
   Button,
@@ -9,142 +9,76 @@ import {
   Heading,
   Text,
   useRecordIds,
-  useSession,
   useViewMetadata,
   ViewPicker,
-  Link,
   Label,
   Tooltip,
+  useBase,
+  useRecords,
 } from '@airtable/blocks/ui'
 import React, { useCallback, useEffect, useState } from 'react'
 import { isAcceptedField, isIgnoredField } from '../AcceptedFields'
 import AitoClient from '../AitoClient'
-import { UploadResult } from '../functions/uploadView'
-import { TableColumnMap, TableConfig } from '../schema/config'
+import { TableConfig } from '../schema/config'
 import Footer from './Footer'
-import QueryQuotaExceeded from './QueryQuotaExceeded'
-import StatusMessage from './StatusMessage'
-import { Tab } from './Tab'
 
-const TABLE_NAME_PATTERN = /^[a-zA-Z0-9_-]*$/
-const MAX_TABLE_NAME_LENGTH = 60
+interface TableViewMapping {
+  fieldId: string
+  talbeId: string
+  viewId: string
+  aitoTableName: string
+  recordCount?: number
+}
 
-const UploadStatusMessage: React.FC = ({ children }) => (
-  <Box backgroundColor="rgb(45,127,249)" borderColor="#404040" borderWidth="thick" width="100%" padding={3}>
-    <Text variant="paragraph" size="large" textColor="white" margin={0} padding={0}>
-      {children}
-    </Text>
-  </Box>
-)
+interface LinkedTableViewMapping {
+  mainViewId: string | null
+  mainTableName: string
+  recordCount?: number
+  linkCount?: number
+  linkFields: string[]
+  linkedTableData: TableViewMapping[]
+}
 
 const UploadView: React.FC<{
   table: Table
   tableConfig: TableConfig
-  onUpload: (view: View, aitoTableName: string) => Promise<UploadResult | undefined>
-  setTableConfig: (table: Table, tableConfig: TableConfig) => Promise<unknown>
-  setTab: (tab: Tab) => unknown
+  onUpload: (view: View, aitoTableName: string) => Promise<unknown>
   canUpdateSettings: boolean
   client: AitoClient
-}> = ({ table, onUpload, tableConfig, setTableConfig, setTab, canUpdateSettings, client }) => {
-  type UploadState = 'idle' | 'uploading' | 'done' | 'error'
-  const [uploadState, setUploadState] = useState<UploadState>('idle')
-  const [pendingTableConfig, setPendingConfig] = useState(tableConfig)
-  const session = useSession()
+}> = ({ table, tableConfig, canUpdateSettings, client }) => {
+  const [linkedTableViewMapping, setLinkedTableViewMapping] = useState<LinkedTableViewMapping>({
+    mainViewId: tableConfig.airtableViewId || null,
+    mainTableName: tableConfig.aitoTableName,
+    linkFields: [],
+    linkedTableData: [
+      /* TODO: get from tableConfig */
+    ],
+  })
 
-  const airtableViewId = pendingTableConfig?.airtableViewId
-  const selectedView = airtableViewId ? table.getViewByIdIfExists(airtableViewId) : null
-  const [fieldsAreAcceptable, setFieldsAreAcceptable] = useState<boolean | undefined>(undefined)
-  const [numberOfRows, setNumberOfRows] = useState<number | undefined>(undefined)
-  const [uploadedRows, setUploadedRows] = useState(0)
-  const [isQuotaExceeded, setQuotaExceeded] = useState(false)
+  const { mainViewId, linkFields, linkedTableData } = linkedTableViewMapping
+  const selectedView = (mainViewId && table.getViewByIdIfExists(mainViewId)) || table.getFirstViewOfType(ViewType.GRID)
+
+  const totalRecords =
+    (linkedTableViewMapping.recordCount || 0) +
+    linkFields.reduce((acc, fieldId) => {
+      return acc + (linkedTableData.find((mapping) => mapping.fieldId === fieldId)?.recordCount || 0)
+    }, 0)
+  const totalLinks = linkedTableViewMapping.linkCount || 0
 
   const doUpload = useCallback(async () => {
-    try {
-      const user = session.currentUser
-      const { aitoTableName, airtableViewId } = pendingTableConfig
-      const view = airtableViewId && table.getViewByIdIfExists(airtableViewId)
-      if (view && user) {
-        setUploadState('uploading')
-        setQuotaExceeded(false)
-        const result = await onUpload(view, aitoTableName)
-        if (!result) {
-          setUploadState('error')
-        } else if (result.type === 'success') {
-          const columns: TableColumnMap = result.columns
-          await setTableConfig(table, {
-            ...pendingTableConfig,
-            lastRowCount: result.rowCount,
-            lastUpdated: new Date().toISOString(),
-            lastUpdatedBy: {
-              id: user.id,
-              name: user.name,
-            },
-            columns,
-          })
-          setUploadedRows(result.rowCount)
-          setUploadState('done')
-        } else {
-          if (result.error === 'quota-exceeded') {
-            setQuotaExceeded(true)
-          }
-          setUploadState('error')
-        }
-      }
-    } catch (e) {
-      console.error(e)
-      setUploadState('error')
-    }
-  }, [table, pendingTableConfig, onUpload, setUploadState, setTableConfig, session])
+    /* TODO */
+  }, [])
 
-  const isUploading = uploadState === 'uploading'
-
-  const tableName = pendingTableConfig.aitoTableName.trim()
-  const isNameEmpty = tableName.length == 0
-  const isNameValid = TABLE_NAME_PATTERN.test(tableName)
-  const isNameTooLong = tableName.length > MAX_TABLE_NAME_LENGTH
-  const canSaveName = !isNameEmpty && !isNameTooLong && isNameValid
-  let uploadValidationStatus: string = ''
-  if (isNameEmpty) uploadValidationStatus = 'empty'
-  if (!isNameValid) uploadValidationStatus = 'invalid'
-  if (isNameTooLong) uploadValidationStatus = 'too-long'
-  if (fieldsAreAcceptable === false) uploadValidationStatus = 'unsupported'
-  if (isQuotaExceeded) uploadValidationStatus = 'quota-exceeded'
-
-  useEffect(() => {
-    if (uploadState === 'error') {
-      // Transition from 'error' to 'idle' after a short while unless
-      // we transition to something else in-between
-      const timeout = setTimeout(() => setUploadState('idle'), 5000)
-      return () => clearTimeout(timeout)
-    }
-  }, [uploadState, setUploadState])
-
-  const changeTableConfig = useCallback(
-    (newConfig: TableConfig) => {
-      setPendingConfig(newConfig)
-    },
-    [setPendingConfig],
+  const isReady = linkFields.every(
+    (fieldId) => typeof linkedTableData.find((mapping) => mapping.fieldId === fieldId)?.recordCount === 'number',
   )
-
-  const goToPredict = useCallback(() => setTab('predict'), [setTab])
 
   return (
     <>
-      <Box
-        style={{
-          opacity: uploadState === 'done' ? 0 : 1,
-          visibility: uploadState === 'done' ? 'hidden' : 'visible',
-          height: uploadState === 'done' ? 0 : 'auto',
-          overflow: 'hidden',
-          transition: 'opacity 0.4s 0s, visibility 0s 0.5s, height 0s 0.5s',
-        }}
-        display="flex"
-        flexGrow={1}
-        flexDirection="column"
-      >
+      <Box display="flex" flexGrow={1} flexDirection="column">
         <Box flexGrow={1}>
           <Box paddingX={3} paddingTop={2}>
-            <Heading marginBottom={1}>Upload training data</Heading>
+            <Heading size="small">Select view</Heading>
             <Text variant="paragraph" textColor="light">
               Training data is required for making predictions. Select or create a <em>grid view</em> to use for
               training. The records and fields that are visible can be uploaded to your Aito cloud instance. More tips
@@ -160,102 +94,42 @@ const UploadView: React.FC<{
               <ViewPicker
                 allowedTypes={[ViewType.GRID]}
                 table={table}
-                view={table.views.find((v) => v.id === pendingTableConfig.airtableViewId)}
+                view={selectedView}
                 disabled={!canUpdateSettings}
-                onChange={(e) => e && changeTableConfig({ ...pendingTableConfig, airtableViewId: e.id })}
+                onChange={(view) =>
+                  view && setLinkedTableViewMapping((current) => ({ ...current, mainViewId: view.id }))
+                }
                 placeholder="Select Grid View..."
               />
             </FormField>
             {selectedView && (
               <React.Suspense
                 fallback={
-                  <Box display="flex" flexDirection="column">
+                  <Box display="flex" flexDirection="column" minHeight="240px" justifyContent="center">
                     <Loader scale={0.3} alignSelf="center" />
                   </Box>
                 }
               >
-                <FieldTable
+                <LinkedTableDataSourcePicker
+                  table={table}
                   view={selectedView}
-                  aitoTableName={pendingTableConfig.aitoTableName}
-                  setFieldsAreAcceptable={setFieldsAreAcceptable}
-                  setNumberOfRows={setNumberOfRows}
+                  disabled={!canUpdateSettings}
+                  aitoTableName={linkedTableViewMapping.mainTableName}
+                  onChange={setLinkedTableViewMapping}
+                  linkedTableViewMapping={linkedTableViewMapping}
                 />
               </React.Suspense>
             )}
           </Box>
-          <Box marginX={3} marginTop={4} marginBottom={2}>
-            <Text variant="paragraph" textColor="light">
-              Press the button below to upload the table records to your Aito instance <strong>{client.name}</strong>.
-              Any existing table named <strong>{pendingTableConfig.aitoTableName}</strong> will be replaced.
-            </Text>
-
-            <Button
-              disabled={!fieldsAreAcceptable || isUploading || !canSaveName}
-              onClick={doUpload}
-              variant="primary"
-              icon="upload"
-            >
-              Upload{numberOfRows === undefined ? null : ` ${numberOfRows} records`}
+          <Box marginX={3} marginTop={4} marginBottom={2} display="flex" justifyContent="center">
+            <Button disabled={!isReady} onClick={doUpload} variant="primary" icon="upload">
+              Upload {isReady ? totalRecords : 'some'} records{totalLinks > 0 ? ` and ${totalLinks} links` : null} to{' '}
+              <strong>{client.name}</strong>
             </Button>
-
-            <StatusMessage message={uploadValidationStatus} marginTop={[2]}>
-              <Text data-message="unsupported" variant="paragraph" textColor="red" size="small">
-                <strong>{selectedView?.name || ''}</strong> contains fields that are unsupported by Aito. Please hide
-                them from the view before uploading. TIP: create a new view that only contains the fields you want to
-                copy to Aito as training data - and hide the rest.
-              </Text>
-              <QueryQuotaExceeded data-message="quota-exceeded" />
-            </StatusMessage>
           </Box>
         </Box>
         <Box margin={3} flexGrow={0}>
           <Footer />
-        </Box>
-      </Box>
-
-      <Box position="fixed" top={0} left={0} right={0} width="100%">
-        <StatusMessage message={uploadState} autoHide>
-          <UploadStatusMessage data-message="uploading">
-            <Loader fillColor="white" scale={0.2} /> Uploading...
-          </UploadStatusMessage>
-          <UploadStatusMessage data-message="error">Failed to upload content!</UploadStatusMessage>
-        </StatusMessage>
-      </Box>
-
-      <Box
-        position="fixed"
-        top={0}
-        left={0}
-        right={0}
-        style={{
-          opacity: uploadState === 'done' ? 1 : 0,
-          transform: `translateY(${uploadState === 'done' ? 0 : '-2em'})`,
-          visibility: uploadState === 'done' ? 'visible' : 'hidden',
-          transitionProperty: 'opacity transform',
-          transitionDuration: '0.5s',
-        }}
-        padding={3}
-      >
-        <Heading>Done!</Heading>
-        <Text variant="paragraph">
-          There are {uploadedRows} rows in a table called {pendingTableConfig.aitoTableName} in your Aito.ai instance.
-        </Text>
-
-        <Text variant="paragraph">
-          <strong>Note:</strong> Training data is not automatically synchronized to your Aito.ai instance. If your
-          training data changes and you want your predictions to be informed by the updates then you can re-upload the
-          new training.
-        </Text>
-
-        <Box display="flex" flexDirection="row" flexWrap="wrap">
-          <Button onClick={goToPredict} marginRight={2}>
-            Click here to start predicting
-          </Button>
-          <Text style={{ whiteSpace: 'nowrap' }} lineHeight="32px">
-            <Link href="https://console.aito.ai/" target="_blank">
-              or evaluate the accuracy in Aito console
-            </Link>
-          </Text>
         </Box>
       </Box>
     </>
@@ -276,66 +150,299 @@ const InlineFieldList: React.FC<{
     }}
   >
     {fields.map((field, i) => (
-      <>
+      <React.Fragment key={field.id}>
         <span style={{ whiteSpace: 'nowrap', overflowWrap: 'break-word' }}>
           <FieldIcon marginRight={1} style={{ verticalAlign: 'text-bottom' }} fillColor="gray" field={field} />
           &nbsp;{field.name}
         </span>
         {i + 1 < fields.length && <span style={{ letterSpacing: '24px' }}> </span>}
-      </>
+      </React.Fragment>
     ))}
   </Text>
 )
 
-const FieldTable: React.FC<{
-  view: View
+const LinkedTableDataSourcePicker: React.FC<{
+  table: Table
   aitoTableName: string
-  setFieldsAreAcceptable: (value: boolean | undefined) => void
-  setNumberOfRows: (value: number | undefined) => void
-}> = ({ view, aitoTableName, setNumberOfRows, setFieldsAreAcceptable }) => {
+  view: View
+  linkedTableViewMapping: LinkedTableViewMapping
+  onChange: (update: (oldSource: LinkedTableViewMapping) => LinkedTableViewMapping) => void
+  disabled: boolean
+}> = ({ table, view, aitoTableName, linkedTableViewMapping, onChange, disabled }) => {
   const viewMetadata = useViewMetadata(view)
   const visibleFields = viewMetadata.visibleFields
 
-  const visibleRecords = useRecordIds(view) || []
+  const base = useBase()
 
-  const count = visibleRecords.length
+  type IsMultipleRecordLinks = {
+    type: FieldType.MULTIPLE_RECORD_LINKS
+    config: { type: FieldType.MULTIPLE_RECORD_LINKS }
+  }
 
-  useEffect(() => {
-    setNumberOfRows(count)
-    return () => setNumberOfRows(undefined)
-  }, [setNumberOfRows, count])
+  const linkFields = visibleFields.filter(
+    (field): field is Field & IsMultipleRecordLinks => field.type === FieldType.MULTIPLE_RECORD_LINKS,
+  )
 
-  const fieldsAreAcceptable = visibleFields.every(isAcceptedField)
-  useEffect(() => {
-    setFieldsAreAcceptable(fieldsAreAcceptable)
-    return () => setFieldsAreAcceptable(undefined)
-  }, [setFieldsAreAcceptable, fieldsAreAcceptable])
+  const records = useRecords(view, { fields: linkFields })
 
-  const acceptedFields = viewMetadata ? viewMetadata.visibleFields.filter(isAcceptedField) : []
+  const linkIdsToViews = linkFields.reduce<globalThis.Record<string, [Table, View]>>((acc, field) => {
+    const config = field.config
+    const tableId = config.options.linkedTableId
+
+    const table = base.getTableByIdIfExists(tableId)
+    if (!table) {
+      console.warn('Table %s linked from field %s cannot be found', tableId, field.id)
+      return acc
+    }
+
+    const configuredViewId = linkedTableViewMapping.linkedTableData.find(
+      (mapping) => mapping.fieldId === field.id,
+    )?.viewId
+    const configuredView = configuredViewId && table.getViewByIdIfExists(configuredViewId)
+    const view = configuredView || table.getFirstViewOfType(ViewType.GRID)
+    if (!view) {
+      console.warn('Table %s linked from field %s has no grid view', tableId, field.id)
+      return acc
+    }
+
+    return {
+      ...acc,
+      [field.id]: [table, view],
+    }
+  }, {})
+
+  const acceptedFields = viewMetadata.visibleFields.filter(isAcceptedField)
   const includedFields = acceptedFields.filter((x) => !isIgnoredField(x))
   const excludedFields = acceptedFields.filter(isIgnoredField)
 
+  const recordCount = records.length
+  const linkCount = records.reduce<number>(
+    (acc, record) =>
+      acc +
+      linkFields.reduce<number>((acc, field) => {
+        const value = record.getCellValue(field)
+        return Array.isArray(value) ? acc + value.length : acc
+      }, 0),
+    0,
+  )
+
+  // Update record and link count
+  useEffect(() => {
+    onChange((current) => ({
+      ...current,
+      linkCount: linkCount,
+      recordCount,
+    }))
+  }, [onChange, recordCount, linkCount])
+
+  const linkIdList = linkFields.map((field) => field.id)
+
+  useEffect(() => {
+    onChange((current) => ({
+      ...current,
+      linkFields: linkIdList,
+    }))
+  }, [onChange, ...linkIdList])
+
+  const setLinkedView = (field: Field & IsMultipleRecordLinks) => (newView: View | null) => {
+    if (newView) {
+      onChange((current) => {
+        return {
+          ...current,
+          linkedTableData: current.linkedTableData.map((mapping) => {
+            if (mapping.fieldId === field.id) {
+              return {
+                aitoTableName: `${aitoTableName}-${field.id}`,
+                fieldId: field.id,
+                talbeId: field.config.options.linkedTableId,
+                viewId: newView.id,
+              }
+            } else {
+              return mapping
+            }
+          }),
+        }
+      })
+    }
+  }
+
   return (
-    <Box marginTop={2}>
-      <Label>Aito table name</Label>
-      <Text variant="paragraph">{aitoTableName}</Text>
-      <Label>Content</Label>
-      <Text variant="paragraph">{count} records</Text>
-      <Label>Fields</Label>
-      <InlineFieldList fields={includedFields} />
-      {excludedFields.length > 0 && (
+    <Box>
+      <TableSource
+        aitoTableName={aitoTableName}
+        table={table}
+        ignoredFields={excludedFields}
+        viewFields={includedFields}
+        linkCount={linkCount}
+        recordCount={recordCount}
+      />
+
+      {linkFields.length > 0 && (
         <>
+          <Heading size="small">Select linked views</Heading>
+
+          <Box paddingLeft={2} borderLeft="thick">
+            {linkFields.map((field, i) => {
+              const entry = linkIdsToViews[field.id]
+              if (!entry) {
+                // Unexpected
+                return null
+              }
+
+              const [linkedTable, linkedView] = entry
+
+              const defaultName = `${aitoTableName}-${field.id}`
+              const linkedName =
+                linkedTableViewMapping.linkedTableData.find((mapping) => mapping.fieldId === field.id)?.aitoTableName ||
+                defaultName
+
+              return (
+                <>
+                  <Text marginTop={i > 0 ? 3 : 0}>
+                    <strong>{table.name}</strong> is linked from{' '}
+                    <FieldIcon style={{ verticalAlign: 'text-bottom' }} field={field} />
+                    {field.name}
+                  </Text>
+                  <Label marginTop={2}>Training data view</Label>
+                  <ViewPicker
+                    allowedTypes={[ViewType.GRID]}
+                    table={linkedTable}
+                    view={linkedView}
+                    disabled={disabled}
+                    onChange={setLinkedView(field)}
+                    placeholder="Select Grid View..."
+                  />
+                  <React.Suspense
+                    fallback={
+                      <Box display="flex" flexDirection="column" minHeight="240px" justifyContent="center">
+                        <Loader scale={0.3} alignSelf="center" />
+                      </Box>
+                    }
+                  >
+                    <LinkedTableView
+                      field={field}
+                      table={linkedTable}
+                      view={linkedView}
+                      aitoTableName={linkedName}
+                      onChange={onChange}
+                    />
+                  </React.Suspense>
+                </>
+              )
+            })}
+          </Box>
+        </>
+      )}
+    </Box>
+  )
+}
+
+const LinkedTableView: React.FC<{
+  field: Field
+  table: Table
+  view: View
+  aitoTableName: string
+  onChange: (update: (oldSource: LinkedTableViewMapping) => LinkedTableViewMapping) => void
+}> = ({ field, table, view, aitoTableName, onChange }) => {
+  const viewMetadata = useViewMetadata(view)
+  const records = useRecordIds(view)
+
+  const acceptedFields = viewMetadata.visibleFields.filter(isAcceptedField)
+  const includedFields = acceptedFields.filter((x) => !isIgnoredField(x) && x.type !== FieldType.MULTIPLE_RECORD_LINKS)
+  const excludedFields = acceptedFields.filter((x) => isIgnoredField(x) || x.type === FieldType.MULTIPLE_RECORD_LINKS)
+
+  const recordCount = records.length
+
+  useEffect(() => {
+    onChange(({ linkedTableData, ...rest }) => {
+      if (linkedTableData.find((mapping) => mapping.fieldId === field.id)) {
+        return {
+          ...rest,
+          linkedTableData: linkedTableData.map((mapping) => {
+            if (mapping.fieldId === field.id) {
+              return {
+                ...mapping,
+                recordCount,
+              }
+            } else {
+              return mapping
+            }
+          }),
+        }
+      } else {
+        return {
+          ...rest,
+          linkedTableData: [
+            ...linkedTableData,
+            {
+              fieldId: field.id,
+              aitoTableName,
+              talbeId: table.id,
+              viewId: view.id,
+              recordCount,
+            },
+          ],
+        }
+      }
+    })
+  }, [onChange, aitoTableName, field.id, table.id, view.id, recordCount])
+
+  return (
+    <TableSource
+      aitoTableName={aitoTableName}
+      viewFields={includedFields}
+      ignoredFields={excludedFields}
+      table={table}
+      recordCount={recordCount}
+    />
+  )
+}
+
+const TableSource: React.FC<{
+  table: Table
+  aitoTableName: string
+  recordCount?: number
+  linkCount?: number
+  viewFields: Field[]
+  ignoredFields: Field[]
+}> = ({ aitoTableName, recordCount, linkCount, viewFields, ignoredFields }) => {
+  return (
+    <Box marginTop={2} display="flex" flexDirection="row" flexWrap="wrap">
+      <Box flexGrow={0.5} flexShrink={0.5} flexBasis="50%">
+        <Label>Content</Label>
+        <Text variant="paragraph">
+          {recordCount || 0} records{linkCount && linkCount > 0 ? `, ${linkCount} links` : null}
+        </Text>
+      </Box>
+      <Box flexGrow={0.5} flexShrink={0.5} flexBasis="50%">
+        <Label>
+          Aito table name
+          <Tooltip
+            style={{ height: 'auto', width: '300px', maxWidth: '300px', whiteSpace: 'normal' }}
+            content="This is the table name that is created in your Aito instance and you will be able to see it in Aito console. If a table of the same name already exists, it will be replaced."
+          >
+            <Icon name="help" style={{ verticalAlign: 'bottom' }} marginLeft={1} />
+          </Tooltip>
+        </Label>
+        <Text variant="paragraph">{aitoTableName}</Text>
+      </Box>
+      <Box flexGrow={1} flexShrink={0} flexBasis="100%">
+        <Label>Fields</Label>
+        <InlineFieldList fields={viewFields} />
+      </Box>
+      {ignoredFields.length > 0 && (
+        <Box flexGrow={1} flexShrink={0} flexBasis="100%">
           <Label>
-            Excluded Fields{' '}
+            Excluded fields{' '}
             <Tooltip
               style={{ height: 'auto', width: '300px', maxWidth: '300px', whiteSpace: 'normal' }}
-              content="Button fields, attachment fields and lookup fields are not supported and will not be uploaded to your Aito table. These fields cannot be predicted."
+              content="Button fields, attachment fields and lookup fields are not supported and will not be uploaded to your Aito table. These fields cannot be predicted. Link fields in linked tables are also ignored."
             >
-              <Icon name="help" style={{ verticalAlign: 'bottom' }} />
+              <Icon name="help" style={{ verticalAlign: 'bottom' }} marginLeft={1} />
             </Tooltip>
           </Label>
-          <InlineFieldList fields={excludedFields} />
-        </>
+          <InlineFieldList fields={ignoredFields} />
+        </Box>
       )}
     </Box>
   )
