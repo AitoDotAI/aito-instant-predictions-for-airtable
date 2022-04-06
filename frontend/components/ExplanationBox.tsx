@@ -126,11 +126,7 @@ const ExplanationBox: React.FC<{
 
       const fieldHeader = (
         <Text textColor="white">
-          <FieldIcon
-            field={field}
-            style={{ verticalAlign: 'text-bottom' }}
-            marginRight={1}
-          />
+          <FieldIcon field={field} style={{ verticalAlign: 'text-bottom' }} marginRight={1} />
 
           <b>{fieldName}</b>
         </Text>
