@@ -1,21 +1,22 @@
-import { Base, Field, FieldType, View, ViewMetadataQueryResult } from '@airtable/blocks/models'
+import { Base, Field, FieldType, ViewMetadataQueryResult } from '@airtable/blocks/models'
 import _ from 'lodash'
 import AcceptedFields, { isDataField, isIgnoredField } from '../AcceptedFields'
-import AitoClient, { AitoError, isAitoError, Value } from '../AitoClient'
-import { TableSchema } from '../schema/aito'
+import AitoClient, { AitoError, AitoValue, isAitoError, Value } from '../AitoClient'
+import { isColumnSchema, TableSchema } from '../schema/aito'
 import { TableColumnMap } from '../schema/config'
+import { isArrayOf, isObjectOf, isString } from '../validator/validation'
 import inferAitoSchema, { mapColumnNames } from './inferAitoSchema'
 
 export type UploadResult = SuccessfulUploadResult | ErrorUploadResult
 
 interface SuccessfulUploadResult {
   type: 'success'
-  rowCount: number
-  columns: TableColumnMap
+  tasks: UploadTask[]
 }
 
 interface ErrorUploadResult {
   type: 'error'
+  tasks: UploadTask[]
   error: AitoError
 }
 
@@ -70,7 +71,7 @@ export interface UploadTableTask extends TaskCommon {
   tableInfo: TableInfo
   tableId: string
   viewId: string
-  recordCounts?: number
+  recordCount?: number
 }
 
 export interface UploadLinkTask extends TaskCommon {
@@ -79,7 +80,9 @@ export interface UploadLinkTask extends TaskCommon {
   tableId: string
   viewId: string
   linkFieldId: string
-  records?: number
+  fromAitoTable: string
+  toAitoTable: string
+  linkCount?: number
 }
 
 export type UploadTask = CreateTableTask | CreateLinkTask | UploadTableTask | UploadLinkTask
@@ -144,7 +147,7 @@ export async function describeTasks(
 
     // Create schema for each linked table and for each link field
     for (const link of linkViews) {
-      const { linkFieldId, tableId, viewId, aitoTable } = link
+      const { linkFieldId, tableId, viewId, aitoTable: linkedAitoTable } = link
 
       if (!createdViewsSet.has(viewId)) {
         // Create schema for referenced view
@@ -156,21 +159,12 @@ export async function describeTasks(
         unloadables.push(metadata)
 
         const fields = metadata.visibleFields.filter(isDataField)
-        console.log(
-          'FIELDS',
-          metadata.visibleFields.map((f) => f.name),
-        )
-        console.log(
-          'HERE',
-          fields.map((f) => f.name),
-        )
 
         const fieldIdToName = mapColumnNames(fields)
-        const name = aitoTable
         const schema = inferAitoSchema(fields, fieldIdToName)
 
         const tableInfo: TableInfo = {
-          aitoTable: name,
+          aitoTable: linkedAitoTable,
           fieldIdToName,
           schema: schema,
         }
@@ -201,10 +195,10 @@ export async function describeTasks(
         throw new Error('Something went badly wrong')
       }
 
-      const name = aitoTable + '_L'
-      const schema = makeLinkTableSchema(mainTableId, config.options.linkedTableId)
+      const linkTableName = aitoTable + '_' + field.id
+      const schema = makeLinkTableSchema(aitoTable, linkedAitoTable)
       const tableInfo: TableInfo = {
-        aitoTable: name,
+        aitoTable: linkTableName,
         schema,
         fieldIdToName: {},
       }
@@ -221,7 +215,9 @@ export async function describeTasks(
         type: 'upload-link',
         tableId: mainTableId,
         viewId: mainViewId,
-        linkFieldId,
+        linkFieldId: linkFieldId,
+        fromAitoTable: aitoTable,
+        toAitoTable: linkedAitoTable,
         tableInfo,
         status: 'pending',
       })
@@ -233,104 +229,320 @@ export async function describeTasks(
   }
 }
 
-export async function uploadView(client: AitoClient, view: View, aitoTable: string): Promise<UploadResult> {
-  // delete old table in aito (to overwrite it again).
-  try {
-    await client.deleteTable(aitoTable)
-  } catch (e) {
-    /* OK, it might not have existed */
-  }
-
-  // infer schema from the selected columns of data
-  const metadata = await view.selectMetadataAsync()
-
-  // create new table with new schema
-  try {
-    const visibleFields = metadata.visibleFields
-    const fieldIdToName = mapColumnNames(visibleFields)
-    const mySchema = inferAitoSchema(visibleFields, fieldIdToName)
-
-    await client.createTable(aitoTable, mySchema)
-
-    // upload data
-    await fetchRecordsAndUpload(client, view, visibleFields, fieldIdToName, aitoTable)
-
-    // check and log row count
-    var response = await client.search({
-      from: aitoTable,
-      limit: 0,
-    })
-
-    if (!isAitoError(response)) {
-      return { type: 'success', rowCount: response.total, columns: fieldIdToName }
-    } else {
-      return { type: 'error', error: response }
+const findLinksTo = (schema: Record<string, TableSchema>, tableName: string): string[] => {
+  const result: string[] = []
+  for (const tableEntry of Object.entries(schema)) {
+    const [name, tableSchema] = tableEntry
+    for (const columSchema of Object.values(tableSchema.columns)) {
+      const link = columSchema.link
+      if (link) {
+        const targetTable = link.substring(0, link.indexOf('.'))
+        if (targetTable === tableName) {
+          result.push(name)
+          break
+        }
+      }
     }
-  } catch (e) {
-    console.error(e)
-  } finally {
-    metadata.unloadData()
   }
-  return { type: 'error', error: 'error' }
+  return result
+}
+
+export async function runUploadTasks(
+  base: Base,
+  client: AitoClient,
+  tasks: UploadTask[],
+  onProgress: (status: UploadTask[]) => void,
+): Promise<UploadResult> {
+  tasks = cloneTasks(tasks)
+
+  const report = () => onProgress(cloneTasks(tasks))
+
+  const schema = await client.getSchema()
+  if (isAitoError(schema)) {
+    return { type: 'error', tasks, error: schema }
+  }
+
+  for (const task of tasks) {
+    task.status = 'in-progress'
+    report()
+
+    switch (task.type) {
+      case 'create-table':
+      case 'create-link': {
+        const info = task.tableInfo
+
+        task.progress = 0.1
+        report()
+        try {
+          if (info.aitoTable in schema) {
+            // We don't expect these link tables to have links in turn
+            const linkTables = findLinksTo(schema, info.aitoTable)
+            for (const dependent of linkTables) {
+              await client.deleteTable(dependent)
+            }
+            await client.deleteTable(info.aitoTable)
+          }
+        } catch (e) {
+          console.error('Failed to delete existing table', e)
+          task.status = 'error'
+          report()
+          return { type: 'error', tasks, error: 'error' }
+        }
+        task.progress = 0.5
+        report()
+
+        try {
+          const response = await client.createTable(info.aitoTable, info.schema)
+          if (isAitoError(response)) {
+            task.status = 'error'
+            report()
+            return { type: 'error', tasks, error: response }
+          }
+          task.progress = 1.0
+        } catch (e) {
+          console.error('Failed to create table schema', e)
+          task.status = 'error'
+          report()
+          throw e
+        }
+        task.status = 'done'
+        break
+      }
+
+      case 'upload-table': {
+        const { tableId, viewId } = task
+        const fieldMap = task.tableInfo.fieldIdToName
+        const tableName = task.tableInfo.aitoTable
+
+        try {
+          const uploadResponse = await fetchRecordsAndUpload(
+            client,
+            base,
+            tableId,
+            viewId,
+            fieldMap,
+            tableName,
+            (progress) => {
+              task.progress = progress
+              report()
+            },
+          )
+
+          if (isAitoError(uploadResponse)) {
+            task.status = 'error'
+            report()
+            return { type: 'error', tasks, error: uploadResponse }
+          }
+
+          const response = await client.search({
+            from: tableName,
+            limit: 0,
+          })
+
+          if (!isAitoError(response)) {
+            task.recordCount = Number(response.total)
+            task.status = 'done'
+          } else {
+            task.status = 'error'
+            report()
+            return { type: 'error', tasks, error: response }
+          }
+        } catch (e) {
+          task.status = 'error'
+          report()
+          console.error('Failed to upload records', e)
+          return { type: 'error', tasks, error: 'error' }
+        }
+        break
+      }
+
+      case 'upload-link': {
+        const { tableId, viewId, linkFieldId, toAitoTable, fromAitoTable } = task
+        const tableName = task.tableInfo.aitoTable
+
+        try {
+          const uploadResponse = await fetchRecordLinkssAndUpload(
+            client,
+            base,
+            tableId,
+            viewId,
+            linkFieldId,
+            tableName,
+            fromAitoTable,
+            toAitoTable,
+            (progress) => {
+              task.progress = progress
+              report()
+            },
+          )
+
+          if (isAitoError(uploadResponse)) {
+            task.status = 'error'
+            report()
+            return { type: 'error', tasks, error: uploadResponse }
+          }
+
+          const response = await client.search({
+            from: tableName,
+            limit: 0,
+          })
+
+          if (isAitoError(response)) {
+            task.status = 'error'
+            report()
+            return { type: 'error', tasks, error: response }
+          }
+          task.linkCount = Number(response.total)
+          task.status = 'done'
+        } catch (e) {
+          task.status = 'error'
+          report()
+          console.error('Failed to upload links', e)
+          return { type: 'error', tasks, error: 'error' }
+        }
+        break
+      }
+    }
+    report()
+  }
+
+  return { type: 'success', tasks }
+}
+
+async function uploadInBatches(
+  client: AitoClient,
+  dataArray: Array<any>,
+  aitoTable: string,
+  onProgress: (progress: number) => unknown,
+): Promise<AitoError | undefined> {
+  // Upload to Aito in batches of batchSize
+  const batchSize = 1000
+  const chunkedData = _.chunk(dataArray, batchSize)
+  let uploadedRecords = 0
+
+  for (const dataChunk of chunkedData) {
+    const status = await client.uploadBatch(aitoTable, dataChunk)
+
+    if (isAitoError(status)) {
+      return status
+    }
+
+    uploadedRecords += dataChunk.length
+    onProgress(uploadedRecords / dataArray.length)
+  }
 }
 
 async function fetchRecordsAndUpload(
   client: AitoClient,
-  view: View,
-  visibleFields: Field[],
+  base: Base,
+  tableId: string,
+  viewId: string,
   fieldIdToName: TableColumnMap,
   aitoTable: string,
-): Promise<void> {
+  onProgress: (progress: number) => unknown,
+): Promise<AitoError | undefined> {
+  const table = base.getTableById(tableId)
+  const view = table.getViewById(viewId)
   const queryResult = await view.selectRecordsAsync()
+
   try {
-    const dataArray: any[] = []
-    for (const record of queryResult.records) {
-      const row = visibleFields.reduce<Record<string, Value>>((row, field) => {
-        const conversion = AcceptedFields[field.type]
+    const metadata = await view.selectMetadataAsync()
 
-        const columnName = fieldIdToName[field.id].name
+    try {
+      const dataArray: any[] = []
+      for (const record of queryResult.records) {
+        const row = metadata.visibleFields.reduce<Record<string, Value>>((row, field) => {
+          if (!isDataField(field)) {
+            return row
+          }
 
-        let columnValue: string | number | boolean | null
-        if (!conversion || !conversion.isValid(field, record)) {
-          console.error(
-            `The value for record ${record.id} is not valid according to the field schema. Type is ${field.type}. Setting to null.`,
-          )
-          columnValue = null
-        } else if (field.type !== FieldType.CHECKBOX && record.getCellValueAsString(field) === '') {
-          columnValue = null
-        } else {
-          columnValue = conversion.toAitoValue(field, record)
+          const conversion = AcceptedFields[field.type]
+
+          const columnName = fieldIdToName[field.id].name
+
+          let columnValue: string | number | boolean | null
+          if (!conversion || !conversion.isValid(field, record)) {
+            console.error(
+              `The value for record ${record.id} is not valid according to the field schema. Type is ${field.type}. Setting to null.`,
+            )
+            columnValue = null
+          } else if (field.type !== FieldType.CHECKBOX && record.getCellValueAsString(field) === '') {
+            columnValue = null
+          } else {
+            columnValue = conversion.toAitoValue(field, record)
+          }
+
+          if (columnValue === null) {
+            return row
+          } else {
+            return {
+              [columnName]: columnValue,
+              ...row,
+            }
+          }
+        }, { id: record.id })
+        dataArray.push(row)
+        if (dataArray.length % 100 === 0) {
+          // Yield back to event loop
+          await new Promise((resolve) => setTimeout(resolve, 1))
         }
+      }
 
-        if (columnValue === null) {
-          return row
-        } else {
-          return {
-            [columnName]: columnValue,
-            ...row,
+      const error = uploadInBatches(client, dataArray, aitoTable, onProgress)
+      if (error) {
+        return error
+      }
+    } finally {
+      metadata.unloadData()
+    }
+  } finally {
+    queryResult.unloadData()
+  }
+}
+
+const isArrayOfIds = isArrayOf(isObjectOf({ id: isString }))
+
+async function fetchRecordLinkssAndUpload(
+  client: AitoClient,
+  base: Base,
+  tableId: string,
+  viewId: string,
+  linkFieldId: string,
+  linkAitoTable: string,
+  fromAitoTable: string,
+  toAitoTable: string,
+  onProgress: (progress: number) => unknown,
+): Promise<AitoError | undefined> {
+  const table = base.getTableById(tableId)
+  const view = table.getViewById(viewId)
+  const queryResult = await view.selectRecordsAsync({
+    fields: [linkFieldId],
+  })
+
+  try {
+    const dataArray: Record<string, AitoValue>[] = []
+    for (const record of queryResult.records) {
+      const recordId = record.id
+      const linkedRecords = record.getCellValue(linkFieldId)
+
+      if (isArrayOfIds(linkedRecords)) {
+        for (const link of linkedRecords) {
+          const { id } = link
+          dataArray.push({
+            [fromAitoTable]: recordId,
+            [toAitoTable]: id,
+          })
+
+          if (dataArray.length % 100 === 0) {
+            // Yield back to event loop
+            await new Promise((resolve) => setTimeout(resolve, 1))
           }
         }
-      }, {})
-      dataArray.push(row)
-      if (dataArray.length % 100 === 0) {
-        // Yield back to event loop
-        await new Promise((resolve) => setTimeout(resolve, 1))
       }
     }
-
-    // Upload to Aito in batches of batchSize
-    const batchSize = 1000
-    const chunkedData = _.chunk(dataArray, batchSize)
-    let batchNumber = 1
-
-    for (const dataChunk of chunkedData) {
-      const start = Date.now()
-      const status = await client.uploadBatch(
-        aitoTable,
-        dataChunk.map((c) => _.omit(c, 'AirTableId')),
-      )
-      const duration = Date.now() - start
-      console.log(`Batch ${batchNumber++} finished with HttpStatus(${status}) after ${duration}ms`)
+    const error = uploadInBatches(client, dataArray, linkAitoTable, onProgress)
+    if (error) {
+      return error
     }
   } finally {
     queryResult.unloadData()

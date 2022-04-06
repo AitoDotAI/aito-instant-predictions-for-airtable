@@ -293,7 +293,7 @@ const LinkedTableDataSourcePicker: React.FC<{
           linkedTableData: current.linkedTableData.map((mapping) => {
             if (mapping.fieldId === field.id) {
               return {
-                aitoTableName: `${aitoTableName}-${field.id}`,
+                aitoTableName: `${aitoTableName}_${newView.id}`,
                 fieldId: field.id,
                 talbeId: field.config.options.linkedTableId,
                 viewId: newView.id,
@@ -332,7 +332,7 @@ const LinkedTableDataSourcePicker: React.FC<{
 
               const [linkedTable, linkedView] = entry
 
-              const defaultName = `${aitoTableName}-${field.id}`
+              const defaultName = `${aitoTableName}_${view.id}`
               const linkedName =
                 linkedTableViewMapping.linkedTableData.find((mapping) => mapping.fieldId === field.id)?.aitoTableName ||
                 defaultName

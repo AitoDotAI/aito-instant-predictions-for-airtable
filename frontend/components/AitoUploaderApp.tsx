@@ -16,6 +16,7 @@ import { LocalConfig, readLocalConfig, writeLocalConfig } from '../LocalConfig'
 import { normalizeAitoUrl } from '../credentials'
 import UploadProgressView from './UploadProgressView'
 import { UploadJob } from './UploadView'
+import { runUploadTasks } from '../functions/uploadView'
 
 const VIEWPORT_MIN_WIDTH = 345
 const VIEWPORT_FULLSCREEN_MAX_WIDTH = 600
@@ -141,18 +142,25 @@ const MainView: React.FC<{
   const [currentUpload, setCurrentUpload] = useState<UploadJob | undefined>()
   const [uploadError, setUploadError] = useState<AitoError | undefined>()
 
-  const uploadButtonClick = useCallback(
-    async (job: UploadJob): Promise<void> => {
-      setCurrentUpload(job)
-      setUploadError(undefined)
-      if (client) {
-        // TODO: start upload
+  const uploadButtonClick = async (job: UploadJob): Promise<void> => {
+    setCurrentUpload(job)
+    setUploadError(undefined)
+    if (client) {
+      // TODO: Clear config
+      const result = await runUploadTasks(base, client, job.tasks, (tasks) => {
+        setCurrentUpload((current) => current && { ...current, tasks })
+      })
+      setCurrentUpload((current) => current && { ...current, task: result.tasks })
+      if (result.type === 'error') {
+        setUploadError(result.error)
+        // TODO: Update config to error
       } else {
-        setUploadError('forbidden')
+        // TODO: Update config to success
       }
-    },
-    [client, setCurrentUpload],
-  )
+    } else {
+      setUploadError('forbidden')
+    }
+  }
 
   const dismissUploadView = useCallback(() => {
     setTab('predict')
@@ -241,12 +249,12 @@ const MainView: React.FC<{
 
     const defaultTableConfig = {
       columns: {},
-      aitoTableName: `airtable-${table.id}`,
       airtableViewId: viewId,
       lastRowCount: undefined,
       lastUpdated: undefined,
       lastUpdatedBy: undefined,
       ...tableConfig,
+      aitoTableName: `airtable_${table.id}`,
     }
 
     return (
