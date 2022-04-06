@@ -16,11 +16,12 @@ import {
   useBase,
   useRecords,
 } from '@airtable/blocks/ui'
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { isAcceptedField, isIgnoredField } from '../AcceptedFields'
 import AitoClient from '../AitoClient'
 import { TableConfig } from '../schema/config'
 import Footer from './Footer'
+import useEqualValue from './useEqualValue'
 
 interface TableViewMapping {
   fieldId: string
@@ -235,14 +236,14 @@ const LinkedTableDataSourcePicker: React.FC<{
     }))
   }, [onChange, recordCount, linkCount])
 
-  const linkIdList = linkFields.map((field) => field.id)
+  const linkIdList = useEqualValue(linkFields.map((field) => field.id))
 
   useEffect(() => {
     onChange((current) => ({
       ...current,
       linkFields: linkIdList,
     }))
-  }, [onChange, ...linkIdList])
+  }, [onChange, linkIdList])
 
   const setLinkedView = (field: Field & IsMultipleRecordLinks) => (newView: View | null) => {
     if (newView) {
@@ -297,7 +298,7 @@ const LinkedTableDataSourcePicker: React.FC<{
                 defaultName
 
               return (
-                <>
+                <React.Fragment key={field.id}>
                   <Text marginTop={i > 0 ? 3 : 0}>
                     <strong>{table.name}</strong> is linked from{' '}
                     <FieldIcon style={{ verticalAlign: 'text-bottom' }} field={field} />
@@ -327,7 +328,7 @@ const LinkedTableDataSourcePicker: React.FC<{
                       onChange={onChange}
                     />
                   </React.Suspense>
-                </>
+                </React.Fragment>
               )
             })}
           </Box>
