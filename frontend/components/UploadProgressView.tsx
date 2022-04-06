@@ -59,9 +59,10 @@ const TaskLine: React.FC<{
         marginBottom={2}
         marginTop={1}
         style={{
-          opacity: typeof progress === 'number' && progress < 1 ? 1 : 0,
+          opacity: typeof progress === 'number' && status === 'in-progress' ? 1 : 0,
           transitionProperty: 'opacity',
-          transitionDuration: '0.7s',
+          transitionDuration: '0.25s',
+          transitionTimingFunction: 'ease-out',
         }}
       >
         <ProgressBar progress={progress || 0} />
