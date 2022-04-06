@@ -17,7 +17,7 @@ import {
   useRecords,
 } from '@airtable/blocks/ui'
 import React, { useEffect, useState } from 'react'
-import { isAcceptedField, isIgnoredField } from '../AcceptedFields'
+import { isAcceptedField, isDataField, isIgnoredField } from '../AcceptedFields'
 import AitoClient from '../AitoClient'
 import { describeTasks, UploadTask } from '../functions/uploadView'
 import { TableConfig } from '../schema/config'
@@ -389,8 +389,8 @@ const LinkedTableView: React.FC<{
   const records = useRecordIds(view)
 
   const acceptedFields = viewMetadata.visibleFields.filter(isAcceptedField)
-  const includedFields = acceptedFields.filter((x) => !isIgnoredField(x) && x.type !== FieldType.MULTIPLE_RECORD_LINKS)
-  const excludedFields = acceptedFields.filter((x) => isIgnoredField(x) || x.type === FieldType.MULTIPLE_RECORD_LINKS)
+  const includedFields = acceptedFields.filter(isDataField)
+  const excludedFields = acceptedFields.filter(isIgnoredField)
 
   const recordCount = records.length
 
@@ -477,7 +477,7 @@ const TableSource: React.FC<{
             Excluded fields{' '}
             <Tooltip
               style={{ height: 'auto', width: '300px', maxWidth: '300px', whiteSpace: 'normal' }}
-              content="Button fields, attachment fields and lookup fields are not supported and will not be uploaded to your Aito table. These fields cannot be predicted. Link fields in linked tables are also ignored."
+              content="Button fields, attachment fields and lookup fields are not supported and will not be uploaded to your Aito table. These fields cannot be predicted."
             >
               <Icon name="help" style={{ verticalAlign: 'bottom' }} marginLeft={1} />
             </Tooltip>

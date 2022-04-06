@@ -494,32 +494,6 @@ const formulaOrRollup: SupportedField = {
   },
 }
 
-const multipleRecordLinks: SupportedField = {
-  toAitoValue: () => {
-    throw new Error(`Don't store links inside aito records`)
-  },
-  toAitoType: () => {
-    throw new Error(`Don't store links in aito table schema`)
-  },
-  toAitoAnalyzer: () => undefined,
-  isValid: () => true,
-  toCellValue: () => {
-    throw new Error(`Don't render links inside aito records directly`)
-  },
-  cellValueToText: (v) => (v as any).name,
-  toAitoQuery: () => {
-    throw new Error(`Don't include links in predictions`)
-  },
-  hasFeature: (cell: unknown, feature: unknown) =>
-    isMultipleIds(cell) && isMultipleIds(feature) && Boolean(cell.find((c) => c.id === feature[0]?.id)),
-  addFeature: (cell, feature) =>
-    isMultipleIds(cell) && isMultipleIds(feature) && !cell.find(({ id }) => id === feature[0].id)
-      ? [...cell, ...feature]
-      : cell,
-  removeFeature: (cell, feature) =>
-    isMultipleIds(cell) && isMultipleIds(feature) ? cell.filter((v) => v.id !== feature[0]?.id) : cell,
-}
-
 const ignore: SupportedField = {
   cellValueToText: () => '',
   hasFeature: () => false,
@@ -561,14 +535,14 @@ Airtable to Aito datatype mapping
 - Count                     -> int
 - Attachment                -> delimited list of ids
 - External sync source      -> like Multiple select, but read-only
-- Link to another record    -> Links stored in separate table
+- Link to another record    -> Same as multiple collaborators, and links stored in separate table
 
 NOT SUPPORTED (automatically ignored in the upload)
 - Lookup
 - Button
 */
 const AcceptedFields: globalThis.Record<FieldType, SupportedField> = {
-  [FieldType.MULTIPLE_RECORD_LINKS]: multipleRecordLinks,
+  [FieldType.MULTIPLE_RECORD_LINKS]: multipleCollaborators,
 
   /**
    * Boolean fields
@@ -659,7 +633,7 @@ export const isIgnoredField = (field: Field): boolean => {
 }
 
 export const isDataField = (field: Field): boolean => {
-  return !isIgnoredField(field) && field.type !== FieldType.MULTIPLE_RECORD_LINKS
+  return !isIgnoredField(field)
 }
 
 export default AcceptedFields
