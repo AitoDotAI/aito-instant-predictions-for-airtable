@@ -1,4 +1,4 @@
-import { Table, View, ViewType } from '@airtable/blocks/models'
+import { Table, ViewType } from '@airtable/blocks/models'
 import { useBase, useCursor, useGlobalConfig, useSettingsButton, ViewportConstraint } from '@airtable/blocks/ui'
 import React, { useCallback, useEffect, useState } from 'react'
 import * as GlobalConfigKeys from '../GlobalConfigKeys'
@@ -10,11 +10,12 @@ import { isTableConfig, TableConfig, UserConfig } from '../schema/config'
 import OnboardingDialog from './OnboardingDialog'
 import GlobalConfig from '@airtable/blocks/dist/types/src/global_config'
 import { useMemo } from 'react'
-import AitoClient from '../AitoClient'
+import AitoClient, { AitoError } from '../AitoClient'
 import { Tab } from './Tab'
-import { UploadResult, uploadView } from '../functions/uploadView'
 import { LocalConfig, readLocalConfig, writeLocalConfig } from '../LocalConfig'
 import { normalizeAitoUrl } from '../credentials'
+import UploadProgressView from './UploadProgressView'
+import { UploadJob } from './UploadView'
 
 const VIEWPORT_MIN_WIDTH = 345
 const VIEWPORT_FULLSCREEN_MAX_WIDTH = 600
@@ -133,14 +134,31 @@ const MainView: React.FC<{
     }
   }, [aitoUrl, aitoKey, globalConfig, setAuthenticationError])
 
+  const [tab, setTab] = useState<Tab>('predict')
+
+  // Support a single upload at a time. If there's an upload on-going, then it takes
+  // propority over other views (other than settings).
+  const [currentUpload, setCurrentUpload] = useState<UploadJob | undefined>()
+  const [uploadError, setUploadError] = useState<AitoError | undefined>()
+
   const uploadButtonClick = useCallback(
-    async (view: View, aitoTable: string): Promise<UploadResult | undefined> => {
-      if (aitoTable && client) {
-        return await uploadView(client, view, aitoTable)
+    async (job: UploadJob): Promise<void> => {
+      setCurrentUpload(job)
+      setUploadError(undefined)
+      if (client) {
+        // TODO: start upload
+      } else {
+        setUploadError('forbidden')
       }
     },
-    [client],
+    [client, setCurrentUpload],
   )
+
+  const dismissUploadView = useCallback(() => {
+    setTab('predict')
+    setUploadError(undefined)
+    setCurrentUpload(undefined)
+  }, [setTab, setUploadError, setCurrentUpload])
 
   const onSaveSettings = useCallback(
     async (settings: Settings): Promise<void> => {
@@ -165,8 +183,6 @@ const MainView: React.FC<{
     [globalConfig],
   )
 
-  const [tab, setTab] = useState<Tab>('predict')
-
   if (isShowingSettings || !client) {
     const settings: Settings = {
       aitoUrl: aitoUrl || '',
@@ -182,56 +198,72 @@ const MainView: React.FC<{
         onDoneClick={onSaveSettings}
       />
     )
-  } else {
-    // table can be null if it's a new table being created and activeViewId can be null while the
-    // table is loading, so we use "ifExists" to allow for these situations.
-    const table = cursor.activeTableId ? base.getTableByIdIfExists(cursor.activeTableId) : null
+  }
 
-    if (table) {
-      const tableConfig = tablesConfig && asTableConfig(tablesConfig[table.id])
-      let viewId: string | undefined = tableConfig?.airtableViewId
-
-      const activeView = cursor.activeViewId !== null ? table.getViewByIdIfExists(cursor.activeViewId) : null
-
-      // Look for a default view if none was configured
-      if (!viewId) {
-        if (activeView?.type === ViewType.GRID) {
-          viewId = activeView.id
-        } else {
-          const hit = table.views.find((v) => v.type === ViewType.GRID)
-          if (hit) {
-            viewId = hit.id
-          }
-        }
-      }
-
-      const defaultTableConfig = {
-        columns: {},
-        aitoTableName: `airtable-${table.id}`,
-        airtableViewId: viewId,
-        lastRowCount: undefined,
-        lastUpdated: undefined,
-        lastUpdatedBy: undefined,
-        ...tableConfig,
-      }
-
+  if (currentUpload) {
+    const table = base.getTableByIdIfExists(currentUpload.tableId)
+    const view = table?.getViewByIdIfExists(currentUpload.viewId)
+    if (table && view) {
       return (
-        <TableView
+        <UploadProgressView
           table={table}
-          cursor={cursor}
+          view={view}
+          error={uploadError}
+          tasks={currentUpload.tasks}
+          onComplete={dismissUploadView}
           client={client}
-          tableConfig={defaultTableConfig}
-          onUpload={uploadButtonClick}
-          canUpdateSettings={canUpdateSettings}
-          setTableConfig={setTableConfig}
-          tab={tab}
-          setTab={setTab}
         />
       )
-    } else {
-      // Still loading table and/or view.
-      return null
     }
+  }
+
+  // table can be null if it's a new table being created and activeViewId can be null while the
+  // table is loading, so we use "ifExists" to allow for these situations.
+  const table = cursor.activeTableId ? base.getTableByIdIfExists(cursor.activeTableId) : null
+
+  if (table) {
+    const tableConfig = tablesConfig && asTableConfig(tablesConfig[table.id])
+    let viewId: string | undefined = tableConfig?.airtableViewId
+
+    const activeView = cursor.activeViewId !== null ? table.getViewByIdIfExists(cursor.activeViewId) : null
+
+    // Look for a default view if none was configured
+    if (!viewId) {
+      if (activeView?.type === ViewType.GRID) {
+        viewId = activeView.id
+      } else {
+        const hit = table.views.find((v) => v.type === ViewType.GRID)
+        if (hit) {
+          viewId = hit.id
+        }
+      }
+    }
+
+    const defaultTableConfig = {
+      columns: {},
+      aitoTableName: `airtable-${table.id}`,
+      airtableViewId: viewId,
+      lastRowCount: undefined,
+      lastUpdated: undefined,
+      lastUpdatedBy: undefined,
+      ...tableConfig,
+    }
+
+    return (
+      <TableView
+        table={table}
+        cursor={cursor}
+        client={client}
+        tableConfig={defaultTableConfig}
+        onUpload={uploadButtonClick}
+        canUpdateSettings={canUpdateSettings}
+        tab={tab}
+        setTab={setTab}
+      />
+    )
+  } else {
+    // Still loading table and/or view.
+    return null
   }
 }
 

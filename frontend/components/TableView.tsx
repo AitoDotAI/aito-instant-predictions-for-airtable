@@ -1,24 +1,22 @@
-import { Cursor, Table, View } from '@airtable/blocks/models'
+import { Cursor, Table } from '@airtable/blocks/models'
 import { Box, Text, Button, Loader, Tooltip, Icon } from '@airtable/blocks/ui'
 import React from 'react'
 import AitoClient from '../AitoClient'
-import { UploadResult } from '../functions/uploadView'
 import { TableConfig } from '../schema/config'
 import PredictView from './PredictView'
 import { Tab } from './Tab'
-import UploadView from './UploadView'
+import UploadView, { UploadJob } from './UploadView'
 
 const TableView: React.FC<{
   table: Table
   cursor: Cursor
   tableConfig: TableConfig
   client: AitoClient | null
-  onUpload: (view: View, aitoTableName: string) => Promise<UploadResult | undefined>
-  setTableConfig: (table: Table, tableConfig: TableConfig) => Promise<unknown>
+  onUpload: (job: UploadJob) => unknown
   canUpdateSettings: boolean
   tab: Tab
   setTab: (tab: Tab) => unknown
-}> = ({ table, cursor, client, onUpload, tableConfig, setTableConfig, canUpdateSettings, tab, setTab }) => {
+}> = ({ table, cursor, client, onUpload, tableConfig, canUpdateSettings, tab, setTab }) => {
   if (!client) {
     return (
       <Text variant="paragraph" textColor="light">
@@ -56,10 +54,8 @@ const TableView: React.FC<{
               table={table}
               tableConfig={tableConfig}
               onUpload={onUpload}
-              setTableConfig={setTableConfig}
               canUpdateSettings={canUpdateSettings}
               client={client}
-              setTab={setTab}
             />
           </React.Suspense>
         </Box>

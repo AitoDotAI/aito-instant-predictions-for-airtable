@@ -19,6 +19,7 @@ import {
 import React, { useEffect, useState } from 'react'
 import { isAcceptedField, isIgnoredField } from '../AcceptedFields'
 import AitoClient from '../AitoClient'
+import { describeTasks, UploadTask } from '../functions/uploadView'
 import { TableConfig } from '../schema/config'
 import Footer from './Footer'
 import useEqualValue from './useEqualValue'
@@ -40,13 +41,21 @@ interface LinkedTableViewMapping {
   linkedTableData: TableViewMapping[]
 }
 
+export interface UploadJob {
+  tableId: string
+  viewId: string
+  tasks: UploadTask[]
+}
+
 const UploadView: React.FC<{
   table: Table
   tableConfig: TableConfig
-  onUpload: (view: View, aitoTableName: string) => Promise<unknown>
+  onUpload: (job: UploadJob) => unknown
   canUpdateSettings: boolean
   client: AitoClient
-}> = ({ table, tableConfig, canUpdateSettings, client }) => {
+}> = ({ table, tableConfig, canUpdateSettings, client, onUpload }) => {
+  const base = useBase()
+
   const [linkedTableViewMapping, setLinkedTableViewMapping] = useState<LinkedTableViewMapping>({
     mainViewId: tableConfig.airtableViewId || null,
     mainTableName: tableConfig.aitoTableName,
@@ -56,7 +65,7 @@ const UploadView: React.FC<{
     ],
   })
 
-  const { mainViewId, linkFields, linkedTableData } = linkedTableViewMapping
+  const { mainTableName, mainViewId, linkFields, linkedTableData } = linkedTableViewMapping
   const selectedView = (mainViewId && table.getViewByIdIfExists(mainViewId)) || table.getFirstViewOfType(ViewType.GRID)
 
   const totalRecords =
@@ -66,9 +75,40 @@ const UploadView: React.FC<{
     }, 0)
   const totalLinks = linkedTableViewMapping.linkCount || 0
 
-  const doUpload = useCallback(async () => {
-    /* TODO */
-  }, [])
+  const [isUploading, setIsUploading] = useState(false)
+
+  const doUpload = async () => {
+    if (!mainViewId || isUploading) {
+      return
+    }
+    setIsUploading(true)
+
+    try {
+      const tasks = await describeTasks(
+        base,
+        table.id,
+        mainViewId,
+        mainTableName,
+        linkFields.map((fieldId) => {
+          const mapping = linkedTableData.find((mapping) => mapping.fieldId === fieldId)!
+          return {
+            aitoTable: mapping.aitoTableName,
+            linkFieldId: fieldId,
+            tableId: mapping.talbeId,
+            viewId: mapping.viewId,
+          }
+        }),
+      )
+      onUpload({
+        tableId: table.id,
+        viewId: mainViewId,
+        tasks,
+      })
+    } catch (e) {
+      console.error(e)
+      setIsUploading(false)
+    }
+  }
 
   const isReady = linkFields.every(
     (fieldId) => typeof linkedTableData.find((mapping) => mapping.fieldId === fieldId)?.recordCount === 'number',
@@ -123,7 +163,7 @@ const UploadView: React.FC<{
             )}
           </Box>
           <Box marginX={3} marginTop={4} marginBottom={2} display="flex" justifyContent="center">
-            <Button disabled={!isReady} onClick={doUpload} variant="primary" icon="upload">
+            <Button disabled={!isReady || isUploading} onClick={doUpload} variant="primary" icon="upload">
               Upload {isReady ? totalRecords : 'some'} records{totalLinks > 0 ? ` and ${totalLinks} links` : null} to{' '}
               <strong>{client.name}</strong>
             </Button>
