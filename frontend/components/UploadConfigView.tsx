@@ -64,15 +64,15 @@ const UploadConfigView: React.FC<{
     linkFields: tableConfig.links ? Object.keys(tableConfig) : [],
     linkedTableData: tableConfig.links
       ? Object.entries(tableConfig.links).reduce<TableViewMapping[]>((acc, [fieldId, link]) => {
-          const view = (tableConfig.views || []).find((cfg) => cfg.airtableViewId === link.airtableViewId)
+          const view = (tableConfig.views || []).find((cfg) => Object.keys(link.columns).includes(cfg.aitoTableName))
           if (view) {
             return [
               ...acc,
               {
                 fieldId,
                 aitoTableName: view.aitoTableName,
-                tableId: link.airtableTableId,
-                viewId: link.airtableViewId,
+                tableId: view.airtableTableId,
+                viewId: view.airtableViewId
               },
             ]
           } else {
@@ -224,6 +224,7 @@ const LinkedTableDataSourcePicker: React.FC<{
 }> = ({ table, view, aitoTableName, linkedTableViewMapping, onChange, disabled }) => {
   const viewMetadata = useViewMetadata(view)
   const visibleFields = viewMetadata.visibleFields
+  const linkedTableData = linkedTableViewMapping.linkedTableData
 
   const base = useBase()
 
@@ -248,9 +249,7 @@ const LinkedTableDataSourcePicker: React.FC<{
       return acc
     }
 
-    const configuredViewId = linkedTableViewMapping.linkedTableData.find(
-      (mapping) => mapping.fieldId === field.id,
-    )?.viewId
+    const configuredViewId = linkedTableData.find(({ fieldId }) => fieldId === field.id)?.viewId
     const configuredView = configuredViewId && linkedTable.getViewByIdIfExists(configuredViewId)
     const linkedView = configuredView || linkedTable.getFirstViewOfType(ViewType.GRID)
     if (!linkedView) {
@@ -340,7 +339,7 @@ const LinkedTableDataSourcePicker: React.FC<{
 
               const defaultName = `${aitoTableName}_${linkedView.id}`
               const linkedName =
-                linkedTableViewMapping.linkedTableData.find((mapping) => mapping.fieldId === field.id)?.aitoTableName ||
+                linkedTableData.find((mapping) => mapping.fieldId === field.id)?.aitoTableName ||
                 defaultName
 
               return (
