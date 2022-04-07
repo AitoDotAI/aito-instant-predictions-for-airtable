@@ -72,7 +72,7 @@ const UploadConfigView: React.FC<{
                 fieldId,
                 aitoTableName: view.aitoTableName,
                 tableId: view.airtableTableId,
-                viewId: view.airtableViewId
+                viewId: view.airtableViewId,
               },
             ]
           } else {
@@ -339,8 +339,7 @@ const LinkedTableDataSourcePicker: React.FC<{
 
               const defaultName = `${aitoTableName}_${linkedView.id}`
               const linkedName =
-                linkedTableData.find((mapping) => mapping.fieldId === field.id)?.aitoTableName ||
-                defaultName
+                linkedTableData.find((mapping) => mapping.fieldId === field.id)?.aitoTableName || defaultName
 
               return (
                 <React.Fragment key={field.id}>

@@ -268,6 +268,14 @@ export async function runUploadTasks(
 
   const report = () => onProgress(cloneTasks(tasks))
 
+  if (tasks.length === 0) {
+    return { type: 'success', tasks }
+  }
+
+  // Start the first task immediately since fetching schema can take a while
+  tasks[0].status = 'in-progress'
+  report()
+
   const schema = await client.getSchema()
   if (isAitoError(schema)) {
     return { type: 'error', tasks, error: schema }
