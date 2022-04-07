@@ -1,5 +1,5 @@
 import { Cursor, Table } from '@airtable/blocks/models'
-import { Box, Text, Button, Loader, Tooltip, Icon } from '@airtable/blocks/ui'
+import { Box, Text, Button, Tooltip, Icon } from '@airtable/blocks/ui'
 import React from 'react'
 import AitoClient from '../AitoClient'
 import { TableConfig } from '../schema/config'
@@ -49,7 +49,7 @@ const TableView: React.FC<{
     return (
       <Box display="flex" flexDirection="column" minHeight="100vh">
         <Box display="flex" flexGrow={1} flexBasis="100%">
-          <React.Suspense fallback={Spinner}>
+          <React.Suspense fallback={<Spinner />}>
             <UploadConfigView
               key={table.id}
               table={table}
@@ -68,7 +68,7 @@ const TableView: React.FC<{
     return (
       <Box display="flex" flexDirection="column" minHeight="100vh">
         <Box flexGrow={1} flexBasis="100%" display="flex" flexDirection="column">
-          <React.Suspense fallback={Spinner}>
+          <React.Suspense fallback={<Spinner />}>
             <PredictView
               key={table.id}
               table={table}

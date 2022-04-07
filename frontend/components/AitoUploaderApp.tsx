@@ -132,7 +132,7 @@ const makeTableConfig = (
 
 const AitoUploaderApp: React.FC = () => {
   return (
-    <React.Suspense fallback={Spinner}>
+    <React.Suspense fallback={<Spinner />}>
       <RootView />
     </React.Suspense>
   )

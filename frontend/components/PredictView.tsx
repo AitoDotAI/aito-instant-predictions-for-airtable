@@ -1049,7 +1049,7 @@ const FieldPrediction: React.FC<{
 
         {(!predictionError && prediction === undefined && <Spinner />) ||
           (prediction && (
-            <React.Suspense fallback={Spinner}>
+            <React.Suspense fallback={<Spinner />}>
               <PredictionHitsList
                 prediction={prediction}
                 record={record}
