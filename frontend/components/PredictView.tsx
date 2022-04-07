@@ -24,6 +24,7 @@ import {
   useBase,
   useLoadable,
   useRecordById,
+  useRecordIds,
   useViewMetadata,
   useWatchable,
 } from '@airtable/blocks/ui'
@@ -548,10 +549,10 @@ const queryType = (field: Field): QueryType => (field.type === FieldType.MULTIPL
 const renderCellDefault = (field: Field) => {
   const RenderCell = (cellValue: unknown): React.ReactElement => {
     if (field.type === FieldType.SINGLE_COLLABORATOR || field.type === FieldType.MULTIPLE_COLLABORATORS) {
-      return <i>Unknown collaborator</i>
+      return <Box marginLeft={2}><i>Unknown collaborator</i></Box>
     }
     if (field.type === FieldType.MULTIPLE_RECORD_LINKS) {
-      return <i>Unknown record</i>
+      return <Box marginLeft={2}><i>Unknown record</i></Box>
     }
     let value: string = String(cellValue)
     try {
@@ -1143,26 +1144,35 @@ const PredictionHitsList: React.FC<{
 }) => {
   const base = useBase()
   let linkedRecordsQuery: TableOrViewQueryResult | null = null
+  let isLink = false
 
   if (queryType(selectedField) === 'match') {
+    isLink = true
     const config = selectedField.config as FieldConfig & { type: FieldType.MULTIPLE_RECORD_LINKS }
     const table = base.getTableByIdIfExists(config.options.linkedTableId)
     linkedRecordsQuery = table && table.selectRecords()
   }
+
+  const linkedRecords = useRecordIds((linkedRecordsQuery || null)!) || []
+
   return (
     <>
       {prediction.hits.map(({ $p, feature, id, $why }, i) => {
+        const featureOrId = feature || id
         const conversion = AcceptedFields[selectedField.type]
-        let value = conversion ? conversion.toCellValue(feature || id, selectedField.config) : feature || id
+        let value = conversion ? conversion.toCellValue(featureOrId, selectedField.config) : featureOrId
 
-        const canUse = true
         const hitCount = prediction.hits.length
         const hitsBoxHeight = 16 + 49.5 * hitCount
         const beforeFraction = (16 + 49.5 * i) / hitsBoxHeight
         const afterFraction = (hitsBoxHeight - (i + 1) * 49.5) / hitsBoxHeight
-        const disallowedReason = whyIsFieldChoiceNotAllowed(selectedField, String(feature))
-        const canRemove = true
+        const disallowedReason = whyIsFieldChoiceNotAllowed(selectedField, String(featureOrId))
         const fieldHasFeature = hasFeature(record, selectedField, value)
+
+        const canRemove = true
+
+        const recordWasRemoved = isLink && id && !linkedRecords.includes(id)
+        const canUse = !recordWasRemoved
         const isRemoveAction = fieldHasFeature && canRemove
 
         return (
@@ -1233,7 +1243,7 @@ const PredictionHitsList: React.FC<{
                     <Button
                       marginX={2}
                       icon={isRemoveAction ? 'minus' : 'plus'}
-                      onClick={() => onClick(feature)}
+                      onClick={() => onClick(featureOrId)}
                       size="small"
                       alignSelf="center"
                       disabled={!canUse || !canUpdate || Boolean(disallowedReason) || (fieldHasFeature && !canRemove)}
@@ -1242,7 +1252,7 @@ const PredictionHitsList: React.FC<{
                     />
                   ) : (
                     <Button
-                      onClick={() => onClick(feature)}
+                      onClick={() => onClick(featureOrId)}
                       size="small"
                       alignSelf="center"
                       variant="default"
