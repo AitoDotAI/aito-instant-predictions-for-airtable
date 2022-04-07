@@ -79,33 +79,28 @@ const EditThresholdDialog: React.FC<{
   onConfirm: (newThreshold: number) => void
   onClose: () => void
 }> = ({ threshold, onClose, onConfirm }) => {
-  const [pendingThreshold, setPendingThreshold] = useState(threshold)
+  const [pendingThreshold, setPendingThreshold] = useState(threshold.toString())
 
   const onThresholdChange = (e: React.FocusEvent<HTMLInputElement>): void => {
-    if (e.target.value === '') {
-      setPendingThreshold(0)
-    } else {
-      const n = Number(e.target.value)
-      if (n === 0) {
-        setPendingThreshold(0)
-      } else if (Number.isFinite(n) && n >= 0 && n <= 100) {
-        setPendingThreshold(Math.floor(n))
-      }
-    }
+    setPendingThreshold(e.target.value)
   }
+
+  const asNumber = Math.floor(Number(pendingThreshold))
+  const isInRange = Number.isFinite(asNumber) && asNumber >= 0 && asNumber <= 100
+  const isValid = pendingThreshold !== '' && isInRange
 
   return (
     <ConfirmationDialog
       title="Change Confidence Threshold"
       onCancel={onClose}
-      onConfirm={() => onConfirm(pendingThreshold)}
+      onConfirm={() => onConfirm(asNumber)}
       cancelButtonText="Close"
       confirmButtonText="Set threshold"
-      isConfirmButtonDisabled={threshold === pendingThreshold}
+      isConfirmButtonDisabled={!isValid}
       body={
         <>
-          <Label>Threshold</Label>
-          <Input type="number" value={pendingThreshold.toString()} onChange={onThresholdChange} />
+          <Label>Threshold percentage (0-100)</Label>
+          <Input type="number" min={0} step={1} max={100} value={pendingThreshold} onChange={onThresholdChange} />
         </>
       }
     />
