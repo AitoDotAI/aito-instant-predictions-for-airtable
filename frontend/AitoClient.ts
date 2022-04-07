@@ -20,6 +20,11 @@ export interface PredictionHit {
   feature: Value
 }
 
+export interface MatchHit {
+  $p: number
+  [key: string]: Value
+}
+
 export interface PredictQuery {
   from: string
   where?: Record<string, unknown>
@@ -153,6 +158,16 @@ export default class AitoClient {
   async predict(predictionJSON: string): Promise<Hits<PredictionHit> | AitoError> {
     const url = new URL(`/api/v1/_predict`, this.host)
     const response = await this.send(url, this.post(predictionJSON))
+    if (response.ok) {
+      return await response.json()
+    } else {
+      return this.toAitoError(response)
+    }
+  }
+
+  async match(matchJSON: string): Promise<Hits<MatchHit> | AitoError> {
+    const url = new URL(`/api/v1/_match`, this.host)
+    const response = await this.send(url, this.post(matchJSON))
     if (response.ok) {
       return await response.json()
     } else {
