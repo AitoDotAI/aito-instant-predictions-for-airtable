@@ -2,7 +2,7 @@ import { Base, Field, FieldType, ViewMetadataQueryResult } from '@airtable/block
 import _ from 'lodash'
 import AcceptedFields, { isDataField, isIgnoredField } from '../AcceptedFields'
 import AitoClient, { AitoError, AitoValue, isAitoError, Value } from '../AitoClient'
-import { isColumnSchema, TableSchema } from '../schema/aito'
+import { TableSchema } from '../schema/aito'
 import { TableColumnMap } from '../schema/config'
 import { isArrayOf, isObjectOf, isString } from '../validator/validation'
 import inferAitoSchema, { mapColumnNames } from './inferAitoSchema'
@@ -34,6 +34,19 @@ const makeLinkTableSchema = (fromTableName: string, toTableName: string): TableS
         nullable: false,
         link: `${toTableName}.id`,
       },
+    },
+  }
+}
+
+const makeLinkTableColumnMap = (fromTableName: string, toTableName: string): TableColumnMap => {
+  return {
+    [fromTableName]: {
+      type: FieldType.MULTIPLE_RECORD_LINKS,
+      name: fromTableName,
+    },
+    [toTableName]: {
+      type: FieldType.MULTIPLE_RECORD_LINKS,
+      name: toTableName,
     },
   }
 }
@@ -200,7 +213,7 @@ export async function describeTasks(
       const tableInfo: TableInfo = {
         aitoTable: linkTableName,
         schema,
-        fieldIdToName: {},
+        fieldIdToName: makeLinkTableColumnMap(aitoTable, linkedAitoTable),
       }
 
       createLinkTasks.push({

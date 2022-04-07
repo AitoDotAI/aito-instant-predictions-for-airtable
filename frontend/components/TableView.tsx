@@ -4,6 +4,7 @@ import React from 'react'
 import AitoClient from '../AitoClient'
 import { TableConfig } from '../schema/config'
 import PredictView from './PredictView'
+import Spinner from './Spinner'
 import { Tab } from './Tab'
 import UploadConfigView, { UploadJob } from './UploadConfigView'
 
@@ -48,7 +49,7 @@ const TableView: React.FC<{
     return (
       <Box display="flex" flexDirection="column" minHeight="100vh">
         <Box display="flex" flexGrow={1} flexBasis="100%">
-          <React.Suspense fallback={<Spinner />}>
+          <React.Suspense fallback={Spinner}>
             <UploadConfigView
               key={table.id}
               table={table}
@@ -67,7 +68,7 @@ const TableView: React.FC<{
     return (
       <Box display="flex" flexDirection="column" minHeight="100vh">
         <Box flexGrow={1} flexBasis="100%" display="flex" flexDirection="column">
-          <React.Suspense fallback={<Spinner />}>
+          <React.Suspense fallback={Spinner}>
             <PredictView
               key={table.id}
               table={table}
@@ -83,12 +84,6 @@ const TableView: React.FC<{
     )
   }
 }
-
-const Spinner: React.FC = () => (
-  <Box padding={3} flexGrow={1} display="flex" flexBasis="100%" justifyContent="center" alignItems="center">
-    <Loader scale={0.3} />
-  </Box>
-)
 
 const Footer: React.FC<{
   lastUpdated: Date | undefined

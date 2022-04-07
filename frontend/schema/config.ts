@@ -7,7 +7,6 @@ import {
   isObjectOf,
   isSomeOf,
   isString,
-  isTupleOf,
   isUndefined,
   ValidatedType,
 } from '../validator/validation'

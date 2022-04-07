@@ -1,4 +1,4 @@
-import { Table, ViewType } from '@airtable/blocks/models'
+import { ViewType } from '@airtable/blocks/models'
 import {
   useBase,
   useCursor,
@@ -30,15 +30,8 @@ import { LocalConfig, readLocalConfig, writeLocalConfig } from '../LocalConfig'
 import { normalizeAitoUrl } from '../credentials'
 import UploadProgressView from './UploadProgressView'
 import { UploadJob } from './UploadConfigView'
-import {
-  CreateLinkTask,
-  CreateTableTask,
-  describeTasks,
-  runUploadTasks,
-  UploadLinkTask,
-  UploadTableTask,
-  UploadTask,
-} from '../functions/uploadView'
+import { CreateLinkTask, CreateTableTask, runUploadTasks, UploadTask } from '../functions/uploadView'
+import Spinner from './Spinner'
 
 const VIEWPORT_MIN_WIDTH = 345
 const VIEWPORT_FULLSCREEN_MAX_WIDTH = 600
@@ -138,6 +131,14 @@ const makeTableConfig = (
 }
 
 const AitoUploaderApp: React.FC = () => {
+  return (
+    <React.Suspense fallback={Spinner}>
+      <RootView />
+    </React.Suspense>
+  )
+}
+
+const RootView: React.FC = () => {
   const globalConfig = useGlobalConfig()
   const hasSetupOnce = asBoolean(globalConfig.get(GlobalConfigKeys.HAS_SETUP_ONCE))
 
