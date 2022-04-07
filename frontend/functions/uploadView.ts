@@ -156,15 +156,15 @@ export async function describeTasks(
     const uploadLinkTasks: UploadLinkTask[] = []
 
     const createdViewsSet = new Set<string>()
-    createdViewsSet.add(mainViewId)
+    createdViewsSet.add(mainTableId + mainViewId)
 
     // Create schema for each linked table and for each link field
     for (const link of linkViews) {
       const { linkFieldId, tableId, viewId, aitoTable: linkedAitoTable } = link
 
-      if (!createdViewsSet.has(viewId)) {
+      if (!createdViewsSet.has(tableId + viewId)) {
         // Create schema for referenced view
-        createdViewsSet.add(viewId)
+        createdViewsSet.add(tableId + viewId)
 
         const linkedTable = base.getTableById(tableId)
         const linkedView = linkedTable.getViewById(viewId)
@@ -208,11 +208,9 @@ export async function describeTasks(
         throw new Error('Something went badly wrong')
       }
 
-      const linkTableName = aitoTable + '_' + field.id
-      const schema = makeLinkTableSchema(aitoTable, linkedAitoTable)
       const tableInfo: TableInfo = {
-        aitoTable: linkTableName,
-        schema,
+        aitoTable: aitoTable + '_' + field.id,
+        schema: makeLinkTableSchema(aitoTable, linkedAitoTable),
         fieldIdToName: makeLinkTableColumnMap(aitoTable, linkedAitoTable),
       }
 
@@ -292,6 +290,7 @@ export async function runUploadTasks(
             const linkTables = findLinksTo(schema, info.aitoTable)
             for (const dependent of linkTables) {
               await client.deleteTable(dependent)
+              delete schema[info.aitoTable]
             }
             await client.deleteTable(info.aitoTable)
           }

@@ -5,7 +5,6 @@ import {
   FieldIcon,
   FormField,
   Icon,
-  Loader,
   Heading,
   Text,
   useRecordIds,
@@ -16,12 +15,14 @@ import {
   useBase,
   useRecords,
 } from '@airtable/blocks/ui'
+import _ from 'lodash'
 import React, { useEffect, useState } from 'react'
 import { isAcceptedField, isDataField, isIgnoredField } from '../AcceptedFields'
 import AitoClient from '../AitoClient'
 import { describeTasks, UploadTask } from '../functions/uploadView'
 import { TableConfig } from '../schema/config'
 import Footer from './Footer'
+import Spinner from './Spinner'
 import useEqualValue from './useEqualValue'
 
 interface TableViewMapping {
@@ -57,21 +58,29 @@ const UploadConfigView: React.FC<{
 }> = ({ table, tableConfig, canUpdateSettings, client, onUpload }) => {
   const base = useBase()
 
-  const [linkedTableViewMapping, setLinkedTableViewMapping] = useState<LinkedTableViewMapping>({
+  const [linkedTableViewMapping, setLinkedTableViewMapping] = useState<LinkedTableViewMapping>(() => ({
     mainViewId: tableConfig.airtableViewId || null,
     mainTableName: tableConfig.aitoTableName,
-    linkFields: [],
+    linkFields: tableConfig.links ? Object.keys(tableConfig) : [],
     linkedTableData: tableConfig.links
-      ? Object.entries(tableConfig.links).map(([fieldId, link]) => {
-          return {
-            fieldId,
-            aitoTableName: link.aitoTableName,
-            tableId: link.airtableTableId,
-            viewId: link.airtableViewId,
+      ? Object.entries(tableConfig.links).reduce<TableViewMapping[]>((acc, [fieldId, link]) => {
+          const view = (tableConfig.views || []).find((cfg) => cfg.airtableViewId === link.airtableViewId)
+          if (view) {
+            return [
+              ...acc,
+              {
+                fieldId,
+                aitoTableName: view.aitoTableName,
+                tableId: link.airtableTableId,
+                viewId: link.airtableViewId,
+              },
+            ]
+          } else {
+            return acc
           }
-        })
+        }, [])
       : [],
-  })
+  }))
 
   const { mainTableName, mainViewId, linkFields, linkedTableData } = linkedTableViewMapping
   const selectedView = (mainViewId && table.getViewByIdIfExists(mainViewId)) || table.getFirstViewOfType(ViewType.GRID)
@@ -153,13 +162,7 @@ const UploadConfigView: React.FC<{
               />
             </FormField>
             {selectedView && (
-              <React.Suspense
-                fallback={
-                  <Box display="flex" flexDirection="column" minHeight="240px" justifyContent="center">
-                    <Loader scale={0.3} alignSelf="center" />
-                  </Box>
-                }
-              >
+              <React.Suspense fallback={<Spinner />}>
                 <LinkedTableDataSourcePicker
                   table={table}
                   view={selectedView}
@@ -239,8 +242,8 @@ const LinkedTableDataSourcePicker: React.FC<{
     const config = field.config
     const tableId = config.options.linkedTableId
 
-    const table = base.getTableByIdIfExists(tableId)
-    if (!table) {
+    const linkedTable = base.getTableByIdIfExists(tableId)
+    if (!linkedTable) {
       console.warn('Table %s linked from field %s cannot be found', tableId, field.id)
       return acc
     }
@@ -248,16 +251,16 @@ const LinkedTableDataSourcePicker: React.FC<{
     const configuredViewId = linkedTableViewMapping.linkedTableData.find(
       (mapping) => mapping.fieldId === field.id,
     )?.viewId
-    const configuredView = configuredViewId && table.getViewByIdIfExists(configuredViewId)
-    const view = configuredView || table.getFirstViewOfType(ViewType.GRID)
-    if (!view) {
+    const configuredView = configuredViewId && linkedTable.getViewByIdIfExists(configuredViewId)
+    const linkedView = configuredView || linkedTable.getFirstViewOfType(ViewType.GRID)
+    if (!linkedView) {
       console.warn('Table %s linked from field %s has no grid view', tableId, field.id)
       return acc
     }
 
     return {
       ...acc,
-      [field.id]: [table, view],
+      [field.id]: [linkedTable, linkedView],
     }
   }, {})
 
@@ -276,23 +279,17 @@ const LinkedTableDataSourcePicker: React.FC<{
     0,
   )
 
+  const linkIdList = useEqualValue(linkFields.map((field) => field.id))
+
   // Update record and link count
   useEffect(() => {
     onChange((current) => ({
       ...current,
-      linkCount: linkCount,
+      linkCount,
       recordCount,
-    }))
-  }, [onChange, recordCount, linkCount])
-
-  const linkIdList = useEqualValue(linkFields.map((field) => field.id))
-
-  useEffect(() => {
-    onChange((current) => ({
-      ...current,
       linkFields: linkIdList,
     }))
-  }, [onChange, linkIdList])
+  }, [onChange, recordCount, linkCount, linkIdList])
 
   const setLinkedView = (field: Field & IsMultipleRecordLinks) => (newView: View | null) => {
     if (newView) {
@@ -341,7 +338,7 @@ const LinkedTableDataSourcePicker: React.FC<{
 
               const [linkedTable, linkedView] = entry
 
-              const defaultName = `${aitoTableName}_${view.id}`
+              const defaultName = `${aitoTableName}_${linkedView.id}`
               const linkedName =
                 linkedTableViewMapping.linkedTableData.find((mapping) => mapping.fieldId === field.id)?.aitoTableName ||
                 defaultName
@@ -350,7 +347,7 @@ const LinkedTableDataSourcePicker: React.FC<{
                 <React.Fragment key={field.id}>
                   <Text marginTop={i > 0 ? 3 : 0}>
                     <strong>{table.name}</strong> is linked from{' '}
-                    <FieldIcon style={{ verticalAlign: 'text-bottom' }} field={field} />
+                    <FieldIcon style={{ verticalAlign: 'text-bottom' }} field={field} marginRight={1} />
                     {field.name}
                   </Text>
                   <Label marginTop={2}>Training data view</Label>
@@ -362,13 +359,7 @@ const LinkedTableDataSourcePicker: React.FC<{
                     onChange={setLinkedView(field)}
                     placeholder="Select Grid View..."
                   />
-                  <React.Suspense
-                    fallback={
-                      <Box display="flex" flexDirection="column" minHeight="240px" justifyContent="center">
-                        <Loader scale={0.3} alignSelf="center" />
-                      </Box>
-                    }
-                  >
+                  <React.Suspense fallback={<Spinner />}>
                     <LinkedTableView
                       field={field}
                       table={linkedTable}
@@ -404,35 +395,30 @@ const LinkedTableView: React.FC<{
   const recordCount = records.length
 
   useEffect(() => {
-    onChange(({ linkedTableData, ...rest }) => {
-      if (linkedTableData.find((mapping) => mapping.fieldId === field.id)) {
-        return {
-          ...rest,
-          linkedTableData: linkedTableData.map((mapping) => {
-            if (mapping.fieldId === field.id) {
-              return {
-                ...mapping,
-                recordCount,
-              }
-            } else {
-              return mapping
-            }
-          }),
-        }
+    onChange((current) => {
+      const { linkedTableData, ...rest } = current
+      const newMapping = {
+        fieldId: field.id,
+        aitoTableName,
+        tableId: table.id,
+        viewId: view.id,
+        recordCount,
+      }
+
+      const viewInfoExists = Boolean(linkedTableData.find((mapping) => mapping.fieldId === field.id))
+
+      const update = {
+        ...rest,
+        linkedTableData: viewInfoExists
+          ? linkedTableData.map((mapping) => (mapping.fieldId === field.id ? newMapping : mapping))
+          : [...linkedTableData, newMapping],
+      }
+      if (_.isEqual(current, update)) {
+        // Avoid re-render if possible
+        // https://reactjs.org/docs/hooks-reference.html#functional-updates
+        return current
       } else {
-        return {
-          ...rest,
-          linkedTableData: [
-            ...linkedTableData,
-            {
-              fieldId: field.id,
-              aitoTableName,
-              tableId: table.id,
-              viewId: view.id,
-              recordCount,
-            },
-          ],
-        }
+        return update
       }
     })
   }, [onChange, aitoTableName, field.id, table.id, view.id, recordCount])

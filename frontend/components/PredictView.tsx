@@ -289,9 +289,7 @@ const PredictView: React.FC<{
       )
     } else {
       // Still loading table, show nothing
-      return (
-        <Spinner />
-      )
+      return <Spinner />
     }
   }
 
@@ -549,10 +547,18 @@ const queryType = (field: Field): QueryType => (field.type === FieldType.MULTIPL
 const renderCellDefault = (field: Field) => {
   const RenderCell = (cellValue: unknown): React.ReactElement => {
     if (field.type === FieldType.SINGLE_COLLABORATOR || field.type === FieldType.MULTIPLE_COLLABORATORS) {
-      return <Box marginLeft={2}><i>Unknown collaborator</i></Box>
+      return (
+        <Box marginLeft={2}>
+          <i>Unknown collaborator</i>
+        </Box>
+      )
     }
     if (field.type === FieldType.MULTIPLE_RECORD_LINKS) {
-      return <Box marginLeft={2}><i>Unknown record</i></Box>
+      return (
+        <Box marginLeft={2}>
+          <i>Unknown record</i>
+        </Box>
+      )
     }
     let value: string = String(cellValue)
     try {
