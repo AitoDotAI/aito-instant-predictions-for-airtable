@@ -29,7 +29,7 @@ import { Tab } from './Tab'
 import { LocalConfig, readLocalConfig, writeLocalConfig } from '../LocalConfig'
 import { normalizeAitoUrl } from '../credentials'
 import UploadProgressView from './UploadProgressView'
-import { UploadJob } from './UploadView'
+import { UploadJob } from './UploadConfigView'
 import {
   CreateLinkTask,
   CreateTableTask,

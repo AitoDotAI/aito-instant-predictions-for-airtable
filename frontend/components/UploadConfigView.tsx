@@ -48,7 +48,7 @@ export interface UploadJob {
   tasks: UploadTask[]
 }
 
-const UploadView: React.FC<{
+const UploadConfigView: React.FC<{
   table: Table
   tableConfig: TableConfig
   onUpload: (job: UploadJob) => unknown
@@ -498,4 +498,4 @@ const TableSource: React.FC<{
   )
 }
 
-export default UploadView
+export default UploadConfigView

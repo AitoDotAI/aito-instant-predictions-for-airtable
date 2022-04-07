@@ -5,7 +5,7 @@ import AitoClient from '../AitoClient'
 import { TableConfig } from '../schema/config'
 import PredictView from './PredictView'
 import { Tab } from './Tab'
-import UploadView, { UploadJob } from './UploadView'
+import UploadConfigView, { UploadJob } from './UploadConfigView'
 
 const TableView: React.FC<{
   table: Table
@@ -49,7 +49,7 @@ const TableView: React.FC<{
       <Box display="flex" flexDirection="column" minHeight="100vh">
         <Box display="flex" flexGrow={1} flexBasis="100%">
           <React.Suspense fallback={<Spinner />}>
-            <UploadView
+            <UploadConfigView
               key={table.id}
               table={table}
               tableConfig={tableConfig}
