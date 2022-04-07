@@ -203,6 +203,16 @@ const UploadProgressView: React.FC<{
 
   const hasLinks = Boolean(tasks.find((t) => t.type === 'create-link'))
 
+  const uploadedRecords = tasks.reduce(
+    (acc, task) => (task.type === 'upload-table' ? acc + (task.recordCount || 0) : acc),
+    0,
+  )
+
+  const uploadedLinks = tasks.reduce(
+    (acc, task) => (task.type === 'upload-link' ? acc + (task.linkCount || 0) : acc),
+    0,
+  )
+
   return (
     <Box display="flex" flexDirection="column" minHeight="100vh" paddingX={3} paddingTop={2} paddingBottom={3}>
       <Heading size="small">Sync</Heading>
@@ -217,7 +227,8 @@ const UploadProgressView: React.FC<{
         <Box data-message="done">
           <Heading size="small">Done</Heading>
           <Text variant="paragraph">
-            {/*uploadedRows*/ 0} records have been uploaded to <strong>{client.name}</strong>
+            {uploadedRecords} records {uploadedLinks > 0 && <>and {uploadedLinks} links</>} have been uploaded to{' '}
+            <strong>{client.name}</strong>
           </Text>
 
           <Text variant="paragraph">
