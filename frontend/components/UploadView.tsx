@@ -26,7 +26,7 @@ import useEqualValue from './useEqualValue'
 
 interface TableViewMapping {
   fieldId: string
-  talbeId: string
+  tableId: string
   viewId: string
   aitoTableName: string
   recordCount?: number
@@ -44,6 +44,7 @@ interface LinkedTableViewMapping {
 export interface UploadJob {
   tableId: string
   viewId: string
+  aitoTableName: string
   tasks: UploadTask[]
 }
 
@@ -60,9 +61,16 @@ const UploadView: React.FC<{
     mainViewId: tableConfig.airtableViewId || null,
     mainTableName: tableConfig.aitoTableName,
     linkFields: [],
-    linkedTableData: [
-      /* TODO: get from tableConfig */
-    ],
+    linkedTableData: tableConfig.links
+      ? Object.entries(tableConfig.links).map(([fieldId, link]) => {
+          return {
+            fieldId,
+            aitoTableName: link.aitoTableName,
+            tableId: link.airtableTableId,
+            viewId: link.airtableViewId,
+          }
+        })
+      : [],
   })
 
   const { mainTableName, mainViewId, linkFields, linkedTableData } = linkedTableViewMapping
@@ -94,12 +102,13 @@ const UploadView: React.FC<{
           return {
             aitoTable: mapping.aitoTableName,
             linkFieldId: fieldId,
-            tableId: mapping.talbeId,
+            tableId: mapping.tableId,
             viewId: mapping.viewId,
           }
         }),
       )
       onUpload({
+        aitoTableName: mainTableName,
         tableId: table.id,
         viewId: mainViewId,
         tasks,
@@ -295,7 +304,7 @@ const LinkedTableDataSourcePicker: React.FC<{
               return {
                 aitoTableName: `${aitoTableName}_${newView.id}`,
                 fieldId: field.id,
-                talbeId: field.config.options.linkedTableId,
+                tableId: field.config.options.linkedTableId,
                 viewId: newView.id,
               }
             } else {
@@ -418,7 +427,7 @@ const LinkedTableView: React.FC<{
             {
               fieldId: field.id,
               aitoTableName,
-              talbeId: table.id,
+              tableId: table.id,
               viewId: view.id,
               recordCount,
             },

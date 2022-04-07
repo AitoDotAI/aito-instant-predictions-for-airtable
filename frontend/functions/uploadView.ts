@@ -451,36 +451,39 @@ async function fetchRecordsAndUpload(
     try {
       const dataArray: any[] = []
       for (const record of queryResult.records) {
-        const row = metadata.visibleFields.reduce<Record<string, Value>>((row, field) => {
-          if (!isDataField(field)) {
-            return row
-          }
-
-          const conversion = AcceptedFields[field.type]
-
-          const columnName = fieldIdToName[field.id].name
-
-          let columnValue: string | number | boolean | null
-          if (!conversion || !conversion.isValid(field, record)) {
-            console.error(
-              `The value for record ${record.id} is not valid according to the field schema. Type is ${field.type}. Setting to null.`,
-            )
-            columnValue = null
-          } else if (field.type !== FieldType.CHECKBOX && record.getCellValueAsString(field) === '') {
-            columnValue = null
-          } else {
-            columnValue = conversion.toAitoValue(field, record)
-          }
-
-          if (columnValue === null) {
-            return row
-          } else {
-            return {
-              [columnName]: columnValue,
-              ...row,
+        const row = metadata.visibleFields.reduce<Record<string, Value>>(
+          (row, field) => {
+            if (!isDataField(field)) {
+              return row
             }
-          }
-        }, { id: record.id })
+
+            const conversion = AcceptedFields[field.type]
+
+            const columnName = fieldIdToName[field.id].name
+
+            let columnValue: string | number | boolean | null
+            if (!conversion || !conversion.isValid(field, record)) {
+              console.error(
+                `The value for record ${record.id} is not valid according to the field schema. Type is ${field.type}. Setting to null.`,
+              )
+              columnValue = null
+            } else if (field.type !== FieldType.CHECKBOX && record.getCellValueAsString(field) === '') {
+              columnValue = null
+            } else {
+              columnValue = conversion.toAitoValue(field, record)
+            }
+
+            if (columnValue === null) {
+              return row
+            } else {
+              return {
+                [columnName]: columnValue,
+                ...row,
+              }
+            }
+          },
+          { id: record.id },
+        )
         dataArray.push(row)
         if (dataArray.length % 100 === 0) {
           // Yield back to event loop

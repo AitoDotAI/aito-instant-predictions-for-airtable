@@ -1,10 +1,13 @@
 import {
+  isArrayOf,
   isBoolean,
+  isLiteral,
   isMapOf,
   isNumber,
   isObjectOf,
   isSomeOf,
   isString,
+  isTupleOf,
   isUndefined,
   ValidatedType,
 } from '../validator/validation'
@@ -15,10 +18,14 @@ import {
   LAST_UPDATED,
   LAST_UPDATED_BY,
   LAST_ROW_COUNT,
+  LAST_UPDATE_STATUS,
   PER_TABLE_SETTINGS as USER_TABLE_SETTINGS,
   AUTO_FILL,
   TABLE_COLUMN_MAP,
   CONFIDENCE_THRESHOLD,
+  TABLE_LINKS,
+  TABLE_VIEWS,
+  AIRTABLE_TABLE_ID,
 } from '../GlobalConfigKeys'
 
 const isCollaborator = isObjectOf({
@@ -31,8 +38,22 @@ const isTableColumnMapEntry = isObjectOf({
   name: isString, // Column name in aito
 })
 
+const isUpdateStatus = isLiteral('updating', 'failed')
+
 const isTableColumnMap = isMapOf(isTableColumnMapEntry)
 export type TableColumnMap = ValidatedType<typeof isTableColumnMap>
+
+export const isLinkViewConfig = isObjectOf({
+  [AITO_TABLE_NAME]: isString,
+  [AIRTABLE_TABLE_ID]: isString,
+  [AIRTABLE_VIEW_ID]: isString,
+  [LAST_ROW_COUNT]: isNumber,
+  [TABLE_COLUMN_MAP]: isTableColumnMap,
+})
+export type LinkViewConfig = ValidatedType<typeof isLinkViewConfig>
+
+export const isLinkFieldConfig = isLinkViewConfig
+export type LinkFieldConfig = LinkViewConfig
 
 export const isTableConfig = isObjectOf({
   [AITO_TABLE_NAME]: isString,
@@ -40,7 +61,10 @@ export const isTableConfig = isObjectOf({
   [LAST_ROW_COUNT]: isSomeOf(isNumber, isUndefined),
   [LAST_UPDATED]: isSomeOf(isString, isUndefined),
   [LAST_UPDATED_BY]: isSomeOf(isCollaborator, isUndefined),
+  [LAST_UPDATE_STATUS]: isSomeOf(isUpdateStatus, isUndefined),
   [TABLE_COLUMN_MAP]: isTableColumnMap,
+  [TABLE_LINKS]: isSomeOf(isMapOf(isLinkFieldConfig), isUndefined),
+  [TABLE_VIEWS]: isSomeOf(isArrayOf(isLinkViewConfig), isUndefined),
 })
 export type TableConfig = ValidatedType<typeof isTableConfig>
 
