@@ -537,6 +537,7 @@ const isSuitablePrediction = (field: Field): boolean =>
     FieldType.CREATED_BY,
     FieldType.BARCODE,
     FieldType.EXTERNAL_SYNC_SOURCE,
+    FieldType.MULTIPLE_RECORD_LINKS,
   ].includes(field.type)
 
 const isMultipleSelectField = (field: Field): boolean => Boolean(AcceptedFields[field.type]?.isMultipleSelect)
