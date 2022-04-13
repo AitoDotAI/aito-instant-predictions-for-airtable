@@ -48,6 +48,7 @@ import styled from 'styled-components'
 import { PermissionCheckResult } from '@airtable/blocks/dist/types/src/types/mutations'
 import { FlexItemSetProps, SpacingSetProps } from '@airtable/blocks/dist/types/src/ui/system'
 import Spinner from './Spinner'
+import useEqualValue from './useEqualValue'
 
 const DEFAULT_CONFIDENCE_THRESHOLD = 90
 
@@ -1122,6 +1123,8 @@ const PredictionCellRenderer: React.FC<
   }
 }
 
+export type FieldMap = globalThis.Record<string, [Table, TableOrViewQueryResult]>
+
 const PredictionHitsList: React.FC<{
   prediction: PredictionHits
   record: Record
@@ -1144,16 +1147,30 @@ const PredictionHitsList: React.FC<{
   tableColumnMap,
 }) => {
   const base = useBase()
-  let linkedRecordsQuery: TableOrViewQueryResult | null = null
-  let linkedTable: Table | null = null
-  let isLink = false
+  let isLink = queryType(selectedField) === 'match'
 
-  if (queryType(selectedField) === 'match') {
-    isLink = true
-    const config = selectedField.config as FieldConfig & { type: FieldType.MULTIPLE_RECORD_LINKS }
-    linkedTable = base.getTableByIdIfExists(config.options.linkedTableId)
-    linkedRecordsQuery = linkedTable && linkedTable.selectRecords()
-  }
+  const commonFieldList = useEqualValue(fields, (a, b) => !a.find((v, i) => v !== b[i]))
+  const linkedTables = useMemo(() => {
+    return commonFieldList.reduce<FieldMap>((acc, field) => {
+      const config = field.config
+      if (config.type === FieldType.MULTIPLE_RECORD_LINKS) {
+        const tableId = config.options.linkedTableId
+        const table = base.getTableByIdIfExists(tableId)
+        if (table) {
+          const records = table.selectRecords()
+          return {
+            ...acc,
+            [field.id]: [table, records],
+          }
+        }
+      }
+      return acc
+    }, {})
+  }, [base, commonFieldList])
+
+  const linkEntry = linkedTables[selectedField.id]
+  const linkedTable = linkEntry ? linkEntry[0] : null
+  const linkedRecordsQuery = linkEntry ? linkEntry[1] : null
 
   const linkedRecords = useRecordIds((linkedRecordsQuery || null)!) || []
   useWatchable(linkedTable, 'fields')
@@ -1236,7 +1253,13 @@ const PredictionHitsList: React.FC<{
                               hitFields={linkedTable.fields}
                             />
                           ) : (
-                            <ExplanationBox $p={$p} $why={$why} fields={fields} tableColumnMap={tableColumnMap} />
+                            <ExplanationBox
+                              $p={$p}
+                              $why={$why}
+                              fields={fields}
+                              tableColumnMap={tableColumnMap}
+                              linkedTables={linkedTables}
+                            />
                           )
                         ) : (
                           <DefaultExplanationBox />

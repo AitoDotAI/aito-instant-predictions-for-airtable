@@ -1,5 +1,15 @@
-import { Field, FieldType } from '@airtable/blocks/models'
-import { Text, Box, CellRenderer, Icon, colors, colorUtils, FieldIcon } from '@airtable/blocks/ui'
+import { Record, Field, FieldType, TableOrViewQueryResult } from '@airtable/blocks/models'
+import {
+  Text,
+  Box,
+  CellRenderer,
+  Icon,
+  colors,
+  colorUtils,
+  FieldIcon,
+  useLoadable,
+  useWatchable,
+} from '@airtable/blocks/ui'
 import _ from 'lodash'
 import React from 'react'
 import AcceptedFields from '../AcceptedFields'
@@ -17,6 +27,7 @@ import {
   Why,
 } from '../explanations'
 import { TableColumnMap } from '../schema/config'
+import { FieldMap } from './PredictView'
 import { InlineFieldIcon } from './ui'
 
 const green = colorUtils.getHexForColor(colors.GREEN_DARK_1)
@@ -78,6 +89,23 @@ const ArrowScore: React.FC<{ score: number }> = ({ score }) => {
   }
 }
 
+// Do adjust margins for CellRenders when using these fields
+const FieldsWithNegativeMargin = [
+  FieldType.MULTILINE_TEXT,
+  FieldType.MULTIPLE_SELECTS,
+  FieldType.NUMBER,
+  FieldType.PERCENT,
+  FieldType.PHONE_NUMBER,
+  FieldType.SINGLE_LINE_TEXT,
+  FieldType.AUTO_NUMBER,
+  FieldType.BARCODE,
+  FieldType.CURRENCY,
+  FieldType.DATE,
+  FieldType.DATE_TIME,
+  FieldType.DURATION,
+  FieldType.EMAIL,
+]
+
 const defaultMessage = (
   <Box marginBottom={1}>
     This is the expected rate at which you see this in a cell. No strong field correlations were found.
@@ -102,9 +130,10 @@ export const ExplanationBox: React.FC<{
   $p: number
   $why: Why
   tableColumnMap: TableColumnMap
+  linkedTables: FieldMap
   fields: Field[]
   limit?: number
-}> = ({ $p, $why, tableColumnMap, fields, limit = 5 }) => {
+}> = ({ $p, $why, tableColumnMap, fields, linkedTables, limit = 5 }) => {
   if (!$why) {
     return <React.Fragment />
   }
@@ -117,6 +146,75 @@ export const ExplanationBox: React.FC<{
   const sortedExplanations = Number.isFinite(limit) ? _.take(propositionLifts, limit) : propositionLifts
 
   const droppedComponentCount = propositionLifts.length - sortedExplanations.length
+
+  // Check which description fields are needed
+  const linkExplanationFieldIds = sortedExplanations.reduce(
+    (acc, { propositions }) => [
+      ...acc,
+      ...propositions
+        .filter(
+          ([fieldId]) =>
+            acc.indexOf(fieldId) < 0 &&
+            fields.find((field) => field.id === fieldId)?.type === FieldType.MULTIPLE_RECORD_LINKS,
+        )
+        .map(([fieldId]) => fieldId),
+    ],
+    [] as string[],
+  )
+
+  const linkExplanationTables = linkExplanationFieldIds
+    .map((fieldId) => {
+      const link = linkedTables[fieldId]
+      if (link) {
+        const [, query] = link
+        return [fieldId, query]
+      }
+    })
+    .filter((x): x is [string, TableOrViewQueryResult] => Boolean(x))
+  const loadables = linkExplanationTables.map((v) => v[1])
+  useLoadable(loadables)
+
+  // Fetch records that are refrenced from somewhere
+  const linkedRecords = sortedExplanations.reduce(
+    (acc, { propositions }) => [
+      ...acc,
+      ...propositions
+        .map(([fieldId, proposition]) => {
+          const field = fields.find((field) => field.id === fieldId)
+          if (!field) return
+          if (field.type !== FieldType.MULTIPLE_RECORD_LINKS) return
+          if (isIsProposition(proposition)) {
+            const recordId = proposition.$is as string
+            return [fieldId, recordId]
+          } else if (isHasProposition(proposition)) {
+            const recordId = proposition.$has as string
+            return [fieldId, recordId]
+          }
+        })
+        .filter((v): v is [string, string] =>
+          Boolean(v && !acc.find((value) => value[0] === v[0] && value[1] === v[1])),
+        ),
+    ],
+    [] as [string, string][],
+  )
+
+  const recordsByField = linkedRecords.reduce((acc, [fieldId, recordId]) => {
+    const [, tableQuery] = linkExplanationTables.find(([fId]) => fId === fieldId) || []
+    if (tableQuery) {
+      const list = acc[fieldId] || []
+      const record = tableQuery.getRecordByIdIfExists(recordId)
+      if (record) {
+        return {
+          ...acc,
+          [fieldId]: [...list, record],
+        }
+      }
+    }
+    return acc
+  }, {} as globalThis.Record<string, Record[]>)
+
+  const allRecords = Object.values(recordsByField).reduce<Record[]>((acc, list) => [...acc, ...list], [])
+  useWatchable(allRecords, 'name')
 
   const descriptions = sortedExplanations.map(({ score, propositions }, i) => {
     type GroupedProposition = globalThis.Record<string, SimpleProposition[]>
@@ -140,30 +238,20 @@ export const ExplanationBox: React.FC<{
       if (conversion) {
         convert = (x) => conversion.toCellValue(x, field.config)
       }
+      if (field.type === FieldType.MULTIPLE_RECORD_LINKS) {
+        convert = (feature) => {
+          const id = String(feature)
+          const records: Record[] = recordsByField[field.id] || []
+          const name: string | undefined = records.find((rec) => rec.id === id)?.name
+          return [{ id, name }]
+        }
+      }
 
-      const negativeMargin =
-        [
-          FieldType.MULTILINE_TEXT,
-          FieldType.MULTIPLE_SELECTS,
-          FieldType.NUMBER,
-          FieldType.PERCENT,
-          FieldType.PHONE_NUMBER,
-          FieldType.SINGLE_LINE_TEXT,
-          FieldType.AUTO_NUMBER,
-          FieldType.BARCODE,
-          FieldType.CURRENCY,
-          FieldType.DATE,
-          FieldType.DATE_TIME,
-          FieldType.DURATION,
-          FieldType.EMAIL,
-        ].indexOf(field.type) >= 0
-          ? '-6px'
-          : '0'
+      const negativeMargin = FieldsWithNegativeMargin.indexOf(field.type) >= 0 ? '-6px' : '0'
 
       const fieldHeader = (
         <Text textColor="white">
           <FieldIcon field={field} style={{ verticalAlign: 'text-bottom' }} marginRight={1} />
-
           <b>{fieldName}</b>
         </Text>
       )
