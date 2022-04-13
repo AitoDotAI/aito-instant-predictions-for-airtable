@@ -43,7 +43,7 @@ import { Cell, Row } from './table'
 import Semaphore from 'semaphore-async-await'
 import QueryQuotaExceeded from './QueryQuotaExceeded'
 import { Why } from '../explanations'
-import ExplanationBox, { DefaultExplanationBox } from './ExplanationBox'
+import { DefaultExplanationBox, ExplanationBox, MatchExplanationBox } from './ExplanationBox'
 import styled from 'styled-components'
 import { PermissionCheckResult } from '@airtable/blocks/dist/types/src/types/mutations'
 import { FlexItemSetProps, SpacingSetProps } from '@airtable/blocks/dist/types/src/ui/system'
@@ -1145,16 +1145,18 @@ const PredictionHitsList: React.FC<{
 }) => {
   const base = useBase()
   let linkedRecordsQuery: TableOrViewQueryResult | null = null
+  let linkedTable: Table | null = null
   let isLink = false
 
   if (queryType(selectedField) === 'match') {
     isLink = true
     const config = selectedField.config as FieldConfig & { type: FieldType.MULTIPLE_RECORD_LINKS }
-    const table = base.getTableByIdIfExists(config.options.linkedTableId)
-    linkedRecordsQuery = table && table.selectRecords()
+    linkedTable = base.getTableByIdIfExists(config.options.linkedTableId)
+    linkedRecordsQuery = linkedTable && linkedTable.selectRecords()
   }
 
   const linkedRecords = useRecordIds((linkedRecordsQuery || null)!) || []
+  useWatchable(linkedTable, 'fields')
 
   return (
     <>
@@ -1226,7 +1228,16 @@ const PredictionHitsList: React.FC<{
                         borderRadius="default"
                       >
                         {$why ? (
-                          <ExplanationBox $p={$p} $why={$why} fields={fields} tableColumnMap={tableColumnMap} />
+                          linkedTable ? (
+                            <MatchExplanationBox
+                              $p={$p}
+                              $why={$why}
+                              contextFields={fields}
+                              hitFields={linkedTable.fields}
+                            />
+                          ) : (
+                            <ExplanationBox $p={$p} $why={$why} fields={fields} tableColumnMap={tableColumnMap} />
+                          )
                         ) : (
                           <DefaultExplanationBox />
                         )}
