@@ -1198,7 +1198,7 @@ const PredictionHitsList: React.FC<{
         return (
           <Row key={i} highlight={fieldHasFeature}>
             <Cell flexGrow={1} flexShrink={1}>
-              <Box display="flex" height="100%" overflowX="hidden">
+              <Box display="flex" height="100%" overflow="hidden">
                 <PredictionCellRenderer
                   marginLeft={2}
                   flexGrow={1}
