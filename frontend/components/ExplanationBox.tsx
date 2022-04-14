@@ -436,6 +436,17 @@ export const MatchExplanationBox: React.FC<{
           if (!contextField) {
             return null
           }
+          if (i > 2) {
+            return null
+          }
+          const remaining = contextFieldIds.length - i - 1
+          if (i === 2 && remaining > 1) {
+            return (
+              <Box key={i} paddingTop={1}>
+                and {remaining} more fields
+              </Box>
+            )
+          }
           return (
             <Box key={i} paddingTop={1}>
               <InlineFieldIcon field={contextField} />
