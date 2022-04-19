@@ -1,3 +1,4 @@
+import { FlexItemSetProps } from '@airtable/blocks/dist/types/src/ui/system'
 import { Field, FieldType, Table, View, ViewType } from '@airtable/blocks/models'
 import {
   Box,
@@ -49,13 +50,15 @@ export interface UploadJob {
   tasks: UploadTask[]
 }
 
-const UploadConfigView: React.FC<{
-  table: Table
-  tableConfig: TableConfig
-  onUpload: (job: UploadJob) => unknown
-  canUpdateSettings: boolean
-  client: AitoClient
-}> = ({ table, tableConfig, canUpdateSettings, client, onUpload }) => {
+const UploadConfigView: React.FC<
+  {
+    table: Table
+    tableConfig: TableConfig
+    onUpload: (job: UploadJob) => unknown
+    canUpdateSettings: boolean
+    client: AitoClient
+  } & FlexItemSetProps
+> = ({ table, tableConfig, canUpdateSettings, client, onUpload, ...flexItem }) => {
   const base = useBase()
 
   const [linkedTableViewMapping, setLinkedTableViewMapping] = useState<LinkedTableViewMapping>(() => ({
@@ -133,59 +136,54 @@ const UploadConfigView: React.FC<{
   )
 
   return (
-    <>
-      <Box display="flex" flexGrow={1} flexDirection="column">
-        <Box flexGrow={1}>
-          <Box paddingX={3} paddingTop={2}>
-            <Heading size="small">Select view</Heading>
-            <Text variant="paragraph" textColor="light">
-              Training data is required for making predictions. Select or create a <em>grid view</em> to use for
-              training. The records and fields that are visible can be uploaded to your Aito cloud instance. More tips
-              at Aito.ai{' '}
-              <a target="_blank" href="https://aito.document360.io/docs/airtable" rel="noopener noreferrer">
-                blog
-              </a>
-              .
-            </Text>
-          </Box>
-          <Box margin={3}>
-            <FormField label="Training data view" marginBottom={1}>
-              <ViewPicker
-                allowedTypes={[ViewType.GRID]}
+    <Box display="flex" flexDirection="column" height="0px" overflow="auto" {...flexItem}>
+      <Box flexGrow={1}>
+        <Box paddingX={3} paddingTop={2}>
+          <Heading size="small">Select view</Heading>
+          <Text variant="paragraph" textColor="light">
+            Training data is required for making predictions. Select or create a <em>grid view</em> to use for training.
+            The records and fields that are visible can be uploaded to your Aito cloud instance. More tips at Aito.ai{' '}
+            <a target="_blank" href="https://aito.document360.io/docs/airtable" rel="noopener noreferrer">
+              blog
+            </a>
+            .
+          </Text>
+        </Box>
+        <Box margin={3}>
+          <FormField label="Training data view" marginBottom={1}>
+            <ViewPicker
+              allowedTypes={[ViewType.GRID]}
+              table={table}
+              view={selectedView}
+              disabled={!canUpdateSettings}
+              onChange={(view) => view && setLinkedTableViewMapping((current) => ({ ...current, mainViewId: view.id }))}
+              placeholder="Select Grid View..."
+            />
+          </FormField>
+          {selectedView && (
+            <React.Suspense fallback={<Spinner />}>
+              <LinkedTableDataSourcePicker
                 table={table}
                 view={selectedView}
                 disabled={!canUpdateSettings}
-                onChange={(view) =>
-                  view && setLinkedTableViewMapping((current) => ({ ...current, mainViewId: view.id }))
-                }
-                placeholder="Select Grid View..."
+                aitoTableName={linkedTableViewMapping.mainTableName}
+                onChange={setLinkedTableViewMapping}
+                linkedTableViewMapping={linkedTableViewMapping}
               />
-            </FormField>
-            {selectedView && (
-              <React.Suspense fallback={<Spinner />}>
-                <LinkedTableDataSourcePicker
-                  table={table}
-                  view={selectedView}
-                  disabled={!canUpdateSettings}
-                  aitoTableName={linkedTableViewMapping.mainTableName}
-                  onChange={setLinkedTableViewMapping}
-                  linkedTableViewMapping={linkedTableViewMapping}
-                />
-              </React.Suspense>
-            )}
-          </Box>
-          <Box marginX={3} marginTop={4} marginBottom={2} display="flex" justifyContent="center">
-            <Button disabled={!isReady || isUploading} onClick={doUpload} variant="primary" icon="upload">
-              Upload {isReady ? totalRecords : 'some'} records{totalLinks > 0 ? ` and ${totalLinks} links` : null} to{' '}
-              <strong>{client.name}</strong>
-            </Button>
-          </Box>
+            </React.Suspense>
+          )}
         </Box>
-        <Box margin={3} flexGrow={0}>
-          <Footer />
+        <Box marginX={3} marginTop={4} marginBottom={2} display="flex" justifyContent="center">
+          <Button disabled={!isReady || isUploading} onClick={doUpload} variant="primary" icon="upload">
+            Upload {isReady ? totalRecords : 'some'} records{totalLinks > 0 ? ` and ${totalLinks} links` : null} to{' '}
+            <strong>{client.name}</strong>
+          </Button>
         </Box>
       </Box>
-    </>
+      <Box margin={3} flex="none">
+        <Footer />
+      </Box>
+    </Box>
   )
 }
 

@@ -155,7 +155,7 @@ const SettingsMenu: React.FC<{
           </StatusMessage>
         </div>
       </Box>
-      <Box flexGrow={0} margin={3}>
+      <Box flexGrow={0} padding={3}>
         <Footer />
       </Box>
     </Box>
