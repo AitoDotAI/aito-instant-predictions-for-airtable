@@ -109,7 +109,7 @@ const PredictionSettingsToolbar: React.FC<
   const hideEditThresholdModal = (): void => setEditModalOpen(false)
 
   return (
-    <Box borderBottom={BORDER_STYLE} display="flex" backgroundColor={GRAY_BACKGROUND} flexDirection="row" {...flexItem}>
+    <Box borderBottom={BORDER_STYLE} display="flex" backgroundColor="#f7f7f7" flexDirection="row" {...flexItem}>
       <Tooltip
         shouldHideTooltipOnClick={true}
         placementX={Tooltip.placements.CENTER}
@@ -120,9 +120,10 @@ const PredictionSettingsToolbar: React.FC<
         <Switch
           flexBasis="auto"
           flexShrink={1}
-          paddingX={3}
+          paddingX={2}
           disabled={disabled}
           value={autoFill}
+          size="small"
           onChange={saveAutoFill}
           label={<>Auto-fill cells when confidence &gt; {threshold}%</>}
           backgroundColor="transparent"
@@ -130,6 +131,7 @@ const PredictionSettingsToolbar: React.FC<
       </Tooltip>
       <Button
         icon="edit"
+        size="small"
         flexShrink={0}
         flexGrow={1}
         alignSelf="start"
