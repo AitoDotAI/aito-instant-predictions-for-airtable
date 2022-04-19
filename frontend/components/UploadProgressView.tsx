@@ -1,6 +1,5 @@
-import { FlexItemSetProps, SpacingSetProps } from '@airtable/blocks/dist/types/src/ui/system'
 import { Table, View } from '@airtable/blocks/models'
-import { Box, Button, Icon, Loader, Heading, Text, Link, useBase, useLoadable, ProgressBar } from '@airtable/blocks/ui'
+import { Box, Button, Loader, Heading, Text, Link, useBase, useLoadable, ProgressBar } from '@airtable/blocks/ui'
 import React from 'react'
 import AitoClient, { AitoError } from '../AitoClient'
 import {
@@ -14,60 +13,14 @@ import {
 import QueryQuotaExceeded from './QueryQuotaExceeded'
 import StatusMessage from './StatusMessage'
 
-const colorByStatus = (status: TaskStatus): string | undefined => {
-  if (status === 'pending') {
-    return 'light'
-  } else {
-    return undefined
-  }
-}
-
-const StatusIcon: React.FC<
-  {
-    status: TaskStatus
-  } & FlexItemSetProps &
-    SpacingSetProps
-> = ({ status, ...other }) =>
-  status === 'in-progress' ? (
-    <Loader scale={0.3} {...other} style={{ verticalAlign: 'text-bottom' }} />
-  ) : (
-    <Icon
-      style={{ verticalAlign: 'text-bottom' }}
-      {...other}
-      name={status === 'done' ? 'check' : status === 'error' ? 'x' : 'minus'}
-      fillColor={status === 'done' ? 'green' : status === 'error' ? 'red' : 'gray'}
-    />
-  )
-
 const TaskLine: React.FC<{
   status: TaskStatus
   progress?: number | undefined
-}> = ({ status, progress, children }) => {
+}> = ({ children }) => {
   return (
-    <Box display="flex" flexDirection="column">
-      <Box display="flex" flexDirection="row">
-        <Text flexGrow={0} flexShrink={0} variant="default" marginRight={1}>
-          <StatusIcon status={status} />
-        </Text>
-        <Text textColor={colorByStatus(status)} flexGrow={1} variant="default">
-          {children}
-        </Text>
-      </Box>
-      <Box
-        marginLeft="16px"
-        paddingLeft={2}
-        marginBottom={2}
-        marginTop={1}
-        style={{
-          opacity: typeof progress === 'number' && status === 'in-progress' ? 1 : 0,
-          transitionProperty: 'opacity',
-          transitionDuration: '0.25s',
-          transitionTimingFunction: 'ease-out',
-        }}
-      >
-        <ProgressBar progress={progress || 0} />
-      </Box>
-    </Box>
+    <Text textColor="light" size="small" variant="default">
+      {children}
+    </Text>
   )
 }
 
@@ -213,17 +166,23 @@ const UploadProgressView: React.FC<{
     0,
   )
 
+  const totalTasks = tasks.length
+  const progressSum = tasks.reduce((acc, task) => acc + (task.status === 'done' ? 1 : task.progress || 0), 0)
+  const progress = progressSum / totalTasks
+  const currentTask = tasks.find((task) => task.status !== 'done') || tasks[tasks.length - 1]
+
   return (
     <Box display="flex" flexDirection="column" minHeight="100vh" paddingX={3} paddingTop={2} paddingBottom={3}>
-      <Heading size="small">Sync</Heading>
-      <Text textColor="light" marginBottom={3}>
-        Syncing records{hasLinks && ' and links'} to <strong>{client.name}</strong>. Please keep this window open until
-        the upload has finished or the sync may fail.
-      </Text>
-      {tasks.map((task, i) => (
-        <Task task={task} mainView={view} key={i} />
-      ))}
       <StatusMessage message={uploadState}>
+        <Box data-message="uploading">
+          <Heading size="small">Synchronizing</Heading>
+          <Text variant="paragraph">
+            Syncing records{hasLinks && ' and links'} to <strong>{client.name}</strong>. Please keep this app window
+            open until the upload has finished or the sync may fail.
+          </Text>
+          <ProgressBar progress={progress} />
+          <Task mainView={view} task={currentTask} />
+        </Box>
         <Box data-message="done">
           <Heading size="small">Done</Heading>
           <Text variant="paragraph">
