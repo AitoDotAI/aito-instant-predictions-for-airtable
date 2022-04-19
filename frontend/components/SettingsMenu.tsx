@@ -85,8 +85,8 @@ const SettingsMenu: React.FC<{
           </Text>
         </Box>
       )}
-      <Box margin={3} flexGrow={1}>
-        <Heading marginBottom={1}>Settings</Heading>
+      <Box marginX={3} marginBottom={3} marginTop={2} flexGrow={1}>
+        <Heading size="small">Settings</Heading>
         <Text variant="paragraph" textColor="light">
           Credentials to an Aito.ai instance are required for making predictions and uploading training data.
         </Text>
