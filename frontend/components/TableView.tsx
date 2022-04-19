@@ -31,11 +31,15 @@ const TableView: React.FC<{
   const viewName = view ? view.name : undefined
   const lastUpdated = tableConfig && tableConfig.lastRowCount && tableConfig.lastUpdated
   const hasUploaded = Boolean(lastUpdated)
+  const rowCount = tableConfig.lastRowCount
+  const linkedRowCount = (tableConfig.views || []).reduce((acc, view) => acc + view.lastRowCount, 0)
+  const linkCount = Object.values(tableConfig.links || {}).reduce((acc, table) => acc + table.lastRowCount, 0)
 
   const footer = (
     <Footer
       viewName={viewName}
-      lastRowCount={tableConfig.lastRowCount}
+      lastRowCount={rowCount && rowCount + linkedRowCount}
+      lastLinkCount={rowCount && linkCount}
       buttonVariant={tab === 'predict' ? 'primary' : 'secondary'}
       lastUpdated={lastUpdated ? new Date(lastUpdated) : undefined}
       lastUploadedBy={tableConfig.lastUpdatedBy?.name}
@@ -85,10 +89,11 @@ const TableView: React.FC<{
 }
 
 const Footer: React.FC<{
-  lastUpdated: Date | undefined
-  lastRowCount: number | undefined
-  lastUploadedBy: string | undefined
-  viewName: string | undefined
+  lastUpdated?: Date | undefined
+  lastRowCount?: number | undefined
+  lastLinkCount?: number | undefined
+  lastUploadedBy?: string | undefined
+  viewName?: string | undefined
   buttonText: string
   buttonDisabled: boolean
   buttonVariant: 'primary' | 'secondary'
@@ -97,6 +102,7 @@ const Footer: React.FC<{
 }> = ({
   lastUpdated,
   lastRowCount = 0,
+  lastLinkCount = 0,
   lastUploadedBy,
   viewName,
   buttonVariant,
@@ -121,7 +127,7 @@ const Footer: React.FC<{
       disabled={!lastUpdated}
       content={() => (
         <Text margin={2} textColor="white">
-          {lastUploadedBy || 'Somebody'} uploaded {lastRowCount} records from <em>{viewName || 'an old view'}</em> at{' '}
+          {lastUploadedBy || 'Somebody'} uploaded {lastRowCount} records {lastLinkCount > 0 && <> and {lastLinkCount} links</>} from <em>{viewName || 'an old view'}</em> at{' '}
           {lastUpdated ? new Date(lastUpdated).toLocaleString() : 'some point in time'}.
         </Text>
       )}
@@ -131,7 +137,7 @@ const Footer: React.FC<{
           {lastUpdated ? (
             <>
               <InlineIcon name="info" fillColor="#aaa" />
-              Records last uploaded {lastUpdated.toLocaleDateString()}
+              Records uploaded {lastUpdated.toLocaleDateString()}
             </>
           ) : (
             'No data has been uploaded for this table yet'
