@@ -166,13 +166,15 @@ const PredictionSettingsToolbar: React.FC<
   )
 }
 
-const PredictView: React.FC<{
-  table: Table
-  cursor: Cursor
-  tableConfig: TableConfig
-  client: AitoClient
-  hasUploaded: boolean
-}> = ({ table, cursor, tableConfig, client, hasUploaded }) => {
+const PredictView: React.FC<
+  {
+    table: Table
+    cursor: Cursor
+    tableConfig: TableConfig
+    client: AitoClient
+    hasUploaded: boolean
+  } & FlexItemSetProps
+> = ({ table, cursor, tableConfig, client, hasUploaded, ...flexItem }) => {
   useWatchable(cursor, ['selectedFieldIds', 'selectedRecordIds'])
 
   // Use the current view for predictions, not necessarily the one used for training/upload
@@ -270,7 +272,7 @@ const PredictView: React.FC<{
 
   if (schema === 'quota-exceeded') {
     return (
-      <Box padding={3}>
+      <Box padding={3} {...flexItem}>
         <QueryQuotaExceeded />
       </Box>
     )
@@ -280,7 +282,7 @@ const PredictView: React.FC<{
     if (schema === null || !hasUploaded) {
       // No table with that name
       return (
-        <Box padding={3}>
+        <Box padding={3} {...flexItem}>
           <Text variant="paragraph" textColor="light">
             There doesn&apos;t seem to be any training data for <em>{table.name}</em> in your Aito instance. Please
             upload training data first by clicking on the button at the bottom.
@@ -295,7 +297,7 @@ const PredictView: React.FC<{
 
   if (view?.type !== ViewType.GRID) {
     return (
-      <Box padding={3}>
+      <Box padding={3} {...flexItem}>
         <Text variant="paragraph" textColor="light">
           Predictions are only available in <em>grid views</em>.
         </Text>
@@ -305,7 +307,7 @@ const PredictView: React.FC<{
 
   if (!hasSelection) {
     return (
-      <Box padding={3} flexGrow={1} flexBasis="100%" display="flex" alignItems="center" justifyContent="center">
+      <Box padding={3} display="flex" alignItems="center" justifyContent="center" flexBasis="100%" {...flexItem}>
         <Box>
           <Text variant="paragraph" textColor="#bbb" size="xlarge" fontWeight="bold" margin={0} flexGrow={0}>
             Please select an empty cell
@@ -323,7 +325,7 @@ const PredictView: React.FC<{
 
   if (isSchemaOutOfSync) {
     return (
-      <Box padding={3} display="flex">
+      <Box padding={3} display="flex" {...flexItem}>
         <Icon
           flexGrow={0}
           name="warning"
@@ -340,36 +342,39 @@ const PredictView: React.FC<{
   }
 
   return (
-    <Box>
+    <Box display="flex" flexDirection="column" {...flexItem}>
       <PredictionSettingsToolbar
         disabled={!canUpdate.hasPermission}
         autoFill={autoFill}
         saveAutoFill={saveAutoFill}
         threshold={threshold}
         saveThreshold={saveThreshold}
+        flex="none"
       />
-      {selectedRecordCount > maxRecords && (
-        <Text fontStyle="oblique" textColor="light" variant="paragraph" marginX={3} marginTop={3}>
-          Showing predictions for {maxRecords} of the {selectedRecordCount} selected records.
-        </Text>
-      )}
-      {recordIdsToPredict.map((recordId) => (
-        <RecordPrediction
-          key={recordId}
-          recordId={recordId}
-          selectedRecords={selectedRecords}
-          viewFields={visibleFields}
-          tableConfig={tableConfig}
-          fieldsToPredict={fieldsToPredict}
-          client={client}
-          recordsQuery={recordsQuery}
-          schema={schema}
-          setCellValue={setCellValue}
-          canUpdate={canUpdate}
-          autoFill={autoFill && canUpdate.hasPermission}
-          threshold={threshold}
-        />
-      ))}
+      <Box height="0px" overflow="auto" flexGrow={1} flexShrink={1}>
+        {selectedRecordCount > maxRecords && (
+          <Text fontStyle="oblique" textColor="light" variant="paragraph" marginX={3} marginTop={3}>
+            Showing predictions for {maxRecords} of the {selectedRecordCount} selected records.
+          </Text>
+        )}
+        {recordIdsToPredict.map((recordId) => (
+          <RecordPrediction
+            key={recordId}
+            recordId={recordId}
+            selectedRecords={selectedRecords}
+            viewFields={visibleFields}
+            tableConfig={tableConfig}
+            fieldsToPredict={fieldsToPredict}
+            client={client}
+            recordsQuery={recordsQuery}
+            schema={schema}
+            setCellValue={setCellValue}
+            canUpdate={canUpdate}
+            autoFill={autoFill && canUpdate.hasPermission}
+            threshold={threshold}
+          />
+        ))}
+      </Box>
     </Box>
   )
 }

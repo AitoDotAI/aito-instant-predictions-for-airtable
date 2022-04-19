@@ -67,19 +67,18 @@ const TableView: React.FC<{
   } else {
     // tab === 'predict
     return (
-      <Box display="flex" flexDirection="column" minHeight="100vh">
-        <Box flexGrow={1} flexBasis="100%" display="flex" flexDirection="column">
-          <React.Suspense fallback={<Spinner />}>
-            <PredictView
-              key={table.id}
-              table={table}
-              cursor={cursor}
-              tableConfig={tableConfig}
-              client={client}
-              hasUploaded={hasUploaded}
-            />
-          </React.Suspense>
-        </Box>
+      <Box display="flex" flexDirection="column" height="100vh">
+        <React.Suspense fallback={<Spinner />}>
+          <PredictView
+            key={table.id}
+            table={table}
+            cursor={cursor}
+            tableConfig={tableConfig}
+            client={client}
+            hasUploaded={hasUploaded}
+            flexGrow={1}
+          />
+        </React.Suspense>
         {footer}
       </Box>
     )
