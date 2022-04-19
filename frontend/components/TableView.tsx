@@ -127,7 +127,8 @@ const Footer: React.FC<{
       disabled={!lastUpdated}
       content={() => (
         <Text margin={2} textColor="white">
-          {lastUploadedBy || 'Somebody'} uploaded {lastRowCount} records {lastLinkCount > 0 && <> and {lastLinkCount} links</>} from <em>{viewName || 'an old view'}</em> at{' '}
+          {lastUploadedBy || 'Somebody'} uploaded {lastRowCount} records{' '}
+          {lastLinkCount > 0 && <> and {lastLinkCount} links</>} from <em>{viewName || 'an old view'}</em> at{' '}
           {lastUpdated ? new Date(lastUpdated).toLocaleString() : 'some point in time'}.
         </Text>
       )}
