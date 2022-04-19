@@ -134,9 +134,6 @@ export const ExplanationBox: React.FC<{
   fields: Field[]
   limit?: number
 }> = ({ $p, $why, tableColumnMap, fields, linkedTables, limit = 5 }) => {
-  if (!$why) {
-    return <React.Fragment />
-  }
   const explanation = simpleExplanation($p, $why)
 
   const sortByAbsScore = (a: SimpleExplanation, b: SimpleExplanation) => Math.abs(b.score) - Math.abs(a.score)
@@ -403,10 +400,6 @@ export const MatchExplanationBox: React.FC<{
   contextFields: Field[]
   limit?: number
 }> = ({ $p, $why, hitFields, contextFields, limit = 5 }) => {
-  if (!$why) {
-    return <React.Fragment />
-  }
-
   const explanation = matchExplanation($p, $why)
 
   const sortByAbsScore = (a: MatchExplanation, b: MatchExplanation) => Math.abs(b.score) - Math.abs(a.score)

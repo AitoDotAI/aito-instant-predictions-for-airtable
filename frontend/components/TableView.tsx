@@ -1,11 +1,12 @@
 import { Cursor, Table } from '@airtable/blocks/models'
-import { Box, Text, Button, Tooltip, Icon } from '@airtable/blocks/ui'
+import { Box, Text, Button, Tooltip } from '@airtable/blocks/ui'
 import React from 'react'
 import AitoClient from '../AitoClient'
 import { TableConfig } from '../schema/config'
 import PredictView from './PredictView'
 import Spinner from './Spinner'
 import { Tab } from './Tab'
+import { BORDER_STYLE, GRAY_BACKGROUND, InlineIcon } from './ui'
 import UploadConfigView, { UploadJob } from './UploadConfigView'
 
 const TableView: React.FC<{
@@ -66,19 +67,18 @@ const TableView: React.FC<{
   } else {
     // tab === 'predict
     return (
-      <Box display="flex" flexDirection="column" minHeight="100vh">
-        <Box flexGrow={1} flexBasis="100%" display="flex" flexDirection="column">
-          <React.Suspense fallback={<Spinner />}>
-            <PredictView
-              key={table.id}
-              table={table}
-              cursor={cursor}
-              tableConfig={tableConfig}
-              client={client}
-              hasUploaded={hasUploaded}
-            />
-          </React.Suspense>
-        </Box>
+      <Box display="flex" flexDirection="column" height="100vh">
+        <React.Suspense fallback={<Spinner />}>
+          <PredictView
+            key={table.id}
+            table={table}
+            cursor={cursor}
+            tableConfig={tableConfig}
+            client={client}
+            hasUploaded={hasUploaded}
+            flexGrow={1}
+          />
+        </React.Suspense>
         {footer}
       </Box>
     )
@@ -108,11 +108,11 @@ const Footer: React.FC<{
 }) => (
   <Box
     padding={1}
-    borderTop="thick"
+    borderTop={BORDER_STYLE}
     display="flex"
-    backgroundColor="#f0f0f0"
-    flexGrow={0}
+    backgroundColor={GRAY_BACKGROUND}
     justifyContent="space-between"
+    flex="none"
   >
     <Tooltip
       style={{ height: 'auto', width: '300px', maxWidth: '300px', whiteSpace: 'normal' }}
@@ -131,7 +131,7 @@ const Footer: React.FC<{
         <Text variant="paragraph" size="default" padding={1} margin={0}>
           {lastUpdated ? (
             <>
-              <Icon name="info" style={{ verticalAlign: 'text-bottom' }} marginRight={1} />
+              <InlineIcon name="info" fillColor="#aaa" />
               Records last uploaded {lastUpdated.toLocaleDateString()}
             </>
           ) : (

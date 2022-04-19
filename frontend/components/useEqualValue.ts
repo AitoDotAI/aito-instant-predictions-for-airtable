@@ -7,7 +7,7 @@ const useEqualValue = <T>(value: T, isEqual: (lhs: T, rhs: T) => boolean = _.isE
     if (!isEqual(value, previousValue)) {
       setPreviousValue(value)
     }
-  }, [value, previousValue])
+  }, [value, previousValue, isEqual])
   return previousValue
 }
 

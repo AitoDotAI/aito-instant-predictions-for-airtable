@@ -1,21 +1,10 @@
-import {
-  Cursor,
-  Field,
-  FieldConfig,
-  FieldType,
-  Record,
-  Table,
-  TableOrViewQueryResult,
-  ViewType,
-} from '@airtable/blocks/models'
+import { Cursor, Field, FieldType, Record, Table, TableOrViewQueryResult, ViewType } from '@airtable/blocks/models'
 import {
   Box,
   Button,
   CellRenderer,
   ConfirmationDialog,
   expandRecord,
-  FieldIcon,
-  Icon,
   Input,
   Label,
   Switch,
@@ -49,6 +38,7 @@ import { PermissionCheckResult } from '@airtable/blocks/dist/types/src/types/mut
 import { FlexItemSetProps, SpacingSetProps } from '@airtable/blocks/dist/types/src/ui/system'
 import Spinner from './Spinner'
 import useEqualValue from './useEqualValue'
+import { BORDER_STYLE, GRAY_BACKGROUND, InlineFieldIcon, InlineIcon } from './ui'
 
 const DEFAULT_CONFIDENCE_THRESHOLD = 90
 
@@ -108,19 +98,21 @@ const EditThresholdDialog: React.FC<{
   )
 }
 
-const PredictionSettingsToolbar: React.FC<{
-  disabled: boolean
-  autoFill: boolean
-  saveAutoFill: (value: Boolean) => void
-  threshold: number
-  saveThreshold: (value: number) => void
-}> = ({ disabled, autoFill, saveAutoFill, threshold, saveThreshold }) => {
+const PredictionSettingsToolbar: React.FC<
+  {
+    disabled: boolean
+    autoFill: boolean
+    saveAutoFill: (value: Boolean) => void
+    threshold: number
+    saveThreshold: (value: number) => void
+  } & FlexItemSetProps
+> = ({ disabled, autoFill, saveAutoFill, threshold, saveThreshold, ...flexItem }) => {
   const [isEditThresholdModalOpen, setEditModalOpen] = useState(false)
   const showEditThresholdModal = (): void => setEditModalOpen(true)
   const hideEditThresholdModal = (): void => setEditModalOpen(false)
 
   return (
-    <Box borderBottom="thick" display="flex" flexDirection="row">
+    <Box borderBottom={BORDER_STYLE} display="flex" backgroundColor={GRAY_BACKGROUND} flexDirection="row" {...flexItem}>
       <Tooltip
         shouldHideTooltipOnClick={true}
         placementX={Tooltip.placements.CENTER}
@@ -146,6 +138,7 @@ const PredictionSettingsToolbar: React.FC<{
         alignSelf="start"
         onClick={showEditThresholdModal}
         aria-label="Change confidence thershold"
+        variant="secondary"
       />
 
       {isEditThresholdModalOpen && (
@@ -162,13 +155,15 @@ const PredictionSettingsToolbar: React.FC<{
   )
 }
 
-const PredictView: React.FC<{
-  table: Table
-  cursor: Cursor
-  tableConfig: TableConfig
-  client: AitoClient
-  hasUploaded: boolean
-}> = ({ table, cursor, tableConfig, client, hasUploaded }) => {
+const PredictView: React.FC<
+  {
+    table: Table
+    cursor: Cursor
+    tableConfig: TableConfig
+    client: AitoClient
+    hasUploaded: boolean
+  } & FlexItemSetProps
+> = ({ table, cursor, tableConfig, client, hasUploaded, ...flexItem }) => {
   useWatchable(cursor, ['selectedFieldIds', 'selectedRecordIds'])
 
   // Use the current view for predictions, not necessarily the one used for training/upload
@@ -266,7 +261,7 @@ const PredictView: React.FC<{
 
   if (schema === 'quota-exceeded') {
     return (
-      <Box padding={3}>
+      <Box padding={3} {...flexItem}>
         <QueryQuotaExceeded />
       </Box>
     )
@@ -276,7 +271,7 @@ const PredictView: React.FC<{
     if (schema === null || !hasUploaded) {
       // No table with that name
       return (
-        <Box padding={3}>
+        <Box padding={3} {...flexItem}>
           <Text variant="paragraph" textColor="light">
             There doesn&apos;t seem to be any training data for <em>{table.name}</em> in your Aito instance. Please
             upload training data first by clicking on the button at the bottom.
@@ -291,7 +286,7 @@ const PredictView: React.FC<{
 
   if (view?.type !== ViewType.GRID) {
     return (
-      <Box padding={3}>
+      <Box padding={3} {...flexItem}>
         <Text variant="paragraph" textColor="light">
           Predictions are only available in <em>grid views</em>.
         </Text>
@@ -301,7 +296,7 @@ const PredictView: React.FC<{
 
   if (!hasSelection) {
     return (
-      <Box padding={3} flexGrow={1} flexBasis="100%" display="flex" alignItems="center" justifyContent="center">
+      <Box padding={3} display="flex" alignItems="center" justifyContent="center" flexBasis="100%" {...flexItem}>
         <Box>
           <Text variant="paragraph" textColor="#bbb" size="xlarge" fontWeight="bold" margin={0} flexGrow={0}>
             Please select an empty cell
@@ -319,14 +314,10 @@ const PredictView: React.FC<{
 
   if (isSchemaOutOfSync) {
     return (
-      <Box padding={3} display="flex">
-        <Icon
-          flexGrow={0}
-          name="warning"
-          aria-label="Warning"
-          marginRight={2}
-          style={{ verticalAlign: 'text-bottom', width: '1.5em', height: '1.5em' }}
-        />
+      <Box padding={3} display="flex" {...flexItem}>
+        <Text variant="paragraph" flexGrow={0}>
+          <InlineIcon flexGrow={0} name="warning" aria-label="Warning" fillColor="#aaa" />
+        </Text>
 
         <Text variant="paragraph" flexGrow={1}>
           The fields have changed since training data was last uploaded to Aito. Please retrain the model.
@@ -336,36 +327,39 @@ const PredictView: React.FC<{
   }
 
   return (
-    <Box>
+    <Box display="flex" flexDirection="column" {...flexItem}>
       <PredictionSettingsToolbar
         disabled={!canUpdate.hasPermission}
         autoFill={autoFill}
         saveAutoFill={saveAutoFill}
         threshold={threshold}
         saveThreshold={saveThreshold}
+        flex="none"
       />
-      {selectedRecordCount > maxRecords && (
-        <Text fontStyle="oblique" textColor="light" variant="paragraph" marginX={3} marginTop={3}>
-          Showing predictions for {maxRecords} of the {selectedRecordCount} selected records.
-        </Text>
-      )}
-      {recordIdsToPredict.map((recordId) => (
-        <RecordPrediction
-          key={recordId}
-          recordId={recordId}
-          selectedRecords={selectedRecords}
-          viewFields={visibleFields}
-          tableConfig={tableConfig}
-          fieldsToPredict={fieldsToPredict}
-          client={client}
-          recordsQuery={recordsQuery}
-          schema={schema}
-          setCellValue={setCellValue}
-          canUpdate={canUpdate}
-          autoFill={autoFill && canUpdate.hasPermission}
-          threshold={threshold}
-        />
-      ))}
+      <Box height="0px" overflow="auto" flexGrow={1} flexShrink={1}>
+        {selectedRecordCount > maxRecords && (
+          <Text fontStyle="oblique" textColor="light" variant="paragraph" marginX={3} marginTop={3}>
+            Showing predictions for {maxRecords} of the {selectedRecordCount} selected records.
+          </Text>
+        )}
+        {recordIdsToPredict.map((recordId) => (
+          <RecordPrediction
+            key={recordId}
+            recordId={recordId}
+            selectedRecords={selectedRecords}
+            viewFields={visibleFields}
+            tableConfig={tableConfig}
+            fieldsToPredict={fieldsToPredict}
+            client={client}
+            recordsQuery={recordsQuery}
+            schema={schema}
+            setCellValue={setCellValue}
+            canUpdate={canUpdate}
+            autoFill={autoFill && canUpdate.hasPermission}
+            threshold={threshold}
+          />
+        ))}
+      </Box>
     </Box>
   )
 }
@@ -455,11 +449,11 @@ const RecordPrediction: React.FC<{
         marginTop={3}
         marginBottom={2}
         paddingBottom={2}
-        borderBottom="thick"
-        style={{ textOverflow: 'ellipsis', overflowX: 'hidden' }}
+        borderBottom="thin solid lightgray"
+        style={{ textOverflow: 'ellipsis', overflow: 'hidden' }}
       >
         <span style={{ cursor: 'pointer', whiteSpace: 'nowrap' }} onClick={openRecord}>
-          <Icon name="expand" marginRight={1} style={{ verticalAlign: 'text-bottom' }} />
+          <InlineIcon name="expand" />
           <strong>{record.name}</strong>
         </span>
       </Text>
@@ -972,12 +966,7 @@ const FieldPrediction: React.FC<{
         <Cell flexGrow={1} flexShrink={1}>
           <Box style={{ overflowX: 'hidden', textOverflow: 'ellipsis' }}>
             <Text display="inline" textColor="light" paddingX={3}>
-              <FieldIcon
-                fillColor="#aaa"
-                field={selectedField}
-                style={{ verticalAlign: 'text-bottom' }}
-                marginRight={1}
-              />
+              <InlineFieldIcon fillColor="#aaa" field={selectedField} />
               {selectedField.name}
             </Text>
           </Box>
@@ -1011,13 +1000,7 @@ const FieldPrediction: React.FC<{
                 <Text textColor="light">
                   Confidence
                   {disclaimer && (
-                    <Icon
-                      fillColor="#aaa"
-                      name="warning"
-                      aria-label="Warning"
-                      marginLeft={2}
-                      style={{ verticalAlign: 'text-bottom' }}
-                    />
+                    <InlineIcon fillColor="#aaa" name="warning" aria-label="Warning" marginLeft={2} marginRight={0} />
                   )}
                 </Text>
               </Box>
@@ -1216,13 +1199,13 @@ const PredictionHitsList: React.FC<{
                   <Text textColor="light" alignSelf="center">
                     {Math.round($p * 100)}%
                   </Text>
-                  <Icon
+                  <InlineIcon
                     alignSelf="center"
                     name="help"
                     aria-label="Info"
-                    fillColor="gray"
+                    fillColor="#aaa"
                     marginLeft={2}
-                    style={{ verticalAlign: 'text-bottom', width: '1.0em', height: '1.0em' }}
+                    marginRight={0}
                   />
                   <Box
                     className="popup"
