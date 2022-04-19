@@ -49,6 +49,7 @@ import { PermissionCheckResult } from '@airtable/blocks/dist/types/src/types/mut
 import { FlexItemSetProps, SpacingSetProps } from '@airtable/blocks/dist/types/src/ui/system'
 import Spinner from './Spinner'
 import useEqualValue from './useEqualValue'
+import { BORDER_STYLE, GRAY_BACKGROUND, InlineFieldIcon, InlineIcon } from './ui'
 
 const DEFAULT_CONFIDENCE_THRESHOLD = 90
 
@@ -108,19 +109,21 @@ const EditThresholdDialog: React.FC<{
   )
 }
 
-const PredictionSettingsToolbar: React.FC<{
-  disabled: boolean
-  autoFill: boolean
-  saveAutoFill: (value: Boolean) => void
-  threshold: number
-  saveThreshold: (value: number) => void
-}> = ({ disabled, autoFill, saveAutoFill, threshold, saveThreshold }) => {
+const PredictionSettingsToolbar: React.FC<
+  {
+    disabled: boolean
+    autoFill: boolean
+    saveAutoFill: (value: Boolean) => void
+    threshold: number
+    saveThreshold: (value: number) => void
+  } & FlexItemSetProps
+> = ({ disabled, autoFill, saveAutoFill, threshold, saveThreshold, ...flexItem }) => {
   const [isEditThresholdModalOpen, setEditModalOpen] = useState(false)
   const showEditThresholdModal = (): void => setEditModalOpen(true)
   const hideEditThresholdModal = (): void => setEditModalOpen(false)
 
   return (
-    <Box borderBottom="thick" display="flex" flexDirection="row">
+    <Box borderBottom={BORDER_STYLE} display="flex" backgroundColor={GRAY_BACKGROUND} flexDirection="row" {...flexItem}>
       <Tooltip
         shouldHideTooltipOnClick={true}
         placementX={Tooltip.placements.CENTER}
@@ -146,6 +149,7 @@ const PredictionSettingsToolbar: React.FC<{
         alignSelf="start"
         onClick={showEditThresholdModal}
         aria-label="Change confidence thershold"
+        variant="secondary"
       />
 
       {isEditThresholdModalOpen && (
