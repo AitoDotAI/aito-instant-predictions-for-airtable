@@ -1,11 +1,13 @@
+import { FlexItemSetProps } from '@airtable/blocks/dist/types/src/ui/system'
 import { Cursor, Table } from '@airtable/blocks/models'
-import { Box, Text, Button, Tooltip } from '@airtable/blocks/ui'
+import { Box, Text, Button, Tooltip, SelectButtons } from '@airtable/blocks/ui'
 import React from 'react'
 import AitoClient from '../AitoClient'
 import { TableConfig } from '../schema/config'
+import AitoLogo from './AitoLogo'
 import PredictView from './PredictView'
 import Spinner from './Spinner'
-import { Tab } from './Tab'
+import { isTab, Tab } from './Tab'
 import { BORDER_STYLE, GRAY_BACKGROUND, InlineIcon } from './ui'
 import UploadConfigView, { UploadJob } from './UploadConfigView'
 
@@ -27,25 +29,11 @@ const TableView: React.FC<{
   const linkedRowCount = (tableConfig.views || []).reduce((acc, view) => acc + view.lastRowCount, 0)
   const linkCount = Object.values(tableConfig.links || {}).reduce((acc, table) => acc + table.lastRowCount, 0)
 
-  const footer = (
-    <Footer
-      viewName={viewName}
-      lastRowCount={rowCount && rowCount + linkedRowCount}
-      lastLinkCount={rowCount && linkCount}
-      buttonVariant={tab === 'predict' ? 'primary' : 'secondary'}
-      lastUpdated={lastUpdated ? new Date(lastUpdated) : undefined}
-      lastUploadedBy={tableConfig.lastUpdatedBy?.name}
-      buttonDisabled={tab === 'predict' && !canUpdateSettings}
-      buttonText={tab === 'predict' ? `${hasUploaded ? 'Retrain' : 'Train'} Aito` : 'Cancel'}
-      onButtonClick={tab === 'predict' ? () => setTab('train') : () => setTab('predict')}
-      buttonKey={tab}
-    />
-  )
-
-  if (tab === 'train') {
-    return (
-      <Box display="flex" flexDirection="column" height="100vh">
-        <React.Suspense fallback={<Spinner />}>
+  return (
+    <Box display="flex" flexDirection="column" height="100vh">
+      <Header tab={tab} setTab={setTab} flex="none" />
+      <React.Suspense fallback={<Spinner />}>
+        {tab === 'train' ? (
           <UploadConfigView
             key={table.id}
             table={table}
@@ -55,15 +43,7 @@ const TableView: React.FC<{
             client={client}
             flexGrow={1}
           />
-        </React.Suspense>
-        {footer}
-      </Box>
-    )
-  } else {
-    // tab === 'predict
-    return (
-      <Box display="flex" flexDirection="column" height="100vh">
-        <React.Suspense fallback={<Spinner />}>
+        ) : (
           <PredictView
             key={table.id}
             table={table}
@@ -73,11 +53,61 @@ const TableView: React.FC<{
             hasUploaded={hasUploaded}
             flexGrow={1}
           />
-        </React.Suspense>
-        {footer}
+        )}
+      </React.Suspense>
+      <Footer
+        viewName={viewName}
+        lastRowCount={rowCount && rowCount + linkedRowCount}
+        lastLinkCount={rowCount && linkCount}
+        buttonVariant={tab === 'predict' ? 'primary' : 'secondary'}
+        lastUpdated={lastUpdated ? new Date(lastUpdated) : undefined}
+        lastUploadedBy={tableConfig.lastUpdatedBy?.name}
+        buttonDisabled={tab === 'predict' && !canUpdateSettings}
+        buttonText={tab === 'predict' ? `${hasUploaded ? 'Retrain' : 'Train'} model` : 'Cancel'}
+        onButtonClick={tab === 'predict' ? () => setTab('train') : () => setTab('predict')}
+        buttonKey={tab}
+      />
+    </Box>
+  )
+}
+
+const navOptions = [
+  {
+    value: 'predict',
+    label: 'Predict',
+  },
+  {
+    value: 'search',
+    label: 'Search',
+  },
+  {
+    value: 'insights',
+    label: 'Discover Insights',
+  },
+]
+
+const Header: React.FC<
+  {
+    tab: Tab
+    setTab: (tab: Tab) => unknown
+  } & FlexItemSetProps
+> = ({ tab, setTab, ...flexItem }) => {
+  return (
+    <Box display="flex" flexDirection="row" {...flexItem} backgroundColor={GRAY_BACKGROUND} borderBottom={BORDER_STYLE}>
+      <SelectButtons
+        style={{ backgroundColor: 'inherit' }}
+        flexGrow={1}
+        value={tab}
+        onChange={(newValue) => isTab(newValue) && setTab(newValue)}
+        size="small"
+        options={navOptions}
+      />
+
+      <Box flex="none" marginRight={1}>
+        <AitoLogo />
       </Box>
-    )
-  }
+    </Box>
+  )
 }
 
 const Footer: React.FC<{
