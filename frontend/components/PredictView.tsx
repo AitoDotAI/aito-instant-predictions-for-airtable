@@ -1,21 +1,10 @@
-import {
-  Cursor,
-  Field,
-  FieldConfig,
-  FieldType,
-  Record,
-  Table,
-  TableOrViewQueryResult,
-  ViewType,
-} from '@airtable/blocks/models'
+import { Cursor, Field, FieldType, Record, Table, TableOrViewQueryResult, ViewType } from '@airtable/blocks/models'
 import {
   Box,
   Button,
   CellRenderer,
   ConfirmationDialog,
   expandRecord,
-  FieldIcon,
-  Icon,
   Input,
   Label,
   Switch,
@@ -326,13 +315,9 @@ const PredictView: React.FC<
   if (isSchemaOutOfSync) {
     return (
       <Box padding={3} display="flex" {...flexItem}>
-        <Icon
-          flexGrow={0}
-          name="warning"
-          aria-label="Warning"
-          marginRight={2}
-          style={{ verticalAlign: 'text-bottom', width: '1.5em', height: '1.5em' }}
-        />
+        <Text variant="paragraph" flexGrow={0}>
+          <InlineIcon flexGrow={0} name="warning" aria-label="Warning" fillColor="#aaa" />
+        </Text>
 
         <Text variant="paragraph" flexGrow={1}>
           The fields have changed since training data was last uploaded to Aito. Please retrain the model.
@@ -464,11 +449,11 @@ const RecordPrediction: React.FC<{
         marginTop={3}
         marginBottom={2}
         paddingBottom={2}
-        borderBottom="thick"
-        style={{ textOverflow: 'ellipsis', overflowX: 'hidden' }}
+        borderBottom="thin solid lightgray"
+        style={{ textOverflow: 'ellipsis', overflow: 'hidden' }}
       >
         <span style={{ cursor: 'pointer', whiteSpace: 'nowrap' }} onClick={openRecord}>
-          <Icon name="expand" marginRight={1} style={{ verticalAlign: 'text-bottom' }} />
+          <InlineIcon name="expand" />
           <strong>{record.name}</strong>
         </span>
       </Text>
@@ -981,12 +966,7 @@ const FieldPrediction: React.FC<{
         <Cell flexGrow={1} flexShrink={1}>
           <Box style={{ overflowX: 'hidden', textOverflow: 'ellipsis' }}>
             <Text display="inline" textColor="light" paddingX={3}>
-              <FieldIcon
-                fillColor="#aaa"
-                field={selectedField}
-                style={{ verticalAlign: 'text-bottom' }}
-                marginRight={1}
-              />
+              <InlineFieldIcon fillColor="#aaa" field={selectedField} />
               {selectedField.name}
             </Text>
           </Box>
@@ -1020,13 +1000,7 @@ const FieldPrediction: React.FC<{
                 <Text textColor="light">
                   Confidence
                   {disclaimer && (
-                    <Icon
-                      fillColor="#aaa"
-                      name="warning"
-                      aria-label="Warning"
-                      marginLeft={2}
-                      style={{ verticalAlign: 'text-bottom' }}
-                    />
+                    <InlineIcon fillColor="#aaa" name="warning" aria-label="Warning" marginLeft={2} marginRight={0} />
                   )}
                 </Text>
               </Box>
@@ -1225,13 +1199,13 @@ const PredictionHitsList: React.FC<{
                   <Text textColor="light" alignSelf="center">
                     {Math.round($p * 100)}%
                   </Text>
-                  <Icon
+                  <InlineIcon
                     alignSelf="center"
                     name="help"
                     aria-label="Info"
-                    fillColor="gray"
+                    fillColor="#aaa"
                     marginLeft={2}
-                    style={{ verticalAlign: 'text-bottom', width: '1.0em', height: '1.0em' }}
+                    marginRight={0}
                   />
                   <Box
                     className="popup"
