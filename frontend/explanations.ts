@@ -10,6 +10,7 @@ import {
   isNumber,
   ValidatedType,
   isArrayOf,
+  satisfiesCondition,
 } from './validator/validation'
 
 type Literal = string | number | boolean | null
@@ -34,7 +35,23 @@ export interface AndProposition {
   $and: Proposition[]
 }
 
-type Proposition = DocumentProposition | IsProposition | HasFeatureProposition | NumericProposition | AndProposition
+export interface NotProposition {
+  $not: Proposition
+}
+
+type Proposition =
+  | DocumentProposition
+  | IsProposition
+  | HasFeatureProposition
+  | NumericProposition
+  | AndProposition
+  | NotProposition
+
+export const isProposition: Validator<Proposition> = fromLazy(() =>
+  isSomeOf(isSimpleProposition, isAndProposition, isDocumentProposition),
+)
+
+const isSimpleProposition = fromLazy(() => isSomeOf(isIsProposition, isHasProposition, isNumericProposition))
 
 export const isIsProposition: Validator<IsProposition> = isObjectOf({
   $is: isSomeOf(isString, isNumber, isBoolean, isNull),
@@ -48,15 +65,15 @@ export const isNumericProposition: Validator<NumericProposition> = isObjectOf({
   $numeric: isSomeOf(isNumber),
 })
 
-const isSimpleProposition = isSomeOf(isIsProposition, isHasProposition, isNumericProposition)
+export const isNotProposition: Validator<NotProposition> = isObjectOf({ $not: isProposition })
 
-export const isAndProposition: Validator<AndProposition> = isObjectOf({
-  $and: isArrayOf(fromLazy(() => isProposition)),
-})
+export const isAndProposition: Validator<AndProposition> = isObjectOf({ $and: isArrayOf(isProposition) })
 
-export const isDocumentProposition: Validator<DocumentProposition> = isMapOf(fromLazy(() => isProposition))
+const keywords = ['$and', '$not', '$is', '$has', '$numeric']
 
-export const isProposition = isSomeOf(isSimpleProposition, isAndProposition, isDocumentProposition)
+export const isDocumentProposition: Validator<DocumentProposition> = isMapOf(isProposition).which(
+  satisfiesCondition((map) => Object.keys(map).every((key) => !keywords.includes(key))),
+)
 
 export type SimpleProposition = ValidatedType<typeof isSimpleProposition>
 
@@ -74,7 +91,14 @@ export interface ProductWhy {
 
 export interface RelatedPropositionLift {
   type: 'relatedPropositionLift'
-  proposition: FieldProposition[]
+  proposition: Proposition
+  value: number
+}
+
+export interface HitPropositionLift {
+  type: 'hitPropositionLift'
+  proposition: Proposition
+  factors: Why[]
   value: number
 }
 
@@ -84,7 +108,7 @@ export interface Normalizer {
   value: number
 }
 
-export type Why = Normalizer | BaseWhy | ProductWhy | RelatedPropositionLift
+export type Why = Normalizer | BaseWhy | ProductWhy | HitPropositionLift | RelatedPropositionLift
 
 const ln2 = Math.log(2.0)
 const log2 = (n: number): number => Math.log(n) / ln2
@@ -104,6 +128,21 @@ export interface RelatedExplanation {
 
 export type SimpleExplanation = ConstantExplanation | RelatedExplanation
 
+const getFieldPropositions = (prop: Proposition): FieldProposition[] => {
+  if (isAndProposition(prop)) {
+    return prop.$and.reduce<FieldProposition[]>((acc, prop) => [...acc, ...getFieldPropositions(prop)], [])
+  } else if (isDocumentProposition(prop)) {
+    const entries = Object.entries(prop)
+    const firstEntry = entries[0]
+    const fieldName = firstEntry[0]
+    const simpleProposition = firstEntry[1]
+    if (fieldName && isSimpleProposition(simpleProposition)) {
+      return [[fieldName, simpleProposition]]
+    }
+  }
+  return []
+}
+
 export const simpleExplanation = ($p: number, $why: Why): SimpleExplanation[] => {
   const parts: Array<[number, SimpleExplanation]> = []
   const makeScore = (p: number): number => log2(p)
@@ -121,22 +160,7 @@ export const simpleExplanation = ($p: number, $why: Why): SimpleExplanation[] =>
         return $why.value
 
       case 'relatedPropositionLift': {
-        const propositions: FieldProposition[] = []
-
-        const getPropositions = (prop: any) => {
-          if (isAndProposition(prop)) {
-            prop.$and.forEach(getPropositions)
-          } else if (isDocumentProposition(prop)) {
-            const entries = Object.entries(prop)
-            const firstEntry = entries[0]
-            const fieldName = firstEntry[0]
-            const simpleProposition = firstEntry[1]
-            if (fieldName && isSimpleProposition(simpleProposition)) {
-              propositions.push([fieldName, simpleProposition])
-            }
-          }
-        }
-        getPropositions($why.proposition)
+        const propositions = getFieldPropositions($why.proposition)
 
         parts.push([
           1,
@@ -162,6 +186,84 @@ export const simpleExplanation = ($p: number, $why: Why): SimpleExplanation[] =>
 
   const norm = normalizers * other
   result.push({ type: 'normalizer', value: norm, score: makeScore(norm) })
+
+  return result
+}
+
+export interface HitExplanation {
+  type: 'hitPropositionLift'
+  isNegated: boolean
+  hitFieldId: string
+  value: number
+  score: number
+  contextFieldIds: string[]
+}
+
+export type MatchExplanation = ConstantExplanation | HitExplanation
+
+export const matchExplanation = ($p: number, $why: Why): MatchExplanation[] => {
+  const parts: [number, MatchExplanation][] = []
+  const makeScore = (p: number): number => log2(p)
+
+  const rec = ($why: Why): void => {
+    switch ($why.type) {
+      case 'product':
+        $why.factors.forEach(rec)
+        break
+      case 'baseP':
+      case 'normalizer':
+      case 'relatedPropositionLift':
+        break
+
+      case 'hitPropositionLift': {
+        let { proposition } = $why
+        let isNegated = false
+
+        if (isNotProposition(proposition)) {
+          isNegated = true
+          proposition = proposition.$not
+        }
+
+        if (!isDocumentProposition(proposition)) {
+          return
+        }
+
+        const simpleExplanations = $why.factors
+          .reduce((acc, factor) => [...acc, ...simpleExplanation(1, factor)], [] as SimpleExplanation[])
+          .filter((exp): exp is RelatedExplanation => exp.type === 'relatedPropositionLift')
+
+        const contextFieldIds = simpleExplanations.reduce<string[]>(
+          (list, explanation) => [
+            ...list,
+            ...explanation.propositions.reduce<string[]>((acc2, [fieldName]) => {
+              const [, fieldId] = fieldName.split('.')
+              if (fieldId) {
+                return [...acc2, fieldId]
+              } else {
+                return acc2
+              }
+            }, []),
+          ],
+          [],
+        )
+
+        parts.push([
+          1,
+          {
+            type: 'hitPropositionLift',
+            score: makeScore($why.value),
+            value: $why.value,
+            isNegated,
+            hitFieldId: Object.keys(proposition)[0],
+            contextFieldIds,
+          },
+        ])
+      }
+    }
+  }
+  rec($why)
+  parts.sort((a, b) => a[0] - b[0] || b[1].score - a[1].score)
+  const result = parts.filter((x) => x[0] !== 2).map((x) => x[1])
 
   return result
 }

@@ -6,7 +6,7 @@ export const Row: React.FC<{
   highlight?: boolean
 }> = ({ children, highlight }) => {
   return (
-    <Box display="flex" paddingY={2} backgroundColor={highlight ? '#f0f7ff' : 'inherit'}>
+    <Box display="flex" paddingY={1} marginY={1} backgroundColor={highlight ? '#f0f7ff' : 'inherit'}>
       {children}
     </Box>
   )

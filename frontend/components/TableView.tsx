@@ -1,24 +1,23 @@
-import { Cursor, Table, View } from '@airtable/blocks/models'
-import { Box, Text, Button, Loader, Tooltip, Icon } from '@airtable/blocks/ui'
+import { Cursor, Table } from '@airtable/blocks/models'
+import { Box, Text, Button, Tooltip, Icon } from '@airtable/blocks/ui'
 import React from 'react'
 import AitoClient from '../AitoClient'
-import { UploadResult } from '../functions/uploadView'
 import { TableConfig } from '../schema/config'
 import PredictView from './PredictView'
+import Spinner from './Spinner'
 import { Tab } from './Tab'
-import UploadView from './UploadView'
+import UploadConfigView, { UploadJob } from './UploadConfigView'
 
 const TableView: React.FC<{
   table: Table
   cursor: Cursor
   tableConfig: TableConfig
   client: AitoClient | null
-  onUpload: (view: View, aitoTableName: string) => Promise<UploadResult | undefined>
-  setTableConfig: (table: Table, tableConfig: TableConfig) => Promise<unknown>
+  onUpload: (job: UploadJob) => unknown
   canUpdateSettings: boolean
   tab: Tab
   setTab: (tab: Tab) => unknown
-}> = ({ table, cursor, client, onUpload, tableConfig, setTableConfig, canUpdateSettings, tab, setTab }) => {
+}> = ({ table, cursor, client, onUpload, tableConfig, canUpdateSettings, tab, setTab }) => {
   if (!client) {
     return (
       <Text variant="paragraph" textColor="light">
@@ -51,15 +50,13 @@ const TableView: React.FC<{
       <Box display="flex" flexDirection="column" minHeight="100vh">
         <Box display="flex" flexGrow={1} flexBasis="100%">
           <React.Suspense fallback={<Spinner />}>
-            <UploadView
+            <UploadConfigView
               key={table.id}
               table={table}
               tableConfig={tableConfig}
               onUpload={onUpload}
-              setTableConfig={setTableConfig}
               canUpdateSettings={canUpdateSettings}
               client={client}
-              setTab={setTab}
             />
           </React.Suspense>
         </Box>
@@ -87,12 +84,6 @@ const TableView: React.FC<{
     )
   }
 }
-
-const Spinner: React.FC = () => (
-  <Box padding={3} flexGrow={1} display="flex" flexBasis="100%" justifyContent="center" alignItems="center">
-    <Loader scale={0.3} />
-  </Box>
-)
 
 const Footer: React.FC<{
   lastUpdated: Date | undefined

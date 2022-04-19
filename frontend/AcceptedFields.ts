@@ -321,7 +321,7 @@ const multipleSelects: SupportedField = {
       ? [...cell, ...feature]
       : cell,
   removeFeature: (cell, feature) =>
-    isMultipleNames(cell) && isMultipleNames(feature) ? cell.filter((v) => v.name === feature[0]?.name) : cell,
+    isMultipleNames(cell) && isMultipleNames(feature) ? cell.filter((v) => v.name !== feature[0]?.name) : cell,
 }
 
 const singleCollaborator: SupportedField = {
@@ -387,7 +387,7 @@ const multipleCollaborators: SupportedField = {
       ? [...cell, ...feature]
       : cell,
   removeFeature: (cell, feature) =>
-    isMultipleIds(cell) && isMultipleIds(feature) ? cell.filter((v) => v.id === feature[0]?.id) : cell,
+    isMultipleIds(cell) && isMultipleIds(feature) ? cell.filter((v) => v.id !== feature[0]?.id) : cell,
 }
 
 const DateFormat = 'yyyy-MM-dd'
@@ -535,13 +535,15 @@ Airtable to Aito datatype mapping
 - Count                     -> int
 - Attachment                -> delimited list of ids
 - External sync source      -> like Multiple select, but read-only
+- Link to another record    -> Same as multiple collaborators, and links stored in separate table
 
 NOT SUPPORTED (automatically ignored in the upload)
-- Link to another record
 - Lookup
 - Button
 */
-const AcceptedFields: Partial<globalThis.Record<FieldType, SupportedField>> = {
+const AcceptedFields: globalThis.Record<FieldType, SupportedField> = {
+  [FieldType.MULTIPLE_RECORD_LINKS]: multipleCollaborators,
+
   /**
    * Boolean fields
    */
@@ -628,6 +630,10 @@ export const isAcceptedField = (field: Field): boolean => {
 
 export const isIgnoredField = (field: Field): boolean => {
   return AcceptedFields[field.type] === ignore
+}
+
+export const isDataField = (field: Field): boolean => {
+  return !isIgnoredField(field)
 }
 
 export default AcceptedFields

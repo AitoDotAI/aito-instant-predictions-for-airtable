@@ -1,12 +1,25 @@
-import { Field, FieldType } from '@airtable/blocks/models'
-import { Text, Box, CellRenderer, Icon, colors, colorUtils } from '@airtable/blocks/ui'
+import { Record, Field, FieldType, TableOrViewQueryResult } from '@airtable/blocks/models'
+import {
+  Text,
+  Box,
+  CellRenderer,
+  Icon,
+  colors,
+  colorUtils,
+  FieldIcon,
+  useLoadable,
+  useWatchable,
+} from '@airtable/blocks/ui'
 import _ from 'lodash'
 import React from 'react'
 import AcceptedFields from '../AcceptedFields'
 import {
+  HitExplanation,
   isHasProposition,
   isIsProposition,
   isNumericProposition,
+  MatchExplanation,
+  matchExplanation,
   RelatedExplanation,
   SimpleExplanation,
   simpleExplanation,
@@ -14,6 +27,84 @@ import {
   Why,
 } from '../explanations'
 import { TableColumnMap } from '../schema/config'
+import { FieldMap } from './PredictView'
+import { InlineFieldIcon } from './ui'
+
+const green = colorUtils.getHexForColor(colors.GREEN_DARK_1)
+const red = colorUtils.getHexForColor(colors.RED_DARK_1)
+const UpArrow = () => (
+  <Box display="inline-block">
+    <Icon fillColor={green} name="up" size={13} marginX="-2.5px" marginTop="1px" />
+  </Box>
+)
+const DownArrow = () => (
+  <Box display="inline-block">
+    <Icon fillColor={red} name="down" size={13} marginX="-2.5px" marginTop="4px" />
+  </Box>
+)
+
+const ArrowScore: React.FC<{ score: number }> = ({ score }) => {
+  if (score < -2.0) {
+    return (
+      <>
+        <DownArrow />
+        <DownArrow />
+        <DownArrow />
+      </>
+    )
+  } else if (score < -0.5) {
+    return (
+      <>
+        <DownArrow />
+        <DownArrow />
+      </>
+    )
+  } else if (score < 0.0) {
+    return (
+      <>
+        <DownArrow />
+      </>
+    )
+  } else if (score <= 0.5) {
+    return (
+      <>
+        <UpArrow />
+      </>
+    )
+  } else if (score <= 2.0) {
+    return (
+      <>
+        <UpArrow />
+        <UpArrow />
+      </>
+    )
+  } else {
+    return (
+      <>
+        <UpArrow />
+        <UpArrow />
+        <UpArrow />
+      </>
+    )
+  }
+}
+
+// Do adjust margins for CellRenders when using these fields
+const FieldsWithNegativeMargin = [
+  FieldType.MULTILINE_TEXT,
+  FieldType.MULTIPLE_SELECTS,
+  FieldType.NUMBER,
+  FieldType.PERCENT,
+  FieldType.PHONE_NUMBER,
+  FieldType.SINGLE_LINE_TEXT,
+  FieldType.AUTO_NUMBER,
+  FieldType.BARCODE,
+  FieldType.CURRENCY,
+  FieldType.DATE,
+  FieldType.DATE_TIME,
+  FieldType.DURATION,
+  FieldType.EMAIL,
+]
 
 const defaultMessage = (
   <Box marginBottom={1}>
@@ -35,13 +126,14 @@ export const DefaultExplanationBox: React.FC = () => (
   </Box>
 )
 
-const ExplanationBox: React.FC<{
+export const ExplanationBox: React.FC<{
   $p: number
   $why: Why
   tableColumnMap: TableColumnMap
+  linkedTables: FieldMap
   fields: Field[]
   limit?: number
-}> = ({ $p, $why, tableColumnMap, fields, limit = 5 }) => {
+}> = ({ $p, $why, tableColumnMap, fields, linkedTables, limit = 5 }) => {
   if (!$why) {
     return <React.Fragment />
   }
@@ -55,34 +147,76 @@ const ExplanationBox: React.FC<{
 
   const droppedComponentCount = propositionLifts.length - sortedExplanations.length
 
-  const descriptions = sortedExplanations.map(({ score, propositions }, i) => {
-    let arrows: React.ReactNode[] = []
-    const green = colorUtils.getHexForColor(colors.GREEN_DARK_1)
-    const red = colorUtils.getHexForColor(colors.RED_DARK_1)
-    const up = (key: number) => (
-      <Box display="inline-block" key={key}>
-        <Icon fillColor={green} name="up" size={13} marginX="-2.5px" marginTop="1px" />
-      </Box>
-    )
-    const down = (key: number) => (
-      <Box display="inline-block" key={key}>
-        <Icon fillColor={red} name="down" size={13} marginX="-2.5px" marginTop="4px" />
-      </Box>
-    )
-    if (score < -2.0) {
-      arrows = [down(0), down(1), down(2)]
-    } else if (score < -0.5) {
-      arrows = [down(0), down(1)]
-    } else if (score < 0.0) {
-      arrows = [down(0)]
-    } else if (score <= 0.5) {
-      arrows = [up(0)]
-    } else if (score <= 2.0) {
-      arrows = [up(0), up(1)]
-    } else {
-      arrows = [up(0), up(1), up(2)]
-    }
+  // Check which description fields are needed
+  const linkExplanationFieldIds = sortedExplanations.reduce(
+    (acc, { propositions }) => [
+      ...acc,
+      ...propositions
+        .filter(
+          ([fieldId]) =>
+            acc.indexOf(fieldId) < 0 &&
+            fields.find((field) => field.id === fieldId)?.type === FieldType.MULTIPLE_RECORD_LINKS,
+        )
+        .map(([fieldId]) => fieldId),
+    ],
+    [] as string[],
+  )
 
+  const linkExplanationTables = linkExplanationFieldIds
+    .map((fieldId) => {
+      const link = linkedTables[fieldId]
+      if (link) {
+        const [, query] = link
+        return [fieldId, query]
+      }
+    })
+    .filter((x): x is [string, TableOrViewQueryResult] => Boolean(x))
+  const loadables = linkExplanationTables.map((v) => v[1])
+  useLoadable(loadables)
+
+  // Fetch records that are refrenced from somewhere
+  const linkedRecords = sortedExplanations.reduce(
+    (acc, { propositions }) => [
+      ...acc,
+      ...propositions
+        .map(([fieldId, proposition]) => {
+          const field = fields.find((field) => field.id === fieldId)
+          if (!field) return
+          if (field.type !== FieldType.MULTIPLE_RECORD_LINKS) return
+          if (isIsProposition(proposition)) {
+            const recordId = proposition.$is as string
+            return [fieldId, recordId]
+          } else if (isHasProposition(proposition)) {
+            const recordId = proposition.$has as string
+            return [fieldId, recordId]
+          }
+        })
+        .filter((v): v is [string, string] =>
+          Boolean(v && !acc.find((value) => value[0] === v[0] && value[1] === v[1])),
+        ),
+    ],
+    [] as [string, string][],
+  )
+
+  const recordsByField = linkedRecords.reduce((acc, [fieldId, recordId]) => {
+    const [, tableQuery] = linkExplanationTables.find(([fId]) => fId === fieldId) || []
+    if (tableQuery) {
+      const list = acc[fieldId] || []
+      const record = tableQuery.getRecordByIdIfExists(recordId)
+      if (record) {
+        return {
+          ...acc,
+          [fieldId]: [...list, record],
+        }
+      }
+    }
+    return acc
+  }, {} as globalThis.Record<string, Record[]>)
+
+  const allRecords = Object.values(recordsByField).reduce<Record[]>((acc, list) => [...acc, ...list], [])
+  useWatchable(allRecords, 'name')
+
+  const descriptions = sortedExplanations.map(({ score, propositions }, i) => {
     type GroupedProposition = globalThis.Record<string, SimpleProposition[]>
     const groupedPropositions = propositions.reduce<GroupedProposition>((acc, [columnName, proposition]) => {
       const list = acc[columnName] || []
@@ -104,28 +238,20 @@ const ExplanationBox: React.FC<{
       if (conversion) {
         convert = (x) => conversion.toCellValue(x, field.config)
       }
+      if (field.type === FieldType.MULTIPLE_RECORD_LINKS) {
+        convert = (feature) => {
+          const id = String(feature)
+          const records: Record[] = recordsByField[field.id] || []
+          const name: string | undefined = records.find((rec) => rec.id === id)?.name
+          return [{ id, name }]
+        }
+      }
 
-      const negativeMargin =
-        [
-          FieldType.MULTILINE_TEXT,
-          FieldType.MULTIPLE_SELECTS,
-          FieldType.NUMBER,
-          FieldType.PERCENT,
-          FieldType.PHONE_NUMBER,
-          FieldType.SINGLE_LINE_TEXT,
-          FieldType.AUTO_NUMBER,
-          FieldType.BARCODE,
-          FieldType.CURRENCY,
-          FieldType.DATE,
-          FieldType.DATE_TIME,
-          FieldType.DURATION,
-          FieldType.EMAIL,
-        ].indexOf(field.type) >= 0
-          ? '-6px'
-          : '0'
+      const negativeMargin = FieldsWithNegativeMargin.indexOf(field.type) >= 0 ? '-6px' : '0'
 
       const fieldHeader = (
         <Text textColor="white">
+          <FieldIcon field={field} style={{ verticalAlign: 'text-bottom' }} marginRight={1} />
           <b>{fieldName}</b>
         </Text>
       )
@@ -225,7 +351,7 @@ const ExplanationBox: React.FC<{
           textAlign="right"
           paddingRight={1}
         >
-          {arrows}
+          <ArrowScore score={score} />
         </Box>
         <Box
           display="flex"
@@ -270,4 +396,122 @@ const ExplanationBox: React.FC<{
   )
 }
 
-export default ExplanationBox
+export const MatchExplanationBox: React.FC<{
+  $p: number
+  $why: Why
+  hitFields: Field[]
+  contextFields: Field[]
+  limit?: number
+}> = ({ $p, $why, hitFields, contextFields, limit = 5 }) => {
+  if (!$why) {
+    return <React.Fragment />
+  }
+
+  const explanation = matchExplanation($p, $why)
+
+  const sortByAbsScore = (a: MatchExplanation, b: MatchExplanation) => Math.abs(b.score) - Math.abs(a.score)
+
+  const propositionLifts = explanation.filter(
+    (e): e is HitExplanation => e.type === 'hitPropositionLift' && e.hitFieldId !== 'id',
+  )
+  propositionLifts.sort(sortByAbsScore)
+  const sortedExplanations = Number.isFinite(limit) ? _.take(propositionLifts, limit) : propositionLifts
+
+  const droppedComponentCount = propositionLifts.length - sortedExplanations.length
+
+  const descriptions = sortedExplanations.map(({ score, hitFieldId, contextFieldIds }, i) => {
+    const fieldId = hitFieldId
+    const field = hitFields.find((f) => f.id === fieldId)
+    if (!field) {
+      console.warn('field not found', hitFieldId)
+      return null
+    }
+
+    const fieldHeader = (
+      <Text textColor="white">
+        {score >= 0 ? 'Match' : 'Mismatch'} in <InlineFieldIcon field={field} />
+        <b>{field.name}</b> and
+        {contextFieldIds.map((contextFieldId, i) => {
+          const contextField = contextFields.find((f) => f.id === contextFieldId)
+          if (!contextField) {
+            return null
+          }
+          if (i > 2) {
+            return null
+          }
+          const remaining = contextFieldIds.length - i - 1
+          if (i === 2 && remaining > 1) {
+            return (
+              <Box key={i} paddingTop={1}>
+                and {remaining} more fields
+              </Box>
+            )
+          }
+          return (
+            <Box key={i} paddingTop={1}>
+              <InlineFieldIcon field={contextField} />
+              <b>{contextField.name}</b>
+            </Box>
+          )
+        })}
+      </Text>
+    )
+
+    return (
+      <Box key={i} display="flex" flexWrap="nowrap" marginBottom={1}>
+        <Box
+          style={{ verticalAlign: 'top' }}
+          alignSelf="start"
+          textColor="white"
+          marginTop={i > 0 ? '1px' : undefined}
+          flexGrow={0}
+          flexShrink={0}
+          flexBasis={32}
+          paddingTop={1}
+          textAlign="right"
+          paddingRight={1}
+        >
+          <ArrowScore score={score} />
+        </Box>
+        <Box
+          display="flex"
+          flexDirection="row"
+          flexWrap="wrap"
+          flexGrow={1}
+          style={{ gap: '6px', borderTop: i > 0 ? '1px solid gray' : undefined }}
+          paddingTop={1}
+        >
+          {fieldHeader}
+        </Box>
+      </Box>
+    )
+  })
+
+  return (
+    <Box
+      paddingX={2}
+      paddingTop={1}
+      display="flex"
+      flexDirection="column"
+      justifyContent="stretch"
+      style={{ whiteSpace: 'normal', width: '100%' }}
+    >
+      {descriptions.length > 0 ? (
+        <>
+          <Text paddingBottom={1} textColor="white">
+            The prediction is based on
+          </Text>
+          {descriptions}
+
+          {droppedComponentCount > 0 && (
+            <Text marginTop={2} paddingBottom={1} textColor="white">
+              and {droppedComponentCount} less important indicator{droppedComponentCount !== 1 ? 's' : ''}.
+            </Text>
+          )}
+        </>
+      ) : (
+        defaultMessage
+      )}
+    </Box>
+  )
+}
