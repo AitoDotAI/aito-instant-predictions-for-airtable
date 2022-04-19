@@ -48,19 +48,18 @@ const TableView: React.FC<{
 
   if (tab === 'train') {
     return (
-      <Box display="flex" flexDirection="column" minHeight="100vh">
-        <Box display="flex" flexGrow={1} flexBasis="100%">
-          <React.Suspense fallback={<Spinner />}>
-            <UploadConfigView
-              key={table.id}
-              table={table}
-              tableConfig={tableConfig}
-              onUpload={onUpload}
-              canUpdateSettings={canUpdateSettings}
-              client={client}
-            />
-          </React.Suspense>
-        </Box>
+      <Box display="flex" flexDirection="column" height="100vh">
+        <React.Suspense fallback={<Spinner />}>
+          <UploadConfigView
+            key={table.id}
+            table={table}
+            tableConfig={tableConfig}
+            onUpload={onUpload}
+            canUpdateSettings={canUpdateSettings}
+            client={client}
+            flexGrow={1}
+          />
+        </React.Suspense>
         {footer}
       </Box>
     )
