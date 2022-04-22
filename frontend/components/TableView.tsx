@@ -13,20 +13,12 @@ const TableView: React.FC<{
   table: Table
   cursor: Cursor
   tableConfig: TableConfig
-  client: AitoClient | null
+  client: AitoClient
   onUpload: (job: UploadJob) => unknown
   canUpdateSettings: boolean
   tab: Tab
   setTab: (tab: Tab) => unknown
 }> = ({ table, cursor, client, onUpload, tableConfig, canUpdateSettings, tab, setTab }) => {
-  if (!client) {
-    return (
-      <Text variant="paragraph" textColor="light">
-        Please setup your Aito.ai instance credentials in the settings view.
-      </Text>
-    )
-  }
-
   const view = tableConfig.airtableViewId ? table.getViewByIdIfExists(tableConfig.airtableViewId) : null
   const viewName = view ? view.name : undefined
   const lastUpdated = tableConfig && tableConfig.lastRowCount && tableConfig.lastUpdated
