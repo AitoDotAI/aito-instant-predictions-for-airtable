@@ -23,7 +23,7 @@ import { describeTasks, UploadTask } from '../functions/uploadView'
 import { TableConfig } from '../schema/config'
 import Footer from './Footer'
 import Spinner from './Spinner'
-import { InlineFieldIcon, InlineIcon } from './ui'
+import { InlineFieldIcon, InlineIcon, InlineLink } from './ui'
 import useEqualValue from './useEqualValue'
 
 interface TableViewMapping {
@@ -142,11 +142,11 @@ const UploadConfigView: React.FC<
           <Heading size="small">Choose training data</Heading>
           <Text variant="paragraph" textColor="light">
             Training data is required for making predictions. Select or create a <em>grid view</em> to use for training.
-            The records and fields that are visible will be uploaded to your Aito cloud instance. More tips at Aito.ai{' '}
-            <a target="_blank" href="https://aito.document360.io/docs/airtable" rel="noopener noreferrer">
-              blog
-            </a>
-            .
+            The records and fields that are visible will be uploaded to your Aito cloud instance.{' '}
+            <InlineLink href="https://aito.ai/help/airtable">
+              <InlineIcon name="share1" />
+              More
+            </InlineLink>
           </Text>
         </Box>
         <Box margin={3}>
@@ -174,9 +174,7 @@ const UploadConfigView: React.FC<
           )}
           <Box marginTop={2}>
             <Label>Aito.ai instance</Label>
-            <Text>
-              <strong>{client.name}</strong>
-            </Text>
+            <Text>{client.name}</Text>
           </Box>
         </Box>
         <Box marginX={3} marginTop={3} marginBottom={2} display="flex">
