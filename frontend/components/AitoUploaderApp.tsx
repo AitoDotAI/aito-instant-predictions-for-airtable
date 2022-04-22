@@ -246,7 +246,7 @@ const MainView: React.FC<{
 
     if (user) {
       const newTableConfig: TableConfig = {
-        aitoTableName: job.aitoTableName,
+        aitoTableName: `airtable_${mainTableId}`,
         airtableViewId: mainViewId,
         columns: {},
         lastRowCount: undefined,
@@ -264,9 +264,15 @@ const MainView: React.FC<{
       setUploadError(undefined)
       await setTableConfig(mainTableId, newTableConfig)
       if (client) {
-        const result = await runUploadTasks(base, client, job.tasks, (tasks) => {
-          setCurrentUpload((current) => current && { ...current, tasks })
-        })
+        const result = await runUploadTasks(
+          base,
+          client,
+          job.tasks,
+          (tasks) => {
+            setCurrentUpload((current) => current && { ...current, tasks })
+          },
+          job.aitoTableName,
+        )
         setCurrentUpload((current) => current && { ...current, task: result.tasks })
         if (result.type === 'error') {
           setUploadError(result.error)
@@ -378,8 +384,8 @@ const MainView: React.FC<{
       lastUpdateStatus: undefined,
       links: undefined,
       views: undefined,
-      ...tableConfig,
       aitoTableName: `airtable_${table.id}`,
+      ...tableConfig,
     }
 
     return (

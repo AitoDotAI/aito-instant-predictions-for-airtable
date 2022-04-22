@@ -263,6 +263,7 @@ export async function runUploadTasks(
   client: AitoClient,
   tasks: UploadTask[],
   onProgress: (status: UploadTask[]) => void,
+  previousTableName?: string,
 ): Promise<UploadResult> {
   tasks = cloneTasks(tasks)
 
@@ -292,21 +293,18 @@ export async function runUploadTasks(
 
         task.progress = 0.1
         report()
-        try {
-          if (info.aitoTable in schema) {
-            // We don't expect these link tables to have links in turn
-            const linkTables = findLinksTo(schema, info.aitoTable)
-            for (const dependent of linkTables) {
-              await client.deleteTable(dependent)
-              delete schema[info.aitoTable]
+        if (info.aitoTable in schema) {
+          // We don't expect these link tables to have links in turn
+          const linkTables = findLinksTo(schema, info.aitoTable)
+          for (const dependent of [...linkTables, info.aitoTable]) {
+            const deleteResponse = await client.deleteTable(dependent)
+            if (deleteResponse !== 'ok') {
+              task.status = 'error'
+              report()
+              return { type: 'error', tasks, error: deleteResponse }
             }
-            await client.deleteTable(info.aitoTable)
+            delete schema[dependent]
           }
-        } catch (e) {
-          console.error('Failed to delete existing table', e)
-          task.status = 'error'
-          report()
-          return { type: 'error', tasks, error: 'error' }
         }
         task.progress = 0.5
         report()
@@ -424,6 +422,13 @@ export async function runUploadTasks(
       }
     }
     report()
+  }
+
+  // NOTE: manually delete old table, since naming format changed between v1 and v2
+  // If previousTableName == [the new main table name] then we have already deleted
+  // before upload and it no longer exists in the `schema` object
+  if (previousTableName && previousTableName in schema) {
+    await client.deleteTable(previousTableName)
   }
 
   return { type: 'success', tasks }
