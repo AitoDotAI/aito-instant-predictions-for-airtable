@@ -36,7 +36,7 @@ const TableView: React.FC<{
       lastUpdated={lastUpdated ? new Date(lastUpdated) : undefined}
       lastUploadedBy={tableConfig.lastUpdatedBy?.name}
       buttonDisabled={tab === 'predict' && !canUpdateSettings}
-      buttonText={tab === 'predict' ? `${hasUploaded ? 'Retrain' : 'Train'} model` : 'Cancel'}
+      buttonText={tab === 'predict' ? `${hasUploaded ? 'Retrain' : 'Train'} Aito` : 'Cancel'}
       onButtonClick={tab === 'predict' ? () => setTab('train') : () => setTab('predict')}
       buttonKey={tab}
     />
@@ -119,7 +119,7 @@ const Footer: React.FC<{
       disabled={!lastUpdated}
       content={() => (
         <Text margin={2} textColor="white">
-          {lastUploadedBy || 'Somebody'} uploaded {lastRowCount} records{' '}
+          {lastUploadedBy || 'Somebody'} trained with {lastRowCount} records{' '}
           {lastLinkCount > 0 && <> and {lastLinkCount} links</>} from <em>{viewName || 'an old view'}</em> at{' '}
           {lastUpdated ? new Date(lastUpdated).toLocaleString() : 'some point in time'}.
         </Text>
@@ -130,7 +130,7 @@ const Footer: React.FC<{
           {lastUpdated ? (
             <>
               <InlineIcon name="info" fillColor="#aaa" />
-              Records uploaded {lastUpdated.toLocaleDateString()}
+              Last trained {lastUpdated.toLocaleDateString()}
             </>
           ) : (
             'No data has been uploaded for this table yet'
