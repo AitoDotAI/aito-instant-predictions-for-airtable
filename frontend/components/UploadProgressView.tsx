@@ -177,8 +177,8 @@ const UploadProgressView: React.FC<{
         <Box data-message="uploading">
           <Heading size="small">Synchronizing</Heading>
           <Text variant="paragraph">
-            Syncing records{hasLinks && ' and links'} to <strong>{client.name}</strong>. Please keep this app window
-            open until the upload has finished or the sync may fail.
+            Synchronizing records{hasLinks && ' and links'} to <strong>{client.name}</strong>. Please keep this app
+            window open until the upload has finished or the sync may fail.
           </Text>
           <ProgressBar progress={progress} />
           <Task mainView={view} task={currentTask} />
@@ -186,16 +186,13 @@ const UploadProgressView: React.FC<{
         <Box data-message="done">
           <Heading size="small">Done</Heading>
           <Text variant="paragraph">
-            {uploadedRecords} records {uploadedLinks > 0 && <>and {uploadedLinks} links</>} have been uploaded to{' '}
-            <strong>{client.name}</strong>
+            <strong>{client.name}</strong> has been trained with {uploadedRecords} records{' '}
+            {uploadedLinks > 0 && <>and {uploadedLinks} links</>}.
           </Text>
-
           <Text variant="paragraph">
-            <strong>Note:</strong> Training data is not automatically synchronized to your Aito.ai instance. If your
-            training data changes and you want your predictions to be informed by the updates then you can re-upload the
-            new training.
+            <strong>Note:</strong> Training data is not automatically synchronized to your Aito.ai instance. When your
+            data changes and you want the predictions to reflect the updates, please re-train Aito.
           </Text>
-
           <Box display="flex" flexDirection="row" flexWrap="wrap">
             <Button onClick={onComplete} marginRight={2}>
               Click here to start predicting
@@ -217,7 +214,7 @@ const UploadProgressView: React.FC<{
               view.
             </Text>
           ) : (
-            <Text variant="paragraph">Failed to upload content!</Text>
+            <Text variant="paragraph">Synchronization failed!</Text>
           )}
           <Button onClick={onComplete}>Back</Button>
         </Box>
