@@ -246,7 +246,7 @@ const MainView: React.FC<{
 
     if (user) {
       const newTableConfig: TableConfig = {
-        aitoTableName: job.aitoTableName,
+        aitoTableName: `airtable_${mainTableId}`,
         airtableViewId: mainViewId,
         columns: {},
         lastRowCount: undefined,
@@ -378,8 +378,8 @@ const MainView: React.FC<{
       lastUpdateStatus: undefined,
       links: undefined,
       views: undefined,
-      ...tableConfig,
       aitoTableName: `airtable_${table.id}`,
+      ...tableConfig,
     }
 
     return (
