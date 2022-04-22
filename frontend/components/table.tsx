@@ -24,7 +24,7 @@ export const Cell: React.FC<{
       flexShrink={flexShrink}
       flexBasis={width}
       paddingRight={1}
-      overflowX="hidden"
+      overflow="hidden"
       style={{ whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}
     >
       {children}
