@@ -672,7 +672,8 @@ const FieldPrediction: React.FC<{
   const aitoTableName = tableConfig.aitoTableName
 
   const isTextField = [FieldType.RICH_TEXT, FieldType.MULTILINE_TEXT].includes(selectedField.type)
-  const canUpdate = hasPermissionToUpdate.hasPermission && !selectedField.isComputed && !isTextField
+  const isExternalField = [FieldType.EXTERNAL_SYNC_SOURCE].includes(selectedField.type)
+  const canUpdate = hasPermissionToUpdate.hasPermission && !selectedField.isComputed && !isTextField && !isExternalField
   const cantUpdateReason = hasPermissionToUpdate.hasPermission ? undefined : hasPermissionToUpdate.reasonDisplayString
 
   useEffect(() => {
