@@ -264,9 +264,15 @@ const MainView: React.FC<{
       setUploadError(undefined)
       await setTableConfig(mainTableId, newTableConfig)
       if (client) {
-        const result = await runUploadTasks(base, client, job.tasks, (tasks) => {
-          setCurrentUpload((current) => current && { ...current, tasks })
-        })
+        const result = await runUploadTasks(
+          base,
+          client,
+          job.tasks,
+          (tasks) => {
+            setCurrentUpload((current) => current && { ...current, tasks })
+          },
+          job.oldAitoTableName,
+        )
         setCurrentUpload((current) => current && { ...current, task: result.tasks })
         if (result.type === 'error') {
           setUploadError(result.error)
