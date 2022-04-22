@@ -271,7 +271,7 @@ const MainView: React.FC<{
           (tasks) => {
             setCurrentUpload((current) => current && { ...current, tasks })
           },
-          job.aitoTableName,
+          job.oldAitoTableName,
         )
         setCurrentUpload((current) => current && { ...current, task: result.tasks })
         if (result.type === 'error') {

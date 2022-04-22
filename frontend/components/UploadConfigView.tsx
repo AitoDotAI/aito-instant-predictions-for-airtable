@@ -47,6 +47,7 @@ export interface UploadJob {
   tableId: string
   viewId: string
   aitoTableName: string
+  oldAitoTableName: string
   tasks: UploadTask[]
 }
 
@@ -61,9 +62,11 @@ const UploadConfigView: React.FC<
 > = ({ table, tableConfig, canUpdateSettings, client, onUpload, ...flexItem }) => {
   const base = useBase()
 
+  const oldAitoTableName = tableConfig.aitoTableName
+
   const [linkedTableViewMapping, setLinkedTableViewMapping] = useState<LinkedTableViewMapping>(() => ({
     mainViewId: tableConfig.airtableViewId || null,
-    mainTableName: tableConfig.aitoTableName,
+    mainTableName: `airtable_${table.id}`,
     linkFields: tableConfig.links ? Object.keys(tableConfig) : [],
     linkedTableData: tableConfig.links
       ? Object.entries(tableConfig.links).reduce<TableViewMapping[]>((acc, [fieldId, link]) => {
@@ -121,6 +124,7 @@ const UploadConfigView: React.FC<
       )
       onUpload({
         aitoTableName: mainTableName,
+        oldAitoTableName,
         tableId: table.id,
         viewId: mainViewId,
         tasks,
