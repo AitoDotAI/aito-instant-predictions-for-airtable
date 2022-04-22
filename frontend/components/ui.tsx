@@ -20,7 +20,7 @@ export const InlineFieldIcon: React.FC<React.ComponentProps<typeof FieldIcon>> =
 )
 
 export const InlineLink: React.FC<React.ComponentProps<typeof Link>> = (props) => (
-  <Link {...props} className={`aito-inline-icon${props.className && ' ' + props.className || ''}`} />
+  <Link {...props} className={`aito-inline-icon${(props.className && ' ' + props.className) || ''}`} />
 )
 
 export const GRAY_BORDER = colorUtils.getHexForColor(colors.GRAY_LIGHT_1)
