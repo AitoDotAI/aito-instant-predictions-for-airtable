@@ -1,11 +1,10 @@
-import { FlexItemSetProps } from '@airtable/blocks/dist/types/src/ui/system'
+import { FlexItemSetProps, MarginProps } from '@airtable/blocks/dist/types/src/ui/system'
 import { Field, FieldType, Table, View, ViewType } from '@airtable/blocks/models'
 import {
   Box,
   Button,
   FieldIcon,
   FormField,
-  Icon,
   Heading,
   Text,
   useRecordIds,
@@ -24,6 +23,7 @@ import { describeTasks, UploadTask } from '../functions/uploadView'
 import { TableConfig } from '../schema/config'
 import Footer from './Footer'
 import Spinner from './Spinner'
+import { InlineFieldIcon, InlineIcon } from './ui'
 import useEqualValue from './useEqualValue'
 
 interface TableViewMapping {
@@ -139,10 +139,10 @@ const UploadConfigView: React.FC<
     <Box display="flex" flexDirection="column" height="0px" overflow="auto" {...flexItem}>
       <Box flexGrow={1}>
         <Box paddingX={3} paddingTop={2}>
-          <Heading size="small">Select view</Heading>
+          <Heading size="small">Choose training data</Heading>
           <Text variant="paragraph" textColor="light">
             Training data is required for making predictions. Select or create a <em>grid view</em> to use for training.
-            The records and fields that are visible can be uploaded to your Aito cloud instance. More tips at Aito.ai{' '}
+            The records and fields that are visible will be uploaded to your Aito cloud instance. More tips at Aito.ai{' '}
             <a target="_blank" href="https://aito.document360.io/docs/airtable" rel="noopener noreferrer">
               blog
             </a>
@@ -172,11 +172,16 @@ const UploadConfigView: React.FC<
               />
             </React.Suspense>
           )}
+          <Box marginTop={2}>
+            <Label>Aito.ai instance</Label>
+            <Text>
+              <strong>{client.name}</strong>
+            </Text>
+          </Box>
         </Box>
-        <Box marginX={3} marginTop={4} marginBottom={2} display="flex" justifyContent="center">
+        <Box marginX={3} marginTop={3} marginBottom={2} display="flex">
           <Button disabled={!isReady || isUploading} onClick={doUpload} variant="primary" icon="upload">
-            Upload {isReady ? totalRecords : 'some'} records{totalLinks > 0 ? ` and ${totalLinks} links` : null} to{' '}
-            <strong>{client.name}</strong>
+            Train with {isReady ? totalRecords : 'some'} records{totalLinks > 0 ? ` and ${totalLinks} links` : null}
           </Button>
         </Box>
       </Box>
@@ -187,23 +192,26 @@ const UploadConfigView: React.FC<
   )
 }
 
-const InlineFieldList: React.FC<{
-  fields: Field[]
-}> = ({ fields }) => (
+const InlineFieldList: React.FC<
+  {
+    fields: Field[]
+  } & MarginProps
+> = ({ fields, ...marginProps }) => (
   <Text
-    variant="paragraph"
+    overflow="hidden"
+    variant="default"
     style={{
       lineHeight: '24px',
       paddingTop: '-4px',
       paddingBottom: '-4px',
-      overflowX: 'hidden',
       textOverflow: 'break-word',
     }}
+    {...marginProps}
   >
     {fields.map((field, i) => (
       <React.Fragment key={field.id}>
         <span style={{ whiteSpace: 'nowrap', overflowWrap: 'break-word' }}>
-          <FieldIcon marginRight={1} style={{ verticalAlign: 'text-bottom' }} fillColor="gray" field={field} />
+          <InlineFieldIcon fillColor="gray" field={field} />
           &nbsp;{field.name}
         </span>
         {i + 1 < fields.length && <span style={{ letterSpacing: '24px' }}> </span>}
@@ -323,9 +331,11 @@ const LinkedTableDataSourcePicker: React.FC<{
 
       {linkFields.length > 0 && (
         <>
-          <Heading size="small">Select linked views</Heading>
+          <Heading size="small" marginTop={2}>
+            Training data for linked views
+          </Heading>
 
-          <Box paddingLeft={2} borderLeft="thick">
+          <Box paddingLeft={2} borderLeft="thick" marginBottom={2}>
             {linkFields.map((field, i) => {
               const entry = linkIdsToViews[field.id]
               if (!entry) {
@@ -340,7 +350,7 @@ const LinkedTableDataSourcePicker: React.FC<{
                 linkedTableData.find((mapping) => mapping.fieldId === field.id)?.aitoTableName || defaultName
 
               return (
-                <React.Fragment key={field.id}>
+                <Box key={field.id}>
                   <Text marginTop={i > 0 ? 3 : 0}>
                     <strong>{table.name}</strong> is linked from{' '}
                     <FieldIcon style={{ verticalAlign: 'text-bottom' }} field={field} marginRight={1} />
@@ -364,7 +374,7 @@ const LinkedTableDataSourcePicker: React.FC<{
                       onChange={onChange}
                     />
                   </React.Suspense>
-                </React.Fragment>
+                </Box>
               )
             })}
           </Box>
@@ -448,29 +458,33 @@ const TableSource: React.FC<{
       </Box>
       <Box flexGrow={0.5} flexShrink={0.5} flexBasis="50%">
         <Label>
-          Aito table name
+          Aito dataset name
           <Tooltip
+            placementY={Tooltip.placements.TOP}
             style={{ height: 'auto', width: '300px', maxWidth: '300px', whiteSpace: 'normal' }}
-            content="This is the table name that is created in your Aito instance and you will be able to see it in Aito console. If a table of the same name already exists, it will be replaced."
+            content="This is the name of the table that is created in your Aito.ai instance and you will be able to see it in Aito console. If a table of the same name already exists, it will be replaced."
           >
-            <Icon name="help" style={{ verticalAlign: 'bottom' }} marginLeft={1} />
+            <InlineIcon name="help" marginLeft={1} marginRight={0} />
           </Tooltip>
         </Label>
-        <Text variant="paragraph">{aitoTableName}</Text>
+        <Text variant="paragraph" style={{ overflowWrap: 'break-word' }}>
+          {aitoTableName}
+        </Text>
       </Box>
       <Box flexGrow={1} flexShrink={0} flexBasis="100%">
         <Label>Fields</Label>
         <InlineFieldList fields={viewFields} />
       </Box>
       {ignoredFields.length > 0 && (
-        <Box flexGrow={1} flexShrink={0} flexBasis="100%">
+        <Box flexGrow={1} flexShrink={0} flexBasis="100%" marginTop={2}>
           <Label>
-            Excluded fields{' '}
+            Excluded fields
             <Tooltip
+              placementY={Tooltip.placements.TOP}
               style={{ height: 'auto', width: '300px', maxWidth: '300px', whiteSpace: 'normal' }}
-              content="Button fields, attachment fields and lookup fields are not supported and will not be uploaded to your Aito table. These fields cannot be predicted."
+              content="Button fields, attachment fields and lookup fields are not supported and will not be uploaded to your Aito dataset. These fields cannot be predicted."
             >
-              <Icon name="help" style={{ verticalAlign: 'bottom' }} marginLeft={1} />
+              <InlineIcon name="help" marginLeft={1} marginRight={0} />
             </Tooltip>
           </Label>
           <InlineFieldList fields={ignoredFields} />
