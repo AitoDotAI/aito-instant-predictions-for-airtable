@@ -237,7 +237,7 @@ export const matchExplanation = ($p: number, $why: Why): MatchExplanation[] => {
             ...list,
             ...explanation.propositions.reduce<string[]>((acc2, [fieldName]) => {
               const [, fieldId] = fieldName.split('.')
-              if (fieldId) {
+              if (fieldId && acc2.indexOf(fieldId) < 0 && list.indexOf(fieldId) < 0) {
                 return [...acc2, fieldId]
               } else {
                 return acc2
