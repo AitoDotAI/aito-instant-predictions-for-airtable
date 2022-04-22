@@ -50,8 +50,6 @@ const PopupContainer = styled.div`
   height: 100%;
 
   & .popup {
-    height: 0;
-    overflow: hidden;
     opacity: 0;
     visibility: hidden;
     transition: opacity 0.15s ease-in-out;
@@ -60,7 +58,6 @@ const PopupContainer = styled.div`
   &:hover .popup {
     z-index: 1000;
     opacity: 1;
-    height: auto;
     visibility: visible;
   }
 `
@@ -1195,7 +1192,7 @@ const PredictionHitsList: React.FC<{
             </Cell>
             <Cell width="60px" flexGrow={0}>
               <PopupContainer>
-                <Box display="flex" height="100%" justifyContent="right">
+                <Box display="flex" height="100%" justifyContent="right" marginBottom={1}>
                   <Text textColor="light" alignSelf="center">
                     {Math.round($p * 100)}%
                   </Text>
@@ -1214,8 +1211,8 @@ const PredictionHitsList: React.FC<{
                     top={0}
                     marginLeft={3}
                     minWidth="200px"
-                    right={3}
-                    marginRight="126px"
+                    right={0}
+                    marginRight="125px"
                   >
                     <Box display="flex" flexDirection="column" minHeight={`${hitsBoxHeight}px`}>
                       <Box flexShrink={beforeFraction} flexGrow={beforeFraction}></Box>
