@@ -421,33 +421,45 @@ export const MatchExplanationBox: React.FC<{
     }
 
     const fieldHeader = (
-      <Text textColor="white">
-        {score >= 0 ? 'Match' : 'Mismatch'} in <InlineFieldIcon field={field} />
-        <b>{field.name}</b> and
-        {contextFieldIds.map((contextFieldId, i) => {
-          const contextField = contextFields.find((f) => f.id === contextFieldId)
-          if (!contextField) {
-            return null
-          }
-          if (i > 2) {
-            return null
-          }
-          const remaining = contextFieldIds.length - i - 1
-          if (i === 2 && remaining > 1) {
+      <Box textColor="white">
+        <Text textColor="white">
+          {score >= 0 ? 'Match' : 'Mismatch'} in <InlineFieldIcon field={field} />
+          <b>{field.name}</b> and
+        </Text>
+        <Box display="flex" flexDirection="row" flexWrap="wrap">
+          {contextFieldIds.map((contextFieldId, i, list) => {
+            const contextField = contextFields.find((f) => f.id === contextFieldId)
+            if (!contextField) {
+              return null
+            }
+            if (i > 2) {
+              return null
+            }
+            const remaining = contextFieldIds.length - i - 1
+            if (i === 2 && remaining > 1) {
+              return (
+                <Box key={i} paddingTop={1}>
+                  and {remaining} more fields
+                </Box>
+              )
+            }
             return (
-              <Box key={i} paddingTop={1}>
-                and {remaining} more fields
-              </Box>
+              <React.Fragment key={i}>
+                {i > 0 && remaining === 0 && (
+                  <Box paddingTop={1} marginRight={1}>
+                    and
+                  </Box>
+                )}
+                <Box paddingTop={1} marginRight={1}>
+                  <InlineFieldIcon field={contextField} />
+                  <b>{contextField.name}</b>
+                  {list.length > 2 && remaining > 0 && ','}
+                </Box>
+              </React.Fragment>
             )
-          }
-          return (
-            <Box key={i} paddingTop={1}>
-              <InlineFieldIcon field={contextField} />
-              <b>{contextField.name}</b>
-            </Box>
-          )
-        })}
-      </Text>
+          })}
+        </Box>
+      </Box>
     )
 
     return (
