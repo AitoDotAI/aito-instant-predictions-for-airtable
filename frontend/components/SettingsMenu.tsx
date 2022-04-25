@@ -88,10 +88,10 @@ const SettingsMenu: React.FC<{
       <Box marginX={3} marginBottom={3} marginTop={2} flexGrow={1}>
         <Heading size="small">Settings</Heading>
 
-        <Text variant="paragraph" textColor="light">
-          Login to Aito Console{' '}
+        <Text variant="paragraph">
+          Login to{' '}
           <Link target="_blank" href="https://console.aito.ai/">
-            here
+            Aito console
           </Link>{' '}
           to get your API URL and key.
         </Text>

@@ -144,10 +144,10 @@ const UploadConfigView: React.FC<
       <Box flexGrow={1}>
         <Box paddingX={3} paddingTop={2}>
           <Heading size="small">Choose training data</Heading>
-          <Text variant="paragraph" textColor="light">
+          <Text variant="paragraph">
             Training data is required for making predictions. Select or create a <em>grid view</em> to use for training.
             The records and fields that are visible will be uploaded to your Aito cloud instance.{' '}
-            <InlineLink href="https://aito.ai/help/airtable">
+            <InlineLink href="https://aito.ai/help/airtable" target="_blank">
               <InlineIcon name="share1" />
               More
             </InlineLink>
@@ -347,9 +347,12 @@ const LinkedTableDataSourcePicker: React.FC<{
 
               const [linkedTable, linkedView] = entry
 
+              const options = field.config.options
               const defaultName = `${aitoTableName}_${linkedView.id}`
               const linkedName =
-                linkedTableData.find((mapping) => mapping.fieldId === field.id)?.aitoTableName || defaultName
+                options.linkedTableId === table.id && linkedView.id === view.id
+                  ? aitoTableName
+                  : linkedTableData.find((mapping) => mapping.fieldId === field.id)?.aitoTableName || defaultName
 
               return (
                 <Box key={field.id}>

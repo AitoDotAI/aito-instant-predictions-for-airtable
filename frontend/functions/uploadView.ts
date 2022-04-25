@@ -162,7 +162,10 @@ export async function describeTasks(
     for (const link of linkViews) {
       const { linkFieldId, tableId, viewId, aitoTable: linkedAitoTable } = link
 
-      if (!createdViewsSet.has(tableId + viewId)) {
+      const isSelfLink = tableId === mainTableId && viewId === mainViewId
+      const aitoTableLink = isSelfLink ? aitoTable : linkedAitoTable
+
+      if (!isSelfLink && !createdViewsSet.has(tableId + viewId)) {
         // Create schema for referenced view
         createdViewsSet.add(tableId + viewId)
 
@@ -210,8 +213,8 @@ export async function describeTasks(
 
       const tableInfo: TableInfo = {
         aitoTable: aitoTable + '_' + field.id,
-        schema: makeLinkTableSchema(aitoTable, linkedAitoTable),
-        fieldIdToName: makeLinkTableColumnMap(aitoTable, linkedAitoTable),
+        schema: makeLinkTableSchema(aitoTable, aitoTableLink),
+        fieldIdToName: makeLinkTableColumnMap(aitoTable, aitoTableLink),
       }
 
       createLinkTasks.push({
