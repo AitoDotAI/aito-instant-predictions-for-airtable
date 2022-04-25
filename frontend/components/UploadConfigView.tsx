@@ -347,9 +347,12 @@ const LinkedTableDataSourcePicker: React.FC<{
 
               const [linkedTable, linkedView] = entry
 
+              const options = field.config.options
               const defaultName = `${aitoTableName}_${linkedView.id}`
               const linkedName =
-                linkedTableData.find((mapping) => mapping.fieldId === field.id)?.aitoTableName || defaultName
+                options.linkedTableId === table.id && linkedView.id === view.id
+                  ? aitoTableName
+                  : linkedTableData.find((mapping) => mapping.fieldId === field.id)?.aitoTableName || defaultName
 
               return (
                 <Box key={field.id}>

@@ -89,7 +89,7 @@ const SettingsMenu: React.FC<{
         <Heading size="small">Settings</Heading>
 
         <Text variant="paragraph">
-          Login to {' '}
+          Login to{' '}
           <Link target="_blank" href="https://console.aito.ai/">
             Aito console
           </Link>{' '}
