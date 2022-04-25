@@ -6,6 +6,15 @@ try {
 .aito-inline-icon {
   vertical-align: text-bottom;
 }
+
+.aito-ui {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  -khtml-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
 `)
 } catch (e) {
   console.error(e)
