@@ -8,6 +8,7 @@ import AitoLogo from './AitoLogo'
 import PredictView from './PredictView'
 import Spinner from './Spinner'
 import { isTab, Tab } from './Tab'
+import { TabGroup, TabOption } from './TabGroup'
 import { BORDER_STYLE, GRAY_BACKGROUND, InlineIcon } from './ui'
 import UploadConfigView, { UploadJob } from './UploadConfigView'
 
@@ -71,17 +72,17 @@ const TableView: React.FC<{
   )
 }
 
-const navOptions = [
+const navOptions: TabOption<Tab>[] = [
   {
-    value: 'predict',
+    key: 'predict',
     label: 'Predict',
   },
   {
-    value: 'search',
+    key: 'search',
     label: 'Search',
   },
   {
-    value: 'insights',
+    key: 'insights',
     label: 'Discover Insights',
   },
 ]
@@ -93,18 +94,23 @@ const Header: React.FC<
   } & FlexItemSetProps
 > = ({ tab, setTab, ...flexItem }) => {
   return (
-    <Box display="flex" flexDirection="row" {...flexItem} backgroundColor={GRAY_BACKGROUND} borderBottom={BORDER_STYLE}>
-      <SelectButtons
-        style={{ backgroundColor: 'inherit' }}
+    <Box
+      display="flex"
+      flexDirection="row"
+      {...flexItem}
+      textColor="white"
+      backgroundColor="#205341"
+      borderBottom={BORDER_STYLE}
+    >
+      <TabGroup
         flexGrow={1}
         value={tab}
         onChange={(newValue) => isTab(newValue) && setTab(newValue)}
-        size="small"
         options={navOptions}
       />
 
-      <Box flex="none" marginRight={1}>
-        <AitoLogo />
+      <Box flex="none" marginX={1}>
+        <AitoLogo padding={1} />
       </Box>
     </Box>
   )
