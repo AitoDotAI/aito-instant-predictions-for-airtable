@@ -144,7 +144,7 @@ const UploadConfigView: React.FC<
       <Box flexGrow={1}>
         <Box paddingX={3} paddingTop={2}>
           <Heading size="small">Choose training data</Heading>
-          <Text variant="paragraph" textColor="light">
+          <Text variant="paragraph">
             Training data is required for making predictions. Select or create a <em>grid view</em> to use for training.
             The records and fields that are visible will be uploaded to your Aito cloud instance.{' '}
             <InlineLink href="https://aito.ai/help/airtable">
