@@ -147,7 +147,7 @@ const UploadConfigView: React.FC<
           <Text variant="paragraph">
             Training data is required for making predictions. Select or create a <em>grid view</em> to use for training.
             The records and fields that are visible will be uploaded to your Aito cloud instance.{' '}
-            <InlineLink href="https://aito.ai/help/airtable">
+            <InlineLink href="https://aito.ai/help/airtable" target="_blank">
               <InlineIcon name="share1" />
               More
             </InlineLink>
