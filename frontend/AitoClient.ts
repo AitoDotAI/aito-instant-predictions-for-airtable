@@ -25,6 +25,11 @@ export interface MatchHit {
   [key: string]: Value
 }
 
+export interface SimilarityHit {
+  $score: number
+  [key: string]: Value
+}
+
 export interface PredictQuery {
   from: string
   where?: Record<string, unknown>
@@ -168,6 +173,16 @@ export default class AitoClient {
   async match(matchJSON: string): Promise<Hits<MatchHit> | AitoError> {
     const url = new URL(`/api/v1/_match`, this.host)
     const response = await this.send(url, this.post(matchJSON))
+    if (response.ok) {
+      return await response.json()
+    } else {
+      return this.toAitoError(response)
+    }
+  }
+
+  async similarity(similarityJSON: string): Promise<Hits<SimilarityHit> | AitoError> {
+    const url = new URL(`/api/v1/_similarity`, this.host)
+    const response = await this.send(url, this.post(similarityJSON))
     if (response.ok) {
       return await response.json()
     } else {
