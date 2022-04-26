@@ -38,7 +38,8 @@ import { PermissionCheckResult } from '@airtable/blocks/dist/types/src/types/mut
 import { FlexItemSetProps, SpacingSetProps } from '@airtable/blocks/dist/types/src/ui/system'
 import Spinner from './Spinner'
 import useEqualValue from './useEqualValue'
-import { BORDER_STYLE, GRAY_BACKGROUND, InlineFieldIcon, InlineIcon } from './ui'
+import { BORDER_STYLE, InlineFieldIcon, InlineIcon } from './ui'
+import useAitoSchema from './useAitoSchema'
 
 const DEFAULT_CONFIDENCE_THRESHOLD = 90
 
@@ -361,49 +362,6 @@ const PredictView: React.FC<
       </Box>
     </Box>
   )
-}
-
-const useAitoSchema = (
-  aitoTableName: string,
-  client: AitoClient,
-): TableSchema | undefined | null | 'quota-exceeded' => {
-  // Load aito schema after brief delay
-
-  const [schema, setSchema] = useState<TableSchema | undefined | null | 'quota-exceeded'>(undefined)
-  useEffect(() => {
-    let cancel = false
-    const loadSchema = async () => {
-      try {
-        const response = await client.getSchema()
-        if (!cancel) {
-          if (isAitoError(response)) {
-            if (response === 'quota-exceeded') {
-              setSchema('quota-exceeded')
-            } else {
-              setSchema(null)
-            }
-          } else {
-            const tableSchema = response[aitoTableName] || null
-            setSchema(tableSchema)
-          }
-        }
-      } catch (e) {
-        if (!cancel) {
-          setSchema(null)
-        }
-      }
-    }
-
-    const delay = 100
-    const timeout = setTimeout(loadSchema, delay)
-
-    return () => {
-      cancel = true
-      clearTimeout(timeout)
-    }
-  }, [aitoTableName, setSchema, client])
-
-  return schema
 }
 
 const RecordPrediction: React.FC<{
