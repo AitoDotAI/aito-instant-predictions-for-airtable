@@ -54,6 +54,7 @@ const TableView: React.FC<{
             client={client}
             hasUploaded={hasUploaded}
             flexGrow={1}
+            flexShrink={1}
           />
         ) : tab === 'search' ? (
           <SimilarityView
@@ -63,6 +64,7 @@ const TableView: React.FC<{
             tableConfig={tableConfig}
             hasUploaded={hasUploaded}
             flexGrow={1}
+            flexShrink={1}
           />
         ) : tab === 'insights' ? (
           <Box flexGrow={1} display="flex" justifyContent="center" alignItems="center">
