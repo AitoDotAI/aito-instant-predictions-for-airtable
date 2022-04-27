@@ -25,7 +25,7 @@ import { Why } from '../explanations'
 import { FlexItemSetProps } from '@airtable/blocks/dist/types/src/ui/system'
 import Spinner from './Spinner'
 import { InlineIcon } from './ui'
-import useAitoSchema from './useAitoSchema'
+import WithTableSchema from './WithTableSchema'
 
 const PARALLEL_REQUESTS = 10
 const REQUEST_TIME = 750
@@ -46,11 +46,6 @@ const SimilarityView: React.FC<
   const view = cursor.activeViewId ? table.getViewByIdIfExists(cursor.activeViewId) : null
   const metadata = useViewMetadata(view)
   const visibleFields = metadata?.visibleFields || []
-
-  const aitoTableName = tableConfig.aitoTableName
-  const tableColumnMap = tableConfig.columns
-
-  const schema = useAitoSchema(aitoTableName, client)
 
   // Make sure that the selected rows and fields are up to date
   const recordsQuery = useMemo(() => table.selectRecords(), [table])
@@ -76,85 +71,52 @@ const SimilarityView: React.FC<
     }
   }, [])
 
-  if (schema === 'quota-exceeded') {
-    return (
-      <Box padding={3} {...flexItem}>
-        <QueryQuotaExceeded />
-      </Box>
-    )
-  }
-
-  if (!schema || !hasUploaded) {
-    if (schema === null || !hasUploaded) {
-      // No table with that name
-      return (
-        <Box padding={3} {...flexItem}>
-          <Text variant="paragraph" textColor="light">
-            There doesn&apos;t seem to be any training data for <em>{table.name}</em> in your Aito instance. Please
-            upload training data first by clicking on the button at the bottom.
-          </Text>
-        </Box>
-      )
-    } else {
-      // Still loading table, show nothing
-      return <Spinner />
-    }
-  }
-
-  const currentTableColumnMap = metadata ? mapColumnNames(metadata.visibleFields) : {}
-  const isSchemaOutOfSync = !!Object.entries(currentTableColumnMap).find(([fieldId, { type }]) => {
-    const uploaded = tableColumnMap[fieldId]
-    return uploaded && uploaded.type !== type
-  })
-
-  if (isSchemaOutOfSync) {
-    return (
-      <Box padding={3} display="flex" {...flexItem}>
-        <Text variant="paragraph" flexGrow={0}>
-          <InlineIcon flexGrow={0} name="warning" aria-label="Warning" fillColor="#aaa" />
-        </Text>
-
-        <Text variant="paragraph" flexGrow={1}>
-          The fields have changed since training data was last uploaded to Aito. Please retrain the model.
-        </Text>
-      </Box>
-    )
-  }
-
-  if (!hasSelection) {
-    return (
-      <Box padding={3} display="flex" alignItems="center" justifyContent="center" flexBasis="100%" {...flexItem}>
-        <Box>
-          <Text variant="paragraph" textColor="#bbb" size="xlarge" fontWeight="bold" margin={0} flexGrow={0}>
-            Please select a record
-          </Text>
-        </Box>
-      </Box>
-    )
-  }
-
   return (
     <Box display="flex" flexDirection="column" {...flexItem}>
-      <Box height="0px" overflow="auto" flexGrow={1} flexShrink={1}>
-        {selectedRecordCount > maxRecords && (
-          <Text fontStyle="oblique" textColor="light" variant="paragraph" marginX={3} marginTop={3}>
-            Showing predictions for {maxRecords} of the {selectedRecordCount} selected records.
-          </Text>
-        )}
-        {recordIdsToPredict.map((recordId) => (
-          <RecordSimilarityGroup
-            key={recordId}
-            recordId={recordId}
-            selectedRecords={selectedRecords}
-            viewFields={visibleFields}
-            tableConfig={tableConfig}
-            fieldsToDisplay={fieldsToDisplay}
-            client={client}
-            recordsQuery={recordsQuery}
-            schema={schema}
-          />
-        ))}
-      </Box>
+      <WithTableSchema client={client} hasUploaded={hasUploaded} table={table} view={view} tableConfig={tableConfig}>
+        {({ schema }) => {
+          if (!hasSelection) {
+            return (
+              <Box display="flex" flexGrow={1} alignItems="center" justifyContent="center">
+                <Text
+                  className="aito-ui"
+                  variant="paragraph"
+                  textColor="#bbb"
+                  size="xlarge"
+                  fontWeight="bold"
+                  margin={0}
+                  flexGrow={0}
+                >
+                  Please select a record
+                </Text>
+              </Box>
+            )
+          }
+
+          return (
+            <Box flexGrow={1} height="0px" overflow="auto">
+              {selectedRecordCount > maxRecords && (
+                <Text fontStyle="oblique" textColor="light" variant="paragraph">
+                  Showing similar records for {maxRecords} of the {selectedRecordCount} selected records.
+                </Text>
+              )}
+              {recordIdsToPredict.map((recordId) => (
+                <RecordSimilarityGroup
+                  key={recordId}
+                  recordId={recordId}
+                  selectedRecords={selectedRecords}
+                  viewFields={visibleFields}
+                  tableConfig={tableConfig}
+                  fieldsToDisplay={fieldsToDisplay}
+                  client={client}
+                  recordsQuery={recordsQuery}
+                  schema={schema}
+                />
+              ))}
+            </Box>
+          )
+        }}
+      </WithTableSchema>
     </Box>
   )
 }
@@ -399,7 +361,7 @@ const SimilarityCellRenderer: React.FC<{
   if (!record) {
     return (
       <Text>
-        <em>This record is no part of the table</em>
+        <em>This record is no longer part of the table</em>
       </Text>
     )
   }
