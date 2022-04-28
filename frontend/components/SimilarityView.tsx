@@ -334,6 +334,7 @@ const RecordSimilarity: React.FC<{
                 <React.Suspense key={recordId} fallback={<Spinner />}>
                   <Box marginY={2} marginX={3}>
                     <SimilarityCellRenderer
+                      originalRecord={record}
                       recordId={recordId}
                       viewportWidth={viewport.size.width}
                       fields={[...fieldsToDisplay, ...otherFields]}
@@ -351,11 +352,12 @@ const RecordSimilarity: React.FC<{
 
 const SimilarityCellRenderer: React.FC<{
   recordId: string
+  originalRecord: Record
   recordsQuery: TableOrViewQueryResult
   viewportWidth: number
   fields: Field[]
   attachment: Field | undefined
-}> = ({ recordId, recordsQuery, fields, viewportWidth, attachment }) => {
+}> = ({ recordId, recordsQuery, fields, viewportWidth, originalRecord, attachment }) => {
   const record = useRecordById(recordsQuery, recordId)
 
   if (!record) {
@@ -366,7 +368,15 @@ const SimilarityCellRenderer: React.FC<{
     )
   }
 
-  return <RecordCard width={viewportWidth - 40} fields={fields} record={record} attachmentCoverField={attachment} />
+  return (
+    <RecordCard
+      width={viewportWidth - 40}
+      fields={fields}
+      record={record}
+      attachmentCoverField={attachment}
+      expandRecordOptions={{ records: [originalRecord, record] }}
+    />
+  )
 }
 
 export default SimilarityView
