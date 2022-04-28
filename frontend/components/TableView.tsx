@@ -1,11 +1,12 @@
 import { FlexItemSetProps } from '@airtable/blocks/dist/types/src/ui/system'
 import { Cursor, Table } from '@airtable/blocks/models'
-import { Box, Text, Button, Tooltip, SelectButtons } from '@airtable/blocks/ui'
+import { Box, Text, Button, Tooltip } from '@airtable/blocks/ui'
 import React from 'react'
 import AitoClient from '../AitoClient'
 import { TableConfig } from '../schema/config'
 import AitoLogo from './AitoLogo'
 import PredictView from './PredictView'
+import SimilarityView from './SimilarityView'
 import Spinner from './Spinner'
 import { isTab, Tab } from './Tab'
 import { TabGroup, TabOption } from './TabGroup'
@@ -44,7 +45,7 @@ const TableView: React.FC<{
             client={client}
             flexGrow={1}
           />
-        ) : (
+        ) : tab === 'predict' ? (
           <PredictView
             key={table.id}
             table={table}
@@ -53,7 +54,26 @@ const TableView: React.FC<{
             client={client}
             hasUploaded={hasUploaded}
             flexGrow={1}
+            flexShrink={1}
           />
+        ) : tab === 'search' ? (
+          <SimilarityView
+            client={client}
+            table={table}
+            cursor={cursor}
+            tableConfig={tableConfig}
+            hasUploaded={hasUploaded}
+            flexGrow={1}
+            flexShrink={1}
+          />
+        ) : tab === 'insights' ? (
+          <Box flexGrow={1} display="flex" justifyContent="center" alignItems="center">
+            <Text textColor="light">
+              <em>Coming soon</em>
+            </Text>
+          </Box>
+        ) : (
+          <Box flexGrow={1} />
         )}
       </React.Suspense>
       <Footer
@@ -64,7 +84,7 @@ const TableView: React.FC<{
         lastUpdated={lastUpdated ? new Date(lastUpdated) : undefined}
         lastUploadedBy={tableConfig.lastUpdatedBy?.name}
         buttonDisabled={tab === 'predict' && !canUpdateSettings}
-        buttonText={tab === 'predict' ? `${hasUploaded ? 'Retrain' : 'Train'} model` : 'Cancel'}
+        buttonText={tab === 'train' ? 'Cancel' : `${hasUploaded ? 'Retrain' : 'Train'} model`}
         onButtonClick={tab === 'predict' ? () => setTab('train') : () => setTab('predict')}
         buttonKey={tab}
       />

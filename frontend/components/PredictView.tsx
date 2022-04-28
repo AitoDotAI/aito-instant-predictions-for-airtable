@@ -38,7 +38,8 @@ import { PermissionCheckResult } from '@airtable/blocks/dist/types/src/types/mut
 import { FlexItemSetProps, SpacingSetProps } from '@airtable/blocks/dist/types/src/ui/system'
 import Spinner from './Spinner'
 import useEqualValue from './useEqualValue'
-import { BORDER_STYLE, GRAY_BACKGROUND, InlineFieldIcon, InlineIcon } from './ui'
+import { BORDER_STYLE, InlineFieldIcon, InlineIcon } from './ui'
+import WithTableSchema from './WithTableSchema'
 
 const DEFAULT_CONFIDENCE_THRESHOLD = 90
 
@@ -184,11 +185,6 @@ const PredictView: React.FC<
     console.error(e)
   }
 
-  const aitoTableName = tableConfig.aitoTableName
-  const tableColumnMap = tableConfig.columns
-
-  const schema = useAitoSchema(aitoTableName, client)
-
   const [autoFill, setAutoFill] = useState(savedAutoFill)
   const [threshold, setThreshold] = useState(savedThreshold)
 
@@ -258,73 +254,6 @@ const PredictView: React.FC<
     }
   }, [])
 
-  if (schema === 'quota-exceeded') {
-    return (
-      <Box padding={3} {...flexItem}>
-        <QueryQuotaExceeded />
-      </Box>
-    )
-  }
-
-  if (!schema || !hasUploaded) {
-    if (schema === null || !hasUploaded) {
-      // No table with that name
-      return (
-        <Box padding={3} {...flexItem}>
-          <Text variant="paragraph" textColor="light">
-            There doesn&apos;t seem to be any training data for <em>{table.name}</em> in your Aito instance. Please
-            upload training data first by clicking on the button at the bottom.
-          </Text>
-        </Box>
-      )
-    } else {
-      // Still loading table, show nothing
-      return <Spinner />
-    }
-  }
-
-  if (view?.type !== ViewType.GRID) {
-    return (
-      <Box padding={3} {...flexItem}>
-        <Text variant="paragraph" textColor="light">
-          Predictions are only available in <em>grid views</em>.
-        </Text>
-      </Box>
-    )
-  }
-
-  if (!hasSelection) {
-    return (
-      <Box padding={3} display="flex" alignItems="center" justifyContent="center" flexBasis="100%" {...flexItem}>
-        <Box>
-          <Text variant="paragraph" textColor="#bbb" size="xlarge" fontWeight="bold" margin={0} flexGrow={0}>
-            Please select an empty cell
-          </Text>
-        </Box>
-      </Box>
-    )
-  }
-
-  const currentTableColumnMap = metadata ? mapColumnNames(metadata.visibleFields) : {}
-  const isSchemaOutOfSync = !!Object.entries(currentTableColumnMap).find(([fieldId, { type }]) => {
-    const uploaded = tableColumnMap[fieldId]
-    return uploaded && uploaded.type !== type
-  })
-
-  if (isSchemaOutOfSync) {
-    return (
-      <Box padding={3} display="flex" {...flexItem}>
-        <Text variant="paragraph" flexGrow={0}>
-          <InlineIcon flexGrow={0} name="warning" aria-label="Warning" fillColor="#aaa" />
-        </Text>
-
-        <Text variant="paragraph" flexGrow={1}>
-          The fields have changed since training data was last uploaded to Aito. Please retrain the model.
-        </Text>
-      </Box>
-    )
-  }
-
   return (
     <Box display="flex" flexDirection="column" {...flexItem}>
       <PredictionSettingsToolbar
@@ -334,76 +263,72 @@ const PredictView: React.FC<
         threshold={threshold}
         saveThreshold={saveThreshold}
         flex="none"
+        flexGrow={0}
       />
-      <Box height="0px" overflow="auto" flexGrow={1} flexShrink={1}>
-        {selectedRecordCount > maxRecords && (
-          <Text fontStyle="oblique" textColor="light" variant="paragraph" marginX={3} marginTop={3}>
-            Showing predictions for {maxRecords} of the {selectedRecordCount} selected records.
-          </Text>
-        )}
-        {recordIdsToPredict.map((recordId) => (
-          <RecordPrediction
-            key={recordId}
-            recordId={recordId}
-            selectedRecords={selectedRecords}
-            viewFields={visibleFields}
-            tableConfig={tableConfig}
-            fieldsToPredict={fieldsToPredict}
-            client={client}
-            recordsQuery={recordsQuery}
-            schema={schema}
-            setCellValue={setCellValue}
-            canUpdate={canUpdate}
-            autoFill={autoFill && canUpdate.hasPermission}
-            threshold={threshold}
-          />
-        ))}
+      <Box display="flex" flexDirection="column" flexGrow={1} flexShrink={1}>
+        <WithTableSchema client={client} hasUploaded={hasUploaded} table={table} view={view} tableConfig={tableConfig}>
+          {({ schema }) => {
+            if (!hasSelection) {
+              return (
+                <Box flexGrow={1} display="flex" alignItems="center" justifyContent="center" flexBasis="100%">
+                  <Box>
+                    <Text
+                      className="aito-ui"
+                      variant="paragraph"
+                      textColor="#bbb"
+                      size="xlarge"
+                      fontWeight="bold"
+                      margin={0}
+                      flexGrow={0}
+                    >
+                      Please select an empty cell
+                    </Text>
+                  </Box>
+                </Box>
+              )
+            }
+
+            if (view?.type !== ViewType.GRID) {
+              return (
+                <Box flexGrow={1} display="flex" alignItems="center" justifyContent="center" flexBasis="100%">
+                  <Text variant="paragraph" textColor="light">
+                    Predictions are only available in <em>grid views</em>.
+                  </Text>
+                </Box>
+              )
+            }
+
+            return (
+              <Box flexGrow={1} flexShrink={1} display="flex" flexDirection="column" height="0px" overflow="auto">
+                {selectedRecordCount > maxRecords && (
+                  <Text fontStyle="oblique" textColor="light" variant="paragraph" marginX={3} marginTop={3}>
+                    Showing predictions for {maxRecords} of the {selectedRecordCount} selected records.
+                  </Text>
+                )}
+                {recordIdsToPredict.map((recordId) => (
+                  <RecordPrediction
+                    key={recordId}
+                    recordId={recordId}
+                    selectedRecords={selectedRecords}
+                    viewFields={visibleFields}
+                    tableConfig={tableConfig}
+                    fieldsToPredict={fieldsToPredict}
+                    client={client}
+                    recordsQuery={recordsQuery}
+                    schema={schema}
+                    setCellValue={setCellValue}
+                    canUpdate={canUpdate}
+                    autoFill={autoFill && canUpdate.hasPermission}
+                    threshold={threshold}
+                  />
+                ))}
+              </Box>
+            )
+          }}
+        </WithTableSchema>
       </Box>
     </Box>
   )
-}
-
-const useAitoSchema = (
-  aitoTableName: string,
-  client: AitoClient,
-): TableSchema | undefined | null | 'quota-exceeded' => {
-  // Load aito schema after brief delay
-
-  const [schema, setSchema] = useState<TableSchema | undefined | null | 'quota-exceeded'>(undefined)
-  useEffect(() => {
-    let cancel = false
-    const loadSchema = async () => {
-      try {
-        const response = await client.getSchema()
-        if (!cancel) {
-          if (isAitoError(response)) {
-            if (response === 'quota-exceeded') {
-              setSchema('quota-exceeded')
-            } else {
-              setSchema(null)
-            }
-          } else {
-            const tableSchema = response[aitoTableName] || null
-            setSchema(tableSchema)
-          }
-        }
-      } catch (e) {
-        if (!cancel) {
-          setSchema(null)
-        }
-      }
-    }
-
-    const delay = 100
-    const timeout = setTimeout(loadSchema, delay)
-
-    return () => {
-      cancel = true
-      clearTimeout(timeout)
-    }
-  }, [aitoTableName, setSchema, client])
-
-  return schema
 }
 
 const RecordPrediction: React.FC<{
