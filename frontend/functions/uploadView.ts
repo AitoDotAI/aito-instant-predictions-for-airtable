@@ -486,6 +486,7 @@ async function fetchRecordsAndUpload(
             const conversion = AcceptedFields[field.type]
 
             const columnName = fieldIdToName[field.id].name
+            const cellValue = record.getCellValue(field)
 
             let columnValue: string | number | boolean | null
             if (!conversion) {
@@ -493,10 +494,8 @@ async function fetchRecordsAndUpload(
                 `The value for record ${record.id} is not valid according to the field schema. Type is ${field.type}. Setting to null.`,
               )
               columnValue = null
-            } else if (field.type !== FieldType.CHECKBOX && record.getCellValueAsString(field) === '') {
-              columnValue = null
             } else {
-              columnValue = conversion.toAitoValue(field, record)
+              columnValue = conversion.toAitoValue(cellValue, field.config)
             }
 
             if (columnValue === null) {

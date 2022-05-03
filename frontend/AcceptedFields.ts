@@ -1,26 +1,28 @@
-import { Field, FieldConfig, FieldType, Record } from '@airtable/blocks/models'
+import { Field, FieldConfig, FieldType } from '@airtable/blocks/models'
 import _ from 'lodash'
 import { formatISO9075, parse } from 'date-fns'
 
-import { isArrayOf, isObjectOf, isSomeOf, isString, isUndefined } from './validator/validation'
+import {
+  Validator,
+  isBoolean,
+  isArrayOf,
+  isNull,
+  isNumber,
+  isObjectOf,
+  isSomeOf,
+  isString,
+  isUndefined,
+} from './validator/validation'
 import { AitoType, Analyzer } from './schema/aito'
 
-const toBoolean = (u: unknown): boolean => {
-  if (u === null) return false
-  else if (typeof u === 'boolean') return u
-  else if (typeof u === 'string' && _.toLower(u) === 'true') return true
-  else {
-    // error or just false?
-    return false
-  }
-}
-
 type AitoValue = string | boolean | number | null
+
+const isAitoValue: Validator<AitoValue> = isSomeOf(isString, isNumber, isBoolean, isNull)
 
 interface SupportedField {
   isMultipleSelect?: boolean
 
-  toAitoValue: (f: Field, r: Record) => AitoValue
+  toAitoValue: (value: unknown, config: FieldConfig) => AitoValue
   toAitoType: (config: FieldConfig) => AitoType
   toAitoAnalyzer: (config: FieldConfig) => Analyzer | undefined
   toCellValue: (value: unknown, config: FieldConfig) => unknown
@@ -37,7 +39,7 @@ interface SupportedField {
 
 const textConversion = (analyzer: Analyzer): SupportedField => ({
   isMultipleSelect: true,
-  toAitoValue: (f, r) => r.getCellValueAsString(f),
+  toAitoValue: (value) => (isAitoValue(value) ? value : null),
   toAitoType: () => 'Text',
   toAitoAnalyzer: () => analyzer,
   toCellValue: (v) => String(v),
@@ -58,7 +60,7 @@ const textConversion = (analyzer: Analyzer): SupportedField => ({
  * @returns
  */
 const stringConversion = (convert: (string: string) => string = _.identity): SupportedField => ({
-  toAitoValue: (f, r) => convert(r.getCellValueAsString(f)),
+  toAitoValue: (v) => (isString(v) ? convert(v) : null),
   toAitoType: () => 'String',
   toAitoAnalyzer: () => undefined,
   toCellValue: (v) => String(v),
@@ -82,16 +84,11 @@ const isBarcodeCell = isObjectOf({
  * string
  */
 const barcode: SupportedField = {
-  toAitoValue: (f, r) => {
-    const value = r.getCellValue(f)
-    if (value === null) {
-      return null
-    }
+  toAitoValue: (value) => {
     if (isBarcodeCell(value)) {
       return JSON.stringify({ type: value.type, text: value.text })
     }
-    const stringValue = r.getCellValueAsString(f)
-    return JSON.stringify({ text: stringValue })
+    return null
   },
   toAitoType: () => 'String',
   toAitoAnalyzer: () => undefined,
@@ -127,16 +124,16 @@ const barcode: SupportedField = {
  */
 const numberConversion = (t: 'Decimal' | 'Int', alwaysNumeric: boolean = false): SupportedField => ({
   toAitoType: () => t,
-  toAitoValue: (f, r) => {
-    const value = r.getCellValue(f) as number | null
-    if (value) {
+  toAitoValue: (value) => {
+    if (typeof value === 'number') {
       const convertedValue = value
 
       if (t === 'Int') {
         return Number(convertedValue.toFixed())
       }
+      return convertedValue
     }
-    return value
+    return null
   },
   toAitoAnalyzer: () => undefined,
   toCellValue: (v) => Number(v),
@@ -182,8 +179,7 @@ const referenceDate = new Date('2000-01-01T00:00:00.000Z')
  */
 const dateTimeConversion = (fromString: (d: string) => Date, toString: (d: Date) => string): SupportedField => ({
   toAitoType: () => 'Decimal',
-  toAitoValue: (f, r) => {
-    const cellValue = r.getCellValue(f) as string | null
+  toAitoValue: (cellValue) => {
     if (typeof cellValue === 'string' && cellValue.length > 0) {
       return dateToEpochSeconds(fromString(cellValue))
     } else {
@@ -204,10 +200,8 @@ const timeConversion: (convert?: (s: string) => number) => SupportedField = (
   convert = (s: string) => Number(s),
 ) => ({
   toAitoType: () => 'Decimal',
-  toAitoValue: (f, r) => {
-    const isoValue = r.getCellValue(f) as string
-    return convert(isoValue)
-  },
+  toAitoValue: (isoValue) => {
+    return isoValue === null ? null : convert(isoValue as string)
   },
   toAitoAnalyzer: () => undefined,
   toCellValue: (v) => Number(v),
@@ -227,8 +221,7 @@ const hasId = isObjectOf({
 })
 
 const singleSelect: SupportedField = {
-  toAitoValue: (f, r) => {
-    const value = r.getCellValue(f)
+  toAitoValue: (value) => {
     if (hasName(value)) {
       return value.name
     } else {
@@ -259,8 +252,7 @@ const delimiter = '\x1f' // ASCII Unit separator
 const multipleSelects: SupportedField = {
   isMultipleSelect: true,
 
-  toAitoValue: (f, r) => {
-    const values = r.getCellValue(f)
+  toAitoValue: (values) => {
     if (isMultipleNames(values)) {
       return values.map(({ name }) => name).join(delimiter)
     } else {
@@ -294,8 +286,7 @@ const multipleSelects: SupportedField = {
 }
 
 const singleCollaborator: SupportedField = {
-  toAitoValue: (f, r) => {
-    const value = r.getCellValue(f)
+  toAitoValue: (value) => {
     if (hasId(value)) {
       return value.id
     } else {
@@ -323,8 +314,7 @@ const isMultipleIds = isArrayOf(hasId)
 const multipleCollaborators: SupportedField = {
   isMultipleSelect: true,
 
-  toAitoValue: (f, r) => {
-    const values = r.getCellValue(f)
+  toAitoValue: (values) => {
     if (isMultipleIds(values)) {
       return values.map(({ id }) => id).join(delimiter)
     } else {
@@ -382,14 +372,14 @@ const getResultFieldType = (config: FormulaFieldConfig): SupportedField | undefi
 const FALLBACK_RESULT_TYPE = 'String'
 
 const formulaOrRollup: SupportedField = {
-  toAitoValue: (f, r) => {
-    assertFormulaType(f.config)
-    const resultFieldType = getResultFieldType(f.config)
+  toAitoValue: (value, config) => {
+    assertFormulaType(config)
+    const resultFieldType = getResultFieldType(config)
     if (!resultFieldType) {
       // formula is invalid
       return null
     }
-    return resultFieldType.toAitoValue(f, r)
+    return resultFieldType.toAitoValue(value, config)
   },
   toAitoType: (config) => {
     assertFormulaType(config)
@@ -507,7 +497,7 @@ const AcceptedFields: globalThis.Record<FieldType, SupportedField> = {
    */
   [FieldType.CHECKBOX]: {
     toAitoType: () => 'Boolean',
-    toAitoValue: (f, r) => toBoolean(r.getCellValue(f)),
+    toAitoValue: (value) => Boolean(value),
     toAitoAnalyzer: () => undefined,
     toCellValue: (v) => v,
     toAitoQuery: (v) => v,
