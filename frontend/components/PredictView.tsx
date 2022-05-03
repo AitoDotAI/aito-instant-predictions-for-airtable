@@ -499,9 +499,9 @@ const makeWhereClause = (
     const conversion = AcceptedFields[field.type]
     const columnName = fieldIdToName[field.id].name
     if (field.id !== selectedField.id && conversion && columnName in schema.columns) {
-      const isEmpty = record.getCellValueAsString(field) === '' && field.type !== FieldType.CHECKBOX
-      const aitoValue = conversion.toAitoValue(field, record)
-      if (aitoValue === null || aitoValue === undefined || isEmpty) {
+      const cellValue = record.getCellValue(field)
+      const aitoValue = conversion.toAitoValue(cellValue, field.config)
+      if (aitoValue === null || aitoValue === undefined || aitoValue === false) {
         return acc
       } else {
         return {
