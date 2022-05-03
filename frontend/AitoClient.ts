@@ -30,6 +30,39 @@ export interface SimilarityHit {
   [key: string]: Value
 }
 
+export interface RelateHit {
+  related: unknown
+  condition: unknown
+  lift: number
+  fs: {
+    f: number
+    fOnCondition: number
+    fOnNotCondition: number
+    fCondition: number
+    n: number
+  }
+  ps: {
+    p: number
+    pOnCondition: number
+    pOnNotCondition: number
+    pCondition: number
+  }
+  info: {
+    h: number
+    mi: number
+    miTrue: number
+    miFalse: number
+  }
+  relation: {
+    n: number
+    varFs: [number, number]
+    stateFs: [number, number, number, number]
+    mi: number
+  }
+}
+
+export type RelateHits = Hits<Partial<RelateHit>>
+
 export interface PredictQuery {
   from: string
   where?: Record<string, unknown>
@@ -183,6 +216,16 @@ export default class AitoClient {
   async similarity(similarityJSON: string): Promise<Hits<SimilarityHit> | AitoError> {
     const url = new URL(`/api/v1/_similarity`, this.host)
     const response = await this.send(url, this.post(similarityJSON))
+    if (response.ok) {
+      return await response.json()
+    } else {
+      return this.toAitoError(response)
+    }
+  }
+
+  async relate(relateJSON: string): Promise<Hits<Partial<RelateHit>> | AitoError> {
+    const url = new URL(`/api/v1/_relate`, this.host)
+    const response = await this.send(url, this.post(relateJSON))
     if (response.ok) {
       return await response.json()
     } else {
