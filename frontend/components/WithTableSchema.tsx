@@ -1,5 +1,5 @@
 import { Table, View } from '@airtable/blocks/models'
-import { Box, Text, useLoadable, useViewMetadata } from '@airtable/blocks/ui'
+import { Box, Text, useViewMetadata, useWatchable } from '@airtable/blocks/ui'
 import React from 'react'
 import AitoClient from '../AitoClient'
 import { mapColumnNames } from '../functions/inferAitoSchema'
@@ -12,13 +12,13 @@ import useAitoSchema from './useAitoSchema'
 
 const WithTableSchema = (props: {
   table: Table
-  view: View | null
+  view?: View | null
   tableConfig: TableConfig
   client: AitoClient
   hasUploaded: boolean
   children: (params: { schema: TableSchema }) => React.ReactElement | null
 }) => {
-  const { table, view, tableConfig, client, hasUploaded, children } = props
+  const { table, view = null, tableConfig, client, hasUploaded, children } = props
 
   // Use the current view for predictions, not necessarily the one used for training/upload
   const metadata = useViewMetadata(view)
@@ -28,7 +28,7 @@ const WithTableSchema = (props: {
   const schema = useAitoSchema(aitoTableName, client)
 
   // Make sure that the selected rows and fields are up to date
-  useLoadable(metadata)
+  useWatchable(metadata, 'visibleFields')
 
   if (schema === 'quota-exceeded') {
     return (
@@ -53,7 +53,7 @@ const WithTableSchema = (props: {
     }
   }
 
-  const currentTableColumnMap = metadata ? mapColumnNames(metadata.visibleFields) : {}
+  const currentTableColumnMap = mapColumnNames(metadata ? metadata.visibleFields : table.fields)
   const isSchemaOutOfSync = !!Object.entries(currentTableColumnMap).find(([fieldId, { type }]) => {
     const uploaded = tableColumnMap[fieldId]
     return uploaded && uploaded.type !== type
