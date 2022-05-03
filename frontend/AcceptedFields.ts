@@ -21,18 +21,18 @@ interface SupportedField {
   isMultipleSelect?: boolean
 
   toAitoValue: (f: Field, r: Record) => AitoValue
-  toAitoType: (f: FieldConfig) => AitoType
-  toAitoAnalyzer: (f: FieldConfig) => Analyzer | undefined
-  toCellValue: (value: unknown, f: FieldConfig) => unknown
-  cellValueToText: (value: unknown, f: FieldConfig) => string
-  toAitoQuery: (value: AitoValue, f: FieldConfig) => unknown
-  hasFeature: (cell: unknown, feature: unknown, f: FieldConfig) => boolean
+  toAitoType: (config: FieldConfig) => AitoType
+  toAitoAnalyzer: (config: FieldConfig) => Analyzer | undefined
+  toCellValue: (value: unknown, config: FieldConfig) => unknown
+  cellValueToText: (value: unknown, config: FieldConfig) => string
+  toAitoQuery: (value: AitoValue, config: FieldConfig) => unknown
+  hasFeature: (cell: unknown, feature: unknown, config: FieldConfig) => boolean
 
   /** add `feature` to `cell` and return combination */
-  addFeature: (cell: unknown, feature: unknown, f: FieldConfig) => unknown
+  addFeature: (cell: unknown, feature: unknown, config: FieldConfig) => unknown
 
   /** remove `feature` from `cell` and return the new cell value */
-  removeFeature: (cell: unknown, feature: unknown, f: FieldConfig) => unknown
+  removeFeature: (cell: unknown, feature: unknown, config: FieldConfig) => unknown
 }
 
 const textConversion = (analyzer: Analyzer): SupportedField => ({
@@ -143,9 +143,9 @@ const numberConversion = (t: 'Decimal' | 'Int', alwaysNumeric: boolean = false):
   cellValueToText: (v) => String(v),
   toAitoQuery: alwaysNumeric
     ? (v) => ({ $numeric: v })
-    : (v, f) => {
-        if (f.type === FieldType.NUMBER || f.type === FieldType.PERCENT || f.type === FieldType.CURRENCY) {
-          if (f.options.precision > 0) {
+    : (v, config) => {
+        if (config.type === FieldType.NUMBER || config.type === FieldType.PERCENT || config.type === FieldType.CURRENCY) {
+          if (config.options.precision > 0) {
             return { $numeric: v }
           }
         }
