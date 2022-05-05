@@ -141,7 +141,11 @@ const numberConversion = (t: 'Decimal' | 'Int', alwaysNumeric: boolean = false):
   toAitoQuery: alwaysNumeric
     ? (v) => ({ $numeric: v })
     : (v, config) => {
-        if (config.type === FieldType.NUMBER || config.type === FieldType.PERCENT || config.type === FieldType.CURRENCY) {
+        if (
+          config.type === FieldType.NUMBER ||
+          config.type === FieldType.PERCENT ||
+          config.type === FieldType.CURRENCY
+        ) {
           if (config.options.precision > 0) {
             return { $numeric: v }
           }

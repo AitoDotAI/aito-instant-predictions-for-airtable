@@ -108,7 +108,7 @@ const navOptions: TabOption<Tab>[] = [
   },
   {
     key: 'insights',
-    label: 'Discover Insights',
+    label: 'Explain',
   },
 ]
 
