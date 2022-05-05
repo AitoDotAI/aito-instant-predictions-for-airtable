@@ -1,6 +1,7 @@
 import { Cursor, Field, FieldType, Record, Table, TableOrViewQueryResult } from '@airtable/blocks/models'
 import {
   Box,
+  CellRenderer,
   expandRecord,
   RecordCard,
   SelectButtons,
@@ -23,11 +24,13 @@ import { TableSchema } from '../schema/aito'
 import { TableConfig } from '../schema/config'
 import Semaphore from 'semaphore-async-await'
 import QueryQuotaExceeded from './QueryQuotaExceeded'
-import { Why } from '../explanations'
+import { isDocumentProposition, isHasProposition, isIsProposition, isSimpleProposition, Why } from '../explanations'
 import { FlexItemSetProps } from '@airtable/blocks/dist/types/src/ui/system'
 import Spinner from './Spinner'
-import { BORDER_STYLE, InlineIcon } from './ui'
+import { BORDER_STYLE, InlineFieldIcon, InlineIcon } from './ui'
 import WithTableSchema from './WithTableSchema'
+import { maxWidth } from 'styled-system'
+import { Cell } from './table'
 
 const PARALLEL_REQUESTS = 10
 const REQUEST_TIME = 750
@@ -117,8 +120,8 @@ const RelateView: React.FC<
         <SelectButtons
           value={mode}
           options={[
-            { value: 'relate-in', label: 'Relate-in' },
-            { value: 'relate-out', label: 'Relate-out' },
+            { value: 'relate-in', label: 'Influenced by' },
+            { value: 'relate-out', label: 'Influences' },
           ]}
           size="small"
           onChange={(newMode) => setMode(newMode as Mode)}
@@ -159,6 +162,7 @@ const RelateView: React.FC<
                   field={field}
                   cellValues={cellValues}
                   visibleFields={visibleFields}
+                  allFields={table.fields}
                   tableConfig={tableConfig}
                   client={client}
                   schema={schema}
@@ -176,24 +180,14 @@ const RelationGroup: React.FC<{
   field: Field
   cellValues: unknown[]
   visibleFields: Field[]
+  allFields: Field[]
   mode: Mode
   tableConfig: TableConfig
   client: AitoClient
   schema: TableSchema
-}> = ({ field, cellValues, visibleFields, mode, client, schema, tableConfig }) => {
+}> = ({ field, cellValues, visibleFields, allFields, mode, client, schema, tableConfig }) => {
   return (
     <Box marginBottom={3}>
-      <Text
-        marginX={3}
-        marginTop={3}
-        marginBottom={2}
-        paddingBottom={2}
-        borderBottom="thin solid lightgray"
-        textTransform="uppercase"
-        style={{ textOverflow: 'ellipsis', overflow: 'hidden' }}
-      >
-        {field.name} {mode === 'relate-in' ? 'is affected by' : 'affects'}
-      </Text>
       {cellValues.map((cellValue, i) => (
         <FieldValueRelations
           key={i}
@@ -201,6 +195,7 @@ const RelationGroup: React.FC<{
           mode={mode}
           cellValue={cellValue}
           visibleFields={visibleFields}
+          allFields={allFields}
           tableConfig={tableConfig}
           client={client}
           schema={schema}
@@ -210,15 +205,79 @@ const RelationGroup: React.FC<{
   )
 }
 
+const PropositionToCellValue = (
+  proposition: unknown,
+  fields: Field[],
+  tableConfig: TableConfig,
+): [Field, unknown] | null => {
+  if (isDocumentProposition(proposition)) {
+    const entries = Object.entries(proposition)
+    const firstEntry = entries[0]
+    const fieldName = firstEntry[0]
+    const simpleProposition = firstEntry[1]
+    if (fieldName && isSimpleProposition(simpleProposition)) {
+      const config = Object.entries(tableConfig.columns).find(([, column]) => column.name === fieldName)
+      if (!config) {
+        return null
+      }
+      const [fieldId] = config
+
+      const field = fields.find((field) => field.id === fieldId)
+      if (!field) {
+        return null
+      }
+
+      const conversion = AcceptedFields[field.type]
+      if (!conversion) {
+        return null
+      }
+
+      if (isHasProposition(simpleProposition)) {
+        const { $has } = simpleProposition
+        return [field, conversion.toCellValue($has, field.config)]
+      }
+      if (isIsProposition(simpleProposition)) {
+        const { $is } = simpleProposition
+        return [field, conversion.toCellValue($is, field.config)]
+      }
+    }
+  }
+  return null
+}
+
+const SpacedCellRenderer: React.FC<{
+  field: Field
+  cellValue: unknown
+}> = ({ field, cellValue }) => {
+  if (cellValue === null) {
+    return (
+      <Text margin={2}>
+        <em>empty</em>
+      </Text>
+    )
+  }
+
+  let margin: number = 0
+  if (field.type === FieldType.SINGLE_SELECT || field.type === FieldType.BUTTON) {
+    margin = 2
+  }
+  if (field.type === FieldType.CHECKBOX) {
+    margin = 2
+  }
+
+  return <CellRenderer field={field} margin={margin} cellValue={cellValue} />
+}
+
 const FieldValueRelations: React.FC<{
   field: Field
   cellValue: unknown
   visibleFields: Field[]
+  allFields: Field[]
   tableConfig: TableConfig
   schema: TableSchema
   mode: Mode
   client: AitoClient
-}> = ({ field, cellValue, visibleFields, mode, schema, client, tableConfig }) => {
+}> = ({ field, cellValue, allFields, visibleFields, mode, schema, client, tableConfig }) => {
   const delayedRequest = useRef<ReturnType<typeof setTimeout> | undefined>()
   const aitoTableName = tableConfig.aitoTableName
 
@@ -261,7 +320,7 @@ const FieldValueRelations: React.FC<{
         const query = JSON.stringify({
           from: aitoTableName,
           where: mode === 'relate-in' ? otherFieldsProposition : fieldProposition,
-          //select: ['related', 'condition', 'lift', 'fs'],
+          select: ['related', 'condition', 'lift', 'fs', 'ps', 'info'],
           relate: mode === 'relate-in' ? fieldProposition : otherFieldsProposition,
           limit,
           orderBy: 'info.miTrue',
@@ -312,6 +371,13 @@ const FieldValueRelations: React.FC<{
 
   return (
     <Box paddingBottom={3} position="relative">
+      <Box marginX={3} marginTop={3} marginBottom={2} paddingBottom={0} borderBottom="thin solid lightgray">
+        <Text style={{ textOverflow: 'ellipsis', overflow: 'hidden', maxWidth: '100%' }}>
+          <InlineFieldIcon field={field} />
+          <strong>{field.name}</strong>
+        </Text>
+        <SpacedCellRenderer field={field} cellValue={cellValue} />
+      </Box>
       <Box>
         {predictionError && (
           <Box marginX={3}>
@@ -326,16 +392,26 @@ const FieldValueRelations: React.FC<{
         {(!predictionError && prediction === undefined && <Spinner />) ||
           (prediction &&
             prediction.hits.map(({ related, condition, fs, info, lift, ps, relation }, i) => {
+              const converted = PropositionToCellValue(
+                mode === 'relate-in' ? condition : related,
+                allFields,
+                tableConfig,
+              )
+              if (!converted) {
+                return null
+              }
+              const [relatedField, relatedValue] = converted
+
+              const pOnCondition = ps && ps.pOnCondition
+
               return (
                 <React.Suspense key={i} fallback={<Spinner />}>
-                  <Box marginY={2} marginX={3}>
-                    <Text>related: {JSON.stringify(related)}</Text>
-                    <Text>condition: {JSON.stringify(condition)}</Text>
-                    <Text>fs: {JSON.stringify(fs)}</Text>
-                    <Text>info: {JSON.stringify(info)}</Text>
-                    <Text>lift: {JSON.stringify(lift)}</Text>
-                    <Text>ps: {JSON.stringify(ps)}</Text>
-                    <Text>relation: {JSON.stringify(relation)}</Text>
+                  <Box marginTop={2} marginX={3}>
+                    <Text textColor="light">
+                      <InlineFieldIcon fillColor="#aaa" field={relatedField} />
+                      {relatedField.name}
+                    </Text>
+                    <CellRenderer field={relatedField} cellValue={relatedValue} />
                   </Box>
                 </React.Suspense>
               )

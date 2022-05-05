@@ -51,7 +51,7 @@ export const isProposition: Validator<Proposition> = fromLazy(() =>
   isSomeOf(isSimpleProposition, isAndProposition, isDocumentProposition),
 )
 
-const isSimpleProposition = fromLazy(() => isSomeOf(isIsProposition, isHasProposition, isNumericProposition))
+export const isSimpleProposition = fromLazy(() => isSomeOf(isIsProposition, isHasProposition, isNumericProposition))
 
 export const isIsProposition: Validator<IsProposition> = isObjectOf({
   $is: isSomeOf(isString, isNumber, isBoolean, isNull),
