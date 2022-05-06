@@ -1,41 +1,35 @@
-import { Cursor, Field, FieldConfig, FieldType, Record, Table, TableOrViewQueryResult } from '@airtable/blocks/models'
+import { Cursor, Field, FieldConfig, FieldType, Record, Table } from '@airtable/blocks/models'
 import {
   Box,
   CellRenderer,
+  colors,
+  colorUtils,
   expandRecord,
-  RecordCard,
   SelectButtons,
   Text,
   useBase,
   useLoadable,
   useRecordById,
-  useRecords,
   useViewMetadata,
-  useViewport,
   useWatchable,
 } from '@airtable/blocks/ui'
-import _, { values } from 'lodash'
+import _ from 'lodash'
 import React, { useEffect, useState } from 'react'
-import { useMemo } from 'react'
 import { useRef } from 'react'
 import AcceptedFields from '../AcceptedFields'
-import AitoClient, { AitoValue, isAitoError, RelateHits } from '../AitoClient'
-import { mapColumnNames } from '../functions/inferAitoSchema'
+import AitoClient, { isAitoError, RelateHits } from '../AitoClient'
 import { TableSchema } from '../schema/aito'
 import { TableConfig } from '../schema/config'
 import Semaphore from 'semaphore-async-await'
 import QueryQuotaExceeded from './QueryQuotaExceeded'
-import { isDocumentProposition, isHasProposition, isIsProposition, isSimpleProposition, Why } from '../explanations'
+import { isDocumentProposition, isHasProposition, isIsProposition, isSimpleProposition } from '../explanations'
 import { FlexItemSetProps } from '@airtable/blocks/dist/types/src/ui/system'
 import Spinner from './Spinner'
 import { BORDER_STYLE, Clickable, InlineFieldIcon, InlineIcon } from './ui'
 import WithTableSchema from './WithTableSchema'
-import { maxWidth } from 'styled-system'
-import { Cell } from './table'
-import { FieldMap } from './PredictView'
-import useEqualValue from './useEqualValue'
 import { isArrayOf, isObjectOf, isString, ValidatedType } from '../validator/validation'
 import renderCellDefault from './renderCellDefault'
+import PopupContainer from './PopupContainer'
 
 const PARALLEL_REQUESTS = 10
 const REQUEST_TIME = 750
@@ -271,6 +265,65 @@ const LinkCellRendererHelper: React.FC<{
   }
 }
 
+const green = colorUtils.getHexForColor(colors.GREEN_DARK_1)
+const red = colorUtils.getHexForColor(colors.RED_DARK_1)
+const UpArrow = () => (
+  <Box display="inline-block" paddingRight="2px">
+    <InlineIcon fillColor={green} name="up" marginX={-1} />
+  </Box>
+)
+const DownArrow = () => (
+  <Box display="inline-block">
+    <InlineIcon fillColor={red} name="down" marginX={-2} />
+  </Box>
+)
+
+const ArrowScore: React.FC<{ score: number }> = ({ score }) => {
+  if (score < -2.0) {
+    return (
+      <Box marginX={1}>
+        <DownArrow />
+        <DownArrow />
+        <DownArrow />
+      </Box>
+    )
+  } else if (score < -0.5) {
+    return (
+      <Box marginX={1}>
+        <DownArrow />
+        <DownArrow />
+      </Box>
+    )
+  } else if (score < 0.0) {
+    return (
+      <Box marginX={1}>
+        <DownArrow />
+      </Box>
+    )
+  } else if (score <= 0.5) {
+    return (
+      <Box marginX={1}>
+        <UpArrow />
+      </Box>
+    )
+  } else if (score <= 2.0) {
+    return (
+      <Box marginX={1}>
+        <UpArrow />
+        <UpArrow />
+      </Box>
+    )
+  } else {
+    return (
+      <Box marginX={1}>
+        <UpArrow />
+        <UpArrow />
+        <UpArrow />
+      </Box>
+    )
+  }
+}
+
 const LinkCellRenderer: React.FC<{
   field: Field & { config: FieldConfig & { type: FieldType.MULTIPLE_RECORD_LINKS } }
   cellValue: unknown
@@ -289,25 +342,29 @@ const SpacedCellRenderer: React.FC<{
   field: Field
   cellValue: unknown
 }> = ({ field, cellValue }) => {
-  if (cellValue === null) {
+  if (cellValue === null || cellValue === false) {
     return (
-      <Text margin={2}>
+      <Text padding={2} height="32px">
         <em>empty</em>
       </Text>
     )
   }
 
   let margin: number = 0
-  if (field.type === FieldType.SINGLE_SELECT || field.type === FieldType.BUTTON) {
+  if (field.type === FieldType.SINGLE_SELECT || field.type === FieldType.CHECKBOX) {
     margin = 2
   }
-  if (field.type === FieldType.CHECKBOX) {
-    margin = 2
+  if (field.type === FieldType.BUTTON) {
+    margin = 1
   }
 
   const renderFallback = renderCellDefault(field)
 
-  return <CellRenderer field={field} margin={margin} cellValue={cellValue} renderInvalidCellValue={renderFallback} />
+  return (
+    <Box minHeight="32px" padding={margin}>
+      <CellRenderer field={field} cellValue={cellValue} renderInvalidCellValue={renderFallback} />
+    </Box>
+  )
 }
 
 const RelateCellRenderer: React.FC<{
@@ -423,15 +480,15 @@ const FieldValueRelations: React.FC<{
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <Box paddingBottom={3} position="relative">
-      <Box marginX={3} marginTop={3} marginBottom={2} paddingBottom={0} borderBottom="thin solid lightgray">
+    <Box paddingBottom={3}>
+      <Box marginX={3} marginTop={3} marginBottom={0} paddingBottom={0} borderBottom="thin solid lightgray">
         <Text style={{ textOverflow: 'ellipsis', overflow: 'hidden', maxWidth: '100%' }}>
           <InlineFieldIcon field={field} />
           <strong>{field.name}</strong>
         </Text>
         <RelateCellRenderer field={field} cellValue={cellValue} />
       </Box>
-      <Box>
+      <Box position="relative" paddingTop={2}>
         {predictionError && (
           <Box marginX={3}>
             {predictionError === 'empty-table' && (
@@ -445,24 +502,95 @@ const FieldValueRelations: React.FC<{
         {(!predictionError && prediction === undefined && <Spinner />) ||
           (prediction &&
             prediction.hits.map(({ related, condition, lift }, i) => {
-              const converted = PropositionToCellValue(
-                mode === 'relate-in' ? condition : related,
-                allFields,
-                tableConfig,
-              )
-              if (!converted) {
+              const convertedRelated = PropositionToCellValue(related, allFields, tableConfig)
+              if (!convertedRelated) {
                 return null
               }
-              const [relatedField, relatedValue] = converted
+
+              const [relatedField, relatedValue] = convertedRelated
+
+              const convertedCondition = PropositionToCellValue(condition, allFields, tableConfig)
+
+              if (!convertedCondition) {
+                return null
+              }
+
+              const [conditionField, conditionValue] = convertedCondition
+
+              const listField = mode === 'relate-in' ? conditionField : relatedField
+              const listValue = mode === 'relate-in' ? conditionValue : relatedValue
+
+              const score = Math.log(lift || 1) / Math.log(2)
+
+              const hitCount = prediction.hits.length
+              const hitsBoxHeight = -8 + (49.5 + 8) * hitCount
+              const beforeFraction = ((49.5 + 8) * i) / hitsBoxHeight
+              const afterFraction = (hitsBoxHeight - (i + 1) * (49.5 + 8)) / hitsBoxHeight
 
               return (
                 <React.Suspense key={i} fallback={<Spinner />}>
-                  <Box marginTop={2} marginX={3}>
-                    <Text textColor="light">
-                      <InlineFieldIcon fillColor="#aaa" field={relatedField} />
-                      {relatedField.name}
-                    </Text>
-                    <RelateCellRenderer field={relatedField} cellValue={relatedValue} />
+                  <Box display="flex" marginX={3} marginBottom={2} alignItems="start">
+                    <Box flexGrow={0} flexShrink={0} flexBasis="48px">
+                      <ArrowScore score={score} />
+                    </Box>
+                    <Box
+                      display="flex"
+                      flexGrow={1}
+                      borderBottom={i + 1 === prediction.hits.length ? null : 'thin solid lightgray'}
+                    >
+                      <Box flexGrow={1} flexShrink={1}>
+                        <Text textColor="light">
+                          <InlineFieldIcon fillColor="#aaa" field={relatedField} />
+                          {listField.name}
+                        </Text>
+                        <RelateCellRenderer field={listField} cellValue={listValue} />
+                      </Box>
+                      <Box flexGrow={0} flexShrink={0}>
+                        <PopupContainer>
+                          <Box display="flex" height="100%" justifyContent="right">
+                            <InlineIcon
+                              alignSelf="center"
+                              name="help"
+                              aria-label="Info"
+                              fillColor="#aaa"
+                              marginLeft={2}
+                              marginRight={2}
+                            />
+                            <Box
+                              className="popup"
+                              position="absolute"
+                              marginTop={2}
+                              top={0}
+                              marginLeft={2}
+                              minWidth="200px"
+                              right={4}
+                              marginRight={3}
+                            >
+                              <Box display="flex" flexDirection="column" minHeight={`${hitsBoxHeight}px`}>
+                                <Box flexShrink={beforeFraction} flexGrow={beforeFraction}></Box>
+                                <Box
+                                  flexShrink={0}
+                                  flexGrow={0}
+                                  flexBasis="auto"
+                                  textColor="white"
+                                  backgroundColor="dark"
+                                  borderRadius="default"
+                                  padding={2}
+                                >
+                                  <Text textColor="white">
+                                    When <em>{conditionField.name}</em> is
+                                    <RelateCellRenderer field={conditionField} cellValue={conditionValue} />
+                                    then <em>{relatedField.name}</em> is {lift?.toFixed(2)} times more likely to be
+                                    <RelateCellRenderer field={relatedField} cellValue={relatedValue} />
+                                  </Text>
+                                </Box>
+                                <Box flexShrink={afterFraction} flexGrow={afterFraction}></Box>
+                              </Box>
+                            </Box>
+                          </Box>
+                        </PopupContainer>
+                      </Box>
+                    </Box>
                   </Box>
                 </React.Suspense>
               )
