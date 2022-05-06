@@ -1,4 +1,4 @@
-import { Cursor, Field, FieldType, Record, Table, TableOrViewQueryResult } from '@airtable/blocks/models'
+import { Cursor, Field, FieldConfig, FieldType, Record, Table, TableOrViewQueryResult } from '@airtable/blocks/models'
 import {
   Box,
   CellRenderer,
@@ -6,6 +6,7 @@ import {
   RecordCard,
   SelectButtons,
   Text,
+  useBase,
   useLoadable,
   useRecordById,
   useRecords,
@@ -31,6 +32,10 @@ import { BORDER_STYLE, InlineFieldIcon, InlineIcon } from './ui'
 import WithTableSchema from './WithTableSchema'
 import { maxWidth } from 'styled-system'
 import { Cell } from './table'
+import { FieldMap } from './PredictView'
+import useEqualValue from './useEqualValue'
+import { isArrayOf, isObjectOf, isString, ValidatedType } from '../validator/validation'
+import renderCellDefault from './renderCellDefault'
 
 const PARALLEL_REQUESTS = 10
 const REQUEST_TIME = 750
@@ -47,8 +52,6 @@ const RelateView: React.FC<
     hasUploaded: boolean
   } & FlexItemSetProps
 > = ({ table, cursor, tableConfig, client, hasUploaded, ...flexItem }) => {
-  // Make sure that the selected rows and fields are up to date
-
   const view = cursor.activeViewId ? table.getViewById(cursor.activeViewId) : null
   const metadata = useViewMetadata(view)
   const visibleFields = metadata?.visibleFields || []
@@ -245,6 +248,35 @@ const PropositionToCellValue = (
   return null
 }
 
+const isArrayOfIds = isArrayOf(isObjectOf({ id: isString }))
+type ArrayOfIds = ValidatedType<typeof isArrayOfIds>
+
+const LinkCellRendererHelper: React.FC<{
+  table: Table
+  field: Field
+  cellValue: ArrayOfIds
+}> = ({ field, table, cellValue }) => {
+  const id = (cellValue[0] && cellValue[0].id) || ''
+  const record = useRecordById(table, id)
+  const enrichedCellValue = [{ id, name: record?.name }]
+
+  return <SpacedCellRenderer field={field} cellValue={enrichedCellValue} />
+}
+
+const LinkCellRenderer: React.FC<{
+  field: Field & { config: FieldConfig & { type: FieldType.MULTIPLE_RECORD_LINKS } }
+  cellValue: unknown
+}> = ({ field, cellValue }) => {
+  const base = useBase()
+  const table = base.getTableByIdIfExists(field.config.options.linkedTableId)
+
+  if (table && isArrayOfIds(cellValue)) {
+    return <LinkCellRendererHelper field={field} cellValue={cellValue} table={table} />
+  } else {
+    return <SpacedCellRenderer field={field} cellValue={cellValue} />
+  }
+}
+
 const SpacedCellRenderer: React.FC<{
   field: Field
   cellValue: unknown
@@ -265,7 +297,20 @@ const SpacedCellRenderer: React.FC<{
     margin = 2
   }
 
-  return <CellRenderer field={field} margin={margin} cellValue={cellValue} />
+  const renderFallback = renderCellDefault(field)
+
+  return <CellRenderer field={field} margin={margin} cellValue={cellValue} renderInvalidCellValue={renderFallback} />
+}
+
+const RelateCellRenderer: React.FC<{
+  field: Field
+  cellValue: unknown
+}> = ({ field, cellValue }) => {
+  if (field.config.type === FieldType.MULTIPLE_RECORD_LINKS) {
+    return <LinkCellRenderer field={field as any} cellValue={cellValue} />
+  } else {
+    return <SpacedCellRenderer field={field} cellValue={cellValue} />
+  }
 }
 
 const FieldValueRelations: React.FC<{
@@ -376,7 +421,7 @@ const FieldValueRelations: React.FC<{
           <InlineFieldIcon field={field} />
           <strong>{field.name}</strong>
         </Text>
-        <SpacedCellRenderer field={field} cellValue={cellValue} />
+        <RelateCellRenderer field={field} cellValue={cellValue} />
       </Box>
       <Box>
         {predictionError && (
@@ -411,7 +456,7 @@ const FieldValueRelations: React.FC<{
                       <InlineFieldIcon fillColor="#aaa" field={relatedField} />
                       {relatedField.name}
                     </Text>
-                    <CellRenderer field={relatedField} cellValue={relatedValue} />
+                    <RelateCellRenderer field={relatedField} cellValue={relatedValue} />
                   </Box>
                 </React.Suspense>
               )
