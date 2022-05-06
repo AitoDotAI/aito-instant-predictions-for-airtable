@@ -28,7 +28,7 @@ import QueryQuotaExceeded from './QueryQuotaExceeded'
 import { isDocumentProposition, isHasProposition, isIsProposition, isSimpleProposition, Why } from '../explanations'
 import { FlexItemSetProps } from '@airtable/blocks/dist/types/src/ui/system'
 import Spinner from './Spinner'
-import { BORDER_STYLE, InlineFieldIcon, InlineIcon } from './ui'
+import { BORDER_STYLE, Clickable, InlineFieldIcon, InlineIcon } from './ui'
 import WithTableSchema from './WithTableSchema'
 import { maxWidth } from 'styled-system'
 import { Cell } from './table'
@@ -260,7 +260,15 @@ const LinkCellRendererHelper: React.FC<{
   const record = useRecordById(table, id)
   const enrichedCellValue = [{ id, name: record?.name }]
 
-  return <SpacedCellRenderer field={field} cellValue={enrichedCellValue} />
+  if (record) {
+    return (
+      <Clickable onClick={() => expandRecord(record)}>
+        <SpacedCellRenderer field={field} cellValue={enrichedCellValue} />
+      </Clickable>
+    )
+  } else {
+    return <SpacedCellRenderer field={field} cellValue={cellValue} />
+  }
 }
 
 const LinkCellRenderer: React.FC<{
@@ -436,7 +444,7 @@ const FieldValueRelations: React.FC<{
 
         {(!predictionError && prediction === undefined && <Spinner />) ||
           (prediction &&
-            prediction.hits.map(({ related, condition, fs, info, lift, ps, relation }, i) => {
+            prediction.hits.map(({ related, condition, lift }, i) => {
               const converted = PropositionToCellValue(
                 mode === 'relate-in' ? condition : related,
                 allFields,
@@ -446,8 +454,6 @@ const FieldValueRelations: React.FC<{
                 return null
               }
               const [relatedField, relatedValue] = converted
-
-              const pOnCondition = ps && ps.pOnCondition
 
               return (
                 <React.Suspense key={i} fallback={<Spinner />}>
