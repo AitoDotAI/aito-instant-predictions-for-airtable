@@ -1,5 +1,5 @@
 import { colors, colorUtils, FieldIcon, Icon, Link, loadCSSFromString } from '@airtable/blocks/ui'
-import React from 'react'
+import React, { useCallback } from 'react'
 
 try {
   loadCSSFromString(`
@@ -31,6 +31,23 @@ export const InlineFieldIcon: React.FC<React.ComponentProps<typeof FieldIcon>> =
 export const InlineLink: React.FC<React.ComponentProps<typeof Link>> = (props) => (
   <Link {...props} className={`aito-inline-icon${(props.className && ' ' + props.className) || ''}`} />
 )
+
+export const Clickable: React.FC<{
+  onClick: () => unknown
+}> = ({ onClick, children }) => {
+  const click: React.MouseEventHandler = useCallback(
+    (e) => {
+      onClick()
+      e.preventDefault()
+    },
+    [onClick],
+  )
+  return (
+    <a tabIndex={0} href="#" style={{ display: 'inline-block', textDecoration: 'none' }} onClick={click}>
+      {children}
+    </a>
+  )
+}
 
 export const GRAY_BORDER = colorUtils.getHexForColor(colors.GRAY_LIGHT_1)
 export const GRAY_BACKGROUND = colorUtils.getHexForColor(colors.GRAY_LIGHT_2)
