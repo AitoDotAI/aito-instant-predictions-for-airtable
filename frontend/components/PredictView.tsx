@@ -33,7 +33,6 @@ import Semaphore from 'semaphore-async-await'
 import QueryQuotaExceeded from './QueryQuotaExceeded'
 import { Why } from '../explanations'
 import { DefaultExplanationBox, ExplanationBox, MatchExplanationBox } from './ExplanationBox'
-import styled from 'styled-components'
 import { PermissionCheckResult } from '@airtable/blocks/dist/types/src/types/mutations'
 import { FlexItemSetProps, SpacingSetProps } from '@airtable/blocks/dist/types/src/ui/system'
 import Spinner from './Spinner'
@@ -41,28 +40,13 @@ import useEqualValue from './useEqualValue'
 import { BORDER_STYLE, InlineFieldIcon, InlineIcon } from './ui'
 import WithTableSchema from './WithTableSchema'
 import renderCellDefault from './renderCellDefault'
+import PopupContainer from './PopupContainer'
 
 const DEFAULT_CONFIDENCE_THRESHOLD = 90
 
 const PARALLEL_REQUESTS = 10
 const REQUEST_TIME = 750
 const RequestLocks = new Semaphore(PARALLEL_REQUESTS)
-
-const PopupContainer = styled.div`
-  height: 100%;
-
-  & .popup {
-    opacity: 0;
-    visibility: hidden;
-    transition: opacity 0.15s ease-in-out;
-  }
-
-  &:hover .popup {
-    z-index: 1000;
-    opacity: 1;
-    visibility: visible;
-  }
-`
 
 const EditThresholdDialog: React.FC<{
   threshold: number
