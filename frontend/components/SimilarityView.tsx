@@ -27,6 +27,7 @@ import { InlineIcon } from './ui'
 import WithTableSchema from './WithTableSchema'
 import withRequestLock from './withRequestLock'
 import useDelayedEffect from './useDelayedEffect'
+import ExpandableList from './ExpandableList'
 
 const SimilarityView: React.FC<
   {
@@ -220,7 +221,7 @@ const RecordSimilarity: React.FC<{
           return
         }
 
-        const limit = 6
+        const limit = 11
 
         const where = makeWhereClause(fields, schema, record)
         let query = JSON.stringify({
@@ -269,7 +270,7 @@ const RecordSimilarity: React.FC<{
 
   const hitRecordIds = _.take(
     (prediction?.hits || []).filter(({ id }) => id !== record.id),
-    5,
+    10,
   )
 
   const attachment = fields.find((field) => field.type === FieldType.MULTIPLE_ATTACHMENTS)
@@ -288,28 +289,32 @@ const RecordSimilarity: React.FC<{
           </Box>
         )}
 
-        {(!predictionError && prediction === undefined && <Spinner />) ||
-          (prediction &&
-            hitRecordIds.map(({ id: recordId }) => {
-              if (typeof recordId !== 'string') {
-                return null
-              }
+        {(!predictionError && prediction === undefined && <Spinner />) || (
+          <ExpandableList list={hitRecordIds} headSize={5}>
+            {({ list }) =>
+              list.map(({ id: recordId }) => {
+                if (typeof recordId !== 'string') {
+                  return null
+                }
 
-              return (
-                <React.Suspense key={recordId} fallback={<Spinner />}>
-                  <Box marginY={2} marginX={3}>
-                    <SimilarityCellRenderer
-                      originalRecord={record}
-                      recordId={recordId}
-                      viewportWidth={viewport.size.width}
-                      fields={[...fieldsToDisplay, ...otherFields]}
-                      attachment={attachment}
-                      recordsQuery={recordsQuery}
-                    />
-                  </Box>
-                </React.Suspense>
-              )
-            }))}
+                return (
+                  <React.Suspense key={recordId} fallback={<Spinner />}>
+                    <Box marginY={2} marginX={3}>
+                      <SimilarityCellRenderer
+                        originalRecord={record}
+                        recordId={recordId}
+                        viewportWidth={viewport.size.width}
+                        fields={[...fieldsToDisplay, ...otherFields]}
+                        attachment={attachment}
+                        recordsQuery={recordsQuery}
+                      />
+                    </Box>
+                  </React.Suspense>
+                )
+              })
+            }
+          </ExpandableList>
+        )}
       </Box>
     </Box>
   )

@@ -42,6 +42,7 @@ import renderCellDefault from './renderCellDefault'
 import PopupContainer from './PopupContainer'
 import withRequestLock from './withRequestLock'
 import useDelayedEffect from './useDelayedEffect'
+import ExpandableList from './ExpandableList'
 
 const DEFAULT_CONFIDENCE_THRESHOLD = 90
 
@@ -508,6 +509,8 @@ const addFieldChoice = async (field: Field, name: string): Promise<void> => {
 }
 
 interface PredictionHits {
+  offset: number
+  total: number
   hits: {
     $p: number
     feature?: number | string | boolean | null
@@ -593,7 +596,7 @@ const FieldPrediction: React.FC<{
           return
         }
 
-        const limit = 5
+        const limit = 10
 
         const isPredictQuery = queryType(selectedField) === 'predict'
         const where = makeWhereClause(selectedField, fields, schema, record)
@@ -981,135 +984,149 @@ const PredictionHitsList: React.FC<{
   const linkedRecords = useRecordIds((linkedRecordsQuery || null)!) || []
   useWatchable(linkedTable, 'fields')
 
+  const uniformProbability = 1 / prediction.total
+  const badIndex = prediction.hits.findIndex((value) => value.$p < uniformProbability)
+  const headSize = Math.min(5, badIndex < 0 ? 5 : badIndex)
+
   return (
-    <>
-      {prediction.hits.map(({ $p, feature, id, $why }, i) => {
-        const featureOrId = feature || id
-        const conversion = AcceptedFields[selectedField.type]
-        let value = conversion ? conversion.toCellValue(featureOrId, selectedField.config) : featureOrId
+    <ExpandableList list={prediction.hits} headSize={headSize}>
+      {({ list }) =>
+        list.map(({ $p, feature, id, $why }, i) => {
+          const featureOrId = feature || id
+          const conversion = AcceptedFields[selectedField.type]
+          let value = conversion ? conversion.toCellValue(featureOrId, selectedField.config) : featureOrId
 
-        const hitCount = prediction.hits.length
-        const hitsBoxHeight = 16 + 49.5 * hitCount
-        const beforeFraction = (16 + 49.5 * i) / hitsBoxHeight
-        const afterFraction = (hitsBoxHeight - (i + 1) * 49.5) / hitsBoxHeight
-        const disallowedReason = whyIsFieldChoiceNotAllowed(selectedField, String(featureOrId))
-        const fieldHasFeature = hasFeature(record, selectedField, value)
+          const hitCount = list.length
+          const hitsBoxHeight = 16 + 49.5 * hitCount
+          const beforeFraction = (16 + 49.5 * i) / hitsBoxHeight
+          const afterFraction = (hitsBoxHeight - (i + 1) * 49.5) / hitsBoxHeight
+          const disallowedReason = whyIsFieldChoiceNotAllowed(selectedField, String(featureOrId))
+          const fieldHasFeature = hasFeature(record, selectedField, value)
 
-        const canRemove = true
+          const canRemove = true
 
-        const recordWasRemoved = isLink && id && !linkedRecords.includes(id)
-        const canUse = !recordWasRemoved
-        const isRemoveAction = fieldHasFeature && canRemove
+          const recordWasRemoved = isLink && id && !linkedRecords.includes(id)
+          const canUse = !recordWasRemoved
+          const isRemoveAction = fieldHasFeature && canRemove
 
-        return (
-          <Row key={i} highlight={fieldHasFeature}>
-            <Cell flexGrow={1} flexShrink={1}>
-              <Box display="flex" height="100%" overflow="hidden">
-                <PredictionCellRenderer
-                  marginLeft={2}
-                  flexGrow={1}
-                  alignSelf="center"
-                  field={selectedField}
-                  linkedRecordsQuery={linkedRecordsQuery}
-                  cellValue={value}
-                  renderInvalidCellValue={renderFallback}
-                />
-              </Box>
-            </Cell>
-            <Cell width="60px" flexGrow={0}>
-              <PopupContainer>
-                <Box display="flex" height="100%" justifyContent="right" marginBottom={1}>
-                  <Text textColor="light" alignSelf="center">
-                    {Math.round($p * 100)}%
-                  </Text>
-                  <InlineIcon
-                    alignSelf="center"
-                    name="help"
-                    aria-label="Info"
-                    fillColor="#aaa"
-                    marginLeft={2}
-                    marginRight={0}
-                  />
-                  <Box
-                    className="popup"
-                    position="absolute"
-                    marginTop={3}
-                    top={0}
-                    marginLeft={3}
-                    minWidth="200px"
-                    right={0}
-                    marginRight="125px"
-                  >
-                    <Box display="flex" flexDirection="column" minHeight={`${hitsBoxHeight}px`}>
-                      <Box flexShrink={beforeFraction} flexGrow={beforeFraction}></Box>
-                      <Box
-                        flexShrink={0}
-                        flexGrow={0}
-                        flexBasis="auto"
-                        textColor="white"
-                        backgroundColor="dark"
-                        borderRadius="default"
-                      >
-                        {$why ? (
-                          linkedTable ? (
-                            <MatchExplanationBox
-                              $p={$p}
-                              $why={$why}
-                              contextFields={fields}
-                              hitFields={linkedTable.fields}
-                            />
-                          ) : (
-                            <ExplanationBox
-                              $p={$p}
-                              $why={$why}
-                              fields={fields}
-                              tableColumnMap={tableColumnMap}
-                              linkedTables={linkedTables}
-                            />
-                          )
-                        ) : (
-                          <DefaultExplanationBox />
-                        )}
-                      </Box>
-                      <Box flexShrink={afterFraction} flexGrow={afterFraction}></Box>
-                    </Box>
-                  </Box>
-                </Box>
-              </PopupContainer>
-            </Cell>
-            <Cell width="62px" flexGrow={0}>
-              <Box display="flex" height="100%" justifyContent="right">
-                <Tooltip disabled={!disallowedReason && canUpdate} content={cantUpdateReason || disallowedReason || ''}>
-                  {isMultipleSelectField(selectedField) ? (
-                    <Button
-                      marginX={2}
-                      icon={isRemoveAction ? 'minus' : 'plus'}
-                      onClick={() => onClick(featureOrId)}
-                      size="small"
+          return (
+            <React.Fragment key={i}>
+              {i === badIndex && <Box marginX={4} borderBottom="thin dashed lightgray" />}
+              <Row highlight={fieldHasFeature}>
+                <Cell flexGrow={1} flexShrink={1}>
+                  <Box display="flex" height="100%" overflow="hidden">
+                    <PredictionCellRenderer
+                      marginLeft={2}
+                      flexGrow={1}
                       alignSelf="center"
-                      disabled={!canUse || !canUpdate || Boolean(disallowedReason) || (fieldHasFeature && !canRemove)}
-                      aria-label="Toggle feature"
-                      variant={isRemoveAction ? 'danger' : 'primary'}
+                      field={selectedField}
+                      linkedRecordsQuery={linkedRecordsQuery}
+                      cellValue={value}
+                      renderInvalidCellValue={renderFallback}
                     />
-                  ) : (
-                    <Button
-                      onClick={() => onClick(featureOrId)}
-                      size="small"
-                      alignSelf="center"
-                      variant="default"
-                      disabled={!canUpdate || fieldHasFeature || Boolean(disallowedReason)}
-                      marginX={2}
+                  </Box>
+                </Cell>
+                <Cell width="60px" flexGrow={0}>
+                  <PopupContainer>
+                    <Box display="flex" height="100%" justifyContent="right" marginBottom={1}>
+                      <Text textColor="light" alignSelf="center">
+                        {Math.round($p * 100)}%
+                      </Text>
+                      <InlineIcon
+                        alignSelf="center"
+                        name="help"
+                        aria-label="Info"
+                        fillColor="#aaa"
+                        marginLeft={2}
+                        marginRight={0}
+                      />
+                      <Box
+                        className="popup"
+                        position="absolute"
+                        marginTop={3}
+                        top={0}
+                        marginLeft={3}
+                        minWidth="200px"
+                        right={0}
+                        marginRight="125px"
+                      >
+                        <Box display="flex" flexDirection="column" minHeight={`${hitsBoxHeight}px`}>
+                          <Box flexShrink={beforeFraction} flexGrow={beforeFraction}></Box>
+                          <Box
+                            flexShrink={0}
+                            flexGrow={0}
+                            flexBasis="auto"
+                            textColor="white"
+                            backgroundColor="dark"
+                            borderRadius="default"
+                          >
+                            {$why ? (
+                              linkedTable ? (
+                                <MatchExplanationBox
+                                  $p={$p}
+                                  $why={$why}
+                                  contextFields={fields}
+                                  hitFields={linkedTable.fields}
+                                />
+                              ) : (
+                                <ExplanationBox
+                                  $p={$p}
+                                  $why={$why}
+                                  fields={fields}
+                                  tableColumnMap={tableColumnMap}
+                                  linkedTables={linkedTables}
+                                />
+                              )
+                            ) : (
+                              <DefaultExplanationBox />
+                            )}
+                          </Box>
+                          <Box flexShrink={afterFraction} flexGrow={afterFraction}></Box>
+                        </Box>
+                      </Box>
+                    </Box>
+                  </PopupContainer>
+                </Cell>
+                <Cell width="62px" flexGrow={0}>
+                  <Box display="flex" height="100%" justifyContent="right">
+                    <Tooltip
+                      disabled={!disallowedReason && canUpdate}
+                      content={cantUpdateReason || disallowedReason || ''}
                     >
-                      Use
-                    </Button>
-                  )}
-                </Tooltip>
-              </Box>
-            </Cell>
-          </Row>
-        )
-      })}
-    </>
+                      {isMultipleSelectField(selectedField) ? (
+                        <Button
+                          marginX={2}
+                          icon={isRemoveAction ? 'minus' : 'plus'}
+                          onClick={() => onClick(featureOrId)}
+                          size="small"
+                          alignSelf="center"
+                          disabled={
+                            !canUse || !canUpdate || Boolean(disallowedReason) || (fieldHasFeature && !canRemove)
+                          }
+                          aria-label="Toggle feature"
+                          variant={isRemoveAction ? 'danger' : 'primary'}
+                        />
+                      ) : (
+                        <Button
+                          onClick={() => onClick(featureOrId)}
+                          size="small"
+                          alignSelf="center"
+                          variant="default"
+                          disabled={!canUpdate || fieldHasFeature || Boolean(disallowedReason)}
+                          marginX={2}
+                        >
+                          Use
+                        </Button>
+                      )}
+                    </Tooltip>
+                  </Box>
+                </Cell>
+              </Row>
+            </React.Fragment>
+          )
+        })
+      }
+    </ExpandableList>
   )
 }
 

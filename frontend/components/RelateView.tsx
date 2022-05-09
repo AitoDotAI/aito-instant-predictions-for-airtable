@@ -31,6 +31,7 @@ import renderCellDefault from './renderCellDefault'
 import PopupContainer from './PopupContainer'
 import withRequestLock from './withRequestLock'
 import useDelayedEffect from './useDelayedEffect'
+import ExpandableList from './ExpandableList'
 
 type Mode = 'relate-out' | 'relate-in'
 
@@ -408,7 +409,7 @@ const FieldValueRelations: React.FC<{
           return
         }
 
-        const limit = 6
+        const limit = 10
 
         const fieldProposition = {
           [tableConfig.columns[field.id].name]: AcceptedFields[field.type].toAitoValue(cellValue, field.config),
@@ -487,101 +488,106 @@ const FieldValueRelations: React.FC<{
         )}
 
         {(!predictionError && prediction === undefined && <Spinner />) ||
-          (prediction &&
-            prediction.hits.map(({ related, condition, lift }, i) => {
-              const convertedRelated = PropositionToCellValue(related, allFields, tableConfig)
-              if (!convertedRelated) {
-                return null
-              }
+          (prediction && (
+            <ExpandableList list={prediction.hits} headSize={5}>
+              {({ list }) =>
+                list.map(({ related, condition, lift }, i) => {
+                  const convertedRelated = PropositionToCellValue(related, allFields, tableConfig)
+                  if (!convertedRelated) {
+                    return null
+                  }
 
-              const [relatedField, relatedValue] = convertedRelated
+                  const [relatedField, relatedValue] = convertedRelated
 
-              const convertedCondition = PropositionToCellValue(condition, allFields, tableConfig)
+                  const convertedCondition = PropositionToCellValue(condition, allFields, tableConfig)
 
-              if (!convertedCondition) {
-                return null
-              }
+                  if (!convertedCondition) {
+                    return null
+                  }
 
-              const [conditionField, conditionValue] = convertedCondition
+                  const [conditionField, conditionValue] = convertedCondition
 
-              const listField = mode === 'relate-in' ? conditionField : relatedField
-              const listValue = mode === 'relate-in' ? conditionValue : relatedValue
+                  const listField = mode === 'relate-in' ? conditionField : relatedField
+                  const listValue = mode === 'relate-in' ? conditionValue : relatedValue
 
-              const score = Math.log(lift || 1) / Math.log(2)
+                  const score = Math.log(lift || 1) / Math.log(2)
 
-              const hitCount = prediction.hits.length
-              const hitsBoxHeight = -8 + (49.5 + 8) * hitCount
-              const beforeFraction = ((49.5 + 8) * i) / hitsBoxHeight
-              const afterFraction = (hitsBoxHeight - (i + 1) * (49.5 + 8)) / hitsBoxHeight
+                  const hitCount = list.length
+                  const hitsBoxHeight = -8 + (49.5 + 8) * hitCount
+                  const beforeFraction = ((49.5 + 8) * i) / hitsBoxHeight
+                  const afterFraction = (hitsBoxHeight - (i + 1) * (49.5 + 8)) / hitsBoxHeight
 
-              return (
-                <React.Suspense key={i} fallback={<Spinner />}>
-                  <Box display="flex" marginX={3} marginBottom={2} alignItems="start">
-                    <Box flexGrow={0} flexShrink={0} flexBasis="48px">
-                      <ArrowScore score={score} />
-                    </Box>
-                    <Box
-                      display="flex"
-                      flexGrow={1}
-                      borderBottom={i + 1 === prediction.hits.length ? null : 'thin solid lightgray'}
-                    >
-                      <Box flexGrow={1} flexShrink={1}>
-                        <Text textColor="light">
-                          <InlineFieldIcon fillColor="#aaa" field={relatedField} />
-                          {listField.name}
-                        </Text>
-                        <RelateCellRenderer field={listField} cellValue={listValue} />
-                      </Box>
-                      <Box flexGrow={0} flexShrink={0}>
-                        <PopupContainer>
-                          <Box display="flex" height="100%" justifyContent="right">
-                            <InlineIcon
-                              alignSelf="center"
-                              name="help"
-                              aria-label="Info"
-                              fillColor="#aaa"
-                              marginLeft={2}
-                              marginRight={2}
-                            />
-                            <Box
-                              className="popup"
-                              position="absolute"
-                              marginTop={2}
-                              top={0}
-                              marginLeft={2}
-                              minWidth="200px"
-                              right={4}
-                              marginRight={3}
-                            >
-                              <Box display="flex" flexDirection="column" minHeight={`${hitsBoxHeight}px`}>
-                                <Box flexShrink={beforeFraction} flexGrow={beforeFraction}></Box>
-                                <Box
-                                  flexShrink={0}
-                                  flexGrow={0}
-                                  flexBasis="auto"
-                                  textColor="white"
-                                  backgroundColor="dark"
-                                  borderRadius="default"
-                                  padding={2}
-                                >
-                                  <Text textColor="white">
-                                    When <em>{conditionField.name}</em> is
-                                    <RelateCellRenderer field={conditionField} cellValue={conditionValue} />
-                                    then <em>{relatedField.name}</em> is {lift?.toFixed(2)} times more likely to be
-                                    <RelateCellRenderer field={relatedField} cellValue={relatedValue} />
-                                  </Text>
-                                </Box>
-                                <Box flexShrink={afterFraction} flexGrow={afterFraction}></Box>
-                              </Box>
-                            </Box>
+                  return (
+                    <React.Suspense key={i} fallback={<Spinner />}>
+                      <Box display="flex" marginX={3} marginBottom={2} alignItems="start">
+                        <Box flexGrow={0} flexShrink={0} flexBasis="48px">
+                          <ArrowScore score={score} />
+                        </Box>
+                        <Box
+                          display="flex"
+                          flexGrow={1}
+                          borderBottom={i + 1 === list.length ? null : 'thin solid lightgray'}
+                        >
+                          <Box flexGrow={1} flexShrink={1}>
+                            <Text textColor="light">
+                              <InlineFieldIcon fillColor="#aaa" field={relatedField} />
+                              {listField.name}
+                            </Text>
+                            <RelateCellRenderer field={listField} cellValue={listValue} />
                           </Box>
-                        </PopupContainer>
+                          <Box flexGrow={0} flexShrink={0}>
+                            <PopupContainer>
+                              <Box display="flex" height="100%" justifyContent="right">
+                                <InlineIcon
+                                  alignSelf="center"
+                                  name="help"
+                                  aria-label="Info"
+                                  fillColor="#aaa"
+                                  marginLeft={2}
+                                  marginRight={2}
+                                />
+                                <Box
+                                  className="popup"
+                                  position="absolute"
+                                  marginTop={2}
+                                  top={0}
+                                  marginLeft={2}
+                                  minWidth="200px"
+                                  right={4}
+                                  marginRight={3}
+                                >
+                                  <Box display="flex" flexDirection="column" minHeight={`${hitsBoxHeight}px`}>
+                                    <Box flexShrink={beforeFraction} flexGrow={beforeFraction}></Box>
+                                    <Box
+                                      flexShrink={0}
+                                      flexGrow={0}
+                                      flexBasis="auto"
+                                      textColor="white"
+                                      backgroundColor="dark"
+                                      borderRadius="default"
+                                      padding={2}
+                                    >
+                                      <Text textColor="white">
+                                        When <em>{conditionField.name}</em> is
+                                        <RelateCellRenderer field={conditionField} cellValue={conditionValue} />
+                                        then <em>{relatedField.name}</em> is {lift?.toFixed(2)} times more likely to be
+                                        <RelateCellRenderer field={relatedField} cellValue={relatedValue} />
+                                      </Text>
+                                    </Box>
+                                    <Box flexShrink={afterFraction} flexGrow={afterFraction}></Box>
+                                  </Box>
+                                </Box>
+                              </Box>
+                            </PopupContainer>
+                          </Box>
+                        </Box>
                       </Box>
-                    </Box>
-                  </Box>
-                </React.Suspense>
-              )
-            }))}
+                    </React.Suspense>
+                  )
+                })
+              }
+            </ExpandableList>
+          ))}
       </Box>
     </Box>
   )
