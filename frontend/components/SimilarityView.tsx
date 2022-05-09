@@ -11,9 +11,7 @@ import {
   useWatchable,
 } from '@airtable/blocks/ui'
 import _ from 'lodash'
-import React, { useEffect, useState } from 'react'
-import { useMemo } from 'react'
-import { useRef } from 'react'
+import React, { useState, useMemo } from 'react'
 import AcceptedFields from '../AcceptedFields'
 import AitoClient, { AitoValue, isAitoError } from '../AitoClient'
 import { mapColumnNames } from '../functions/inferAitoSchema'

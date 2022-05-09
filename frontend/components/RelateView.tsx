@@ -14,8 +14,7 @@ import {
   useWatchable,
 } from '@airtable/blocks/ui'
 import _ from 'lodash'
-import React, { useEffect, useState } from 'react'
-import { useRef } from 'react'
+import React, { useState } from 'react'
 import AcceptedFields from '../AcceptedFields'
 import AitoClient, { isAitoError, RelateHits } from '../AitoClient'
 import { TableSchema } from '../schema/aito'
@@ -150,7 +149,7 @@ const RelateView: React.FC<
                   Showing similar records for {maxRecords} of the {selectedRecordCount} selected records.
                 </Text>
               )}
-              {selectedFieldValues.map(([field, ...cellValues], i) => (
+              {selectedFieldValues.map(([field, ...cellValues]) => (
                 <RelationGroup
                   key={field.id + '-' + JSON.stringify(cellValues)}
                   mode={mode}

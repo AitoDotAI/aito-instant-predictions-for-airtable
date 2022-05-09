@@ -9,11 +9,12 @@ function ExpandableList<T>(params: {
 }): React.ReactElement | null {
   const { children, list, headSize } = params
 
+  const [isExpanded, setExpanded] = useState(false)
+
   if (!list || list.length === 0) {
     return null
   }
 
-  const [isExpanded, setExpanded] = useState(false)
   const limitedList = isExpanded ? list : _.take(list, headSize)
 
   return (
