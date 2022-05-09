@@ -561,12 +561,7 @@ const renderCellDefault = (field: Field) => {
   return RenderCell
 }
 
-const makeWhereClause = (
-  selectedField: Field,
-  fields: Field[],
-  schema: TableSchema,
-  record: Record,
-) => {
+const makeWhereClause = (selectedField: Field, fields: Field[], schema: TableSchema, record: Record) => {
   const fieldIdToName = mapColumnNames(fields)
   const inputFields = fields.reduce<globalThis.Record<string, unknown>>((acc, field) => {
     const conversion = AcceptedFields[field.type]
