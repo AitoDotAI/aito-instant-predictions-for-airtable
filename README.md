@@ -1,8 +1,8 @@
 # Instant Predictions for Airtable
 
 _Instant Predictions_ for [Airtable](https://www.airtable.com/) connects your
-tables with to your [Aito](https://aito.ai) instance and lets you easily upload
-data and make predictions of missing values in an incomplete data set.
+tables to your [Aito](https://aito.ai) instance and lets you easily upload data
+and make predictions of missing values in an incomplete data set.
 
 Aito is an automated platform for implementing Machine Learning predictions.
 What sets Aito apart from other tools providing a similar functionality is the
