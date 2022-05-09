@@ -30,6 +30,7 @@ import { isArrayOf, isObjectOf, isString, ValidatedType } from '../validator/val
 import renderCellDefault from './renderCellDefault'
 import PopupContainer from './PopupContainer'
 import withRequestLock from './withRequestLock'
+import useDelayedEffect from './useDelayedEffect'
 
 type Mode = 'relate-out' | 'relate-in'
 
@@ -384,7 +385,6 @@ const FieldValueRelations: React.FC<{
   mode: Mode
   client: AitoClient
 }> = ({ field, cellValue, allFields, visibleFields, mode, schema, client, tableConfig }) => {
-  const delayedRequest = useRef<ReturnType<typeof setTimeout> | undefined>()
   const aitoTableName = tableConfig.aitoTableName
 
   type PredictionError = 'quota-exceeded' | 'empty-table' | 'error'
@@ -392,80 +392,58 @@ const FieldValueRelations: React.FC<{
   const [predictionError, setPredictionError] = useState<PredictionError | null>(null)
 
   const [prediction, setPrediction] = useState<RelateHits | undefined | null>(undefined)
-  useEffect(() => {
-    if (delayedRequest.current !== undefined) {
-      return
-    }
-
-    // Start a new request
-    const delay = 50
-
-    const hasUnmounted = () => delayedRequest.current === undefined
-
-    delayedRequest.current = setTimeout(async () => {
-      if (hasUnmounted()) {
-        return
-      }
-
-      try {
-        await withRequestLock(async () => {
-          if (hasUnmounted()) {
-            return
-          }
-
-          const limit = 6
-
-          const fieldProposition = {
-            [tableConfig.columns[field.id].name]: AcceptedFields[field.type].toAitoValue(cellValue, field.config),
-          }
-
-          const otherFieldsProposition = {
-            $exists: visibleFields
-              .map((f) => (f.id !== field.id && tableConfig.columns[f.id] ? tableConfig.columns[f.id].name : null))
-              .filter(Boolean),
-          }
-
-          const query = JSON.stringify({
-            from: aitoTableName,
-            where: mode === 'relate-in' ? otherFieldsProposition : fieldProposition,
-            select: ['related', 'condition', 'lift', 'fs', 'ps', 'info'],
-            relate: mode === 'relate-in' ? fieldProposition : otherFieldsProposition,
-            limit,
-            orderBy: 'info.miTrue',
-          })
-
-          const result = await client.relate(query)
-
-          if (!hasUnmounted()) {
-            if (isAitoError(result)) {
-              setPrediction(null)
-              if (result === 'quota-exceeded') {
-                setPredictionError('quota-exceeded')
-              } else {
-                setPredictionError('error')
-              }
-            } else {
-              if (result.hits.length === 0) {
-                setPredictionError('empty-table')
-              }
-              setPrediction(result)
-            }
-          }
-        })
-      } catch (e) {
-        if (!hasUnmounted()) {
-          setPrediction(null)
+  useDelayedEffect(50, async (hasUnmounted) => {
+    try {
+      await withRequestLock(async () => {
+        if (hasUnmounted()) {
+          return
         }
-      }
-    }, delay)
 
-    return () => {
-      if (delayedRequest.current) {
-        clearTimeout(delayedRequest.current)
-        delayedRequest.current = undefined
+        const limit = 6
+
+        const fieldProposition = {
+          [tableConfig.columns[field.id].name]: AcceptedFields[field.type].toAitoValue(cellValue, field.config),
+        }
+
+        const otherFieldsProposition = {
+          $exists: visibleFields
+            .map((f) => (f.id !== field.id && tableConfig.columns[f.id] ? tableConfig.columns[f.id].name : null))
+            .filter(Boolean),
+        }
+
+        const query = JSON.stringify({
+          from: aitoTableName,
+          where: mode === 'relate-in' ? otherFieldsProposition : fieldProposition,
+          select: ['related', 'condition', 'lift', 'fs', 'ps', 'info'],
+          relate: mode === 'relate-in' ? fieldProposition : otherFieldsProposition,
+          limit,
+          orderBy: 'info.miTrue',
+        })
+
+        const result = await client.relate(query)
+
+        if (!hasUnmounted()) {
+          if (isAitoError(result)) {
+            setPrediction(null)
+            if (result === 'quota-exceeded') {
+              setPredictionError('quota-exceeded')
+            } else {
+              setPredictionError('error')
+            }
+          } else {
+            if (result.hits.length === 0) {
+              setPredictionError('empty-table')
+            }
+            setPrediction(result)
+          }
+        }
+      })
+    } catch (e) {
+      if (!hasUnmounted()) {
+        setPrediction(null)
       }
     }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  })
 
   return (
     <Box paddingBottom={3}>

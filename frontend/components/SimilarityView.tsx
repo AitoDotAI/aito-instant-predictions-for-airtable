@@ -26,6 +26,7 @@ import Spinner from './Spinner'
 import { InlineIcon } from './ui'
 import WithTableSchema from './WithTableSchema'
 import withRequestLock from './withRequestLock'
+import useDelayedEffect from './useDelayedEffect'
 
 const SimilarityView: React.FC<
   {
@@ -202,8 +203,6 @@ const RecordSimilarity: React.FC<{
   recordsQuery: TableOrViewQueryResult
   fieldsToDisplay: Field[]
 }> = ({ fields, record, schema, client, tableConfig, recordsQuery, fieldsToDisplay }) => {
-  const delayedRequest = useRef<ReturnType<typeof setTimeout> | undefined>()
-
   const aitoTableName = tableConfig.aitoTableName
 
   const viewport = useViewport()
@@ -214,81 +213,59 @@ const RecordSimilarity: React.FC<{
   const [predictionError, setPredictionError] = useState<PredictionError | null>(null)
 
   const [prediction, setPrediction] = useState<SimilarityHits | undefined | null>(undefined)
-  useEffect(() => {
-    if (delayedRequest.current !== undefined) {
-      return
-    }
+  useDelayedEffect(50, async (hasUnmounted) => {
+    try {
+      withRequestLock(async () => {
+        if (hasUnmounted()) {
+          return
+        }
 
-    // Start a new request
-    const delay = 50
+        const limit = 6
 
-    const hasUnmounted = () => delayedRequest.current === undefined
+        const where = makeWhereClause(fields, schema, record)
+        let query = JSON.stringify({
+          from: aitoTableName,
+          select: ['$score', 'id', '$why'],
+          limit,
+        })
 
-    delayedRequest.current = setTimeout(async () => {
-      if (hasUnmounted()) {
-        return
-      }
-
-      try {
-        withRequestLock(async () => {
-          if (hasUnmounted()) {
-            return
-          }
-
-          const limit = 6
-
-          const where = makeWhereClause(fields, schema, record)
-          let query = JSON.stringify({
-            from: aitoTableName,
-            select: ['$score', 'id', '$why'],
-            limit,
-          })
-
-          // HACK: enforce decimal points
-          let whereString = JSON.stringify(where)
-          Object.entries(schema.columns).forEach(([columnName, columnSchema]) => {
-            if (columnSchema.type.toLowerCase() === 'decimal') {
-              const fieldName = JSON.stringify(columnName)
-              whereString = whereString.replace(
-                new RegExp(`([{,]${fieldName}:(?:{"\\$numeric":)?)(-?\\d+)([,}])`),
-                `$1$2.0$3`,
-              )
-            }
-          })
-          query = query.replace(/}$/, `,"similarity":${whereString}}`)
-
-          const result = await client.similarity(query)
-
-          if (!hasUnmounted()) {
-            if (isAitoError(result)) {
-              setPrediction(null)
-              if (result === 'quota-exceeded') {
-                setPredictionError('quota-exceeded')
-              } else {
-                setPredictionError('error')
-              }
-            } else {
-              if (result.hits.length === 0) {
-                setPredictionError('empty-table')
-              }
-              setPrediction(result)
-            }
+        // HACK: enforce decimal points
+        let whereString = JSON.stringify(where)
+        Object.entries(schema.columns).forEach(([columnName, columnSchema]) => {
+          if (columnSchema.type.toLowerCase() === 'decimal') {
+            const fieldName = JSON.stringify(columnName)
+            whereString = whereString.replace(
+              new RegExp(`([{,]${fieldName}:(?:{"\\$numeric":)?)(-?\\d+)([,}])`),
+              `$1$2.0$3`,
+            )
           }
         })
-      } catch (e) {
-        if (!hasUnmounted()) {
-          setPrediction(null)
-        }
-      }
-    }, delay)
+        query = query.replace(/}$/, `,"similarity":${whereString}}`)
 
-    return () => {
-      if (delayedRequest.current) {
-        clearTimeout(delayedRequest.current)
-        delayedRequest.current = undefined
+        const result = await client.similarity(query)
+
+        if (!hasUnmounted()) {
+          if (isAitoError(result)) {
+            setPrediction(null)
+            if (result === 'quota-exceeded') {
+              setPredictionError('quota-exceeded')
+            } else {
+              setPredictionError('error')
+            }
+          } else {
+            if (result.hits.length === 0) {
+              setPredictionError('empty-table')
+            }
+            setPrediction(result)
+          }
+        }
+      })
+    } catch (e) {
+      if (!hasUnmounted()) {
+        setPrediction(null)
       }
     }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  })
 
   const hitRecordIds = _.take(
     (prediction?.hits || []).filter(({ id }) => id !== record.id),

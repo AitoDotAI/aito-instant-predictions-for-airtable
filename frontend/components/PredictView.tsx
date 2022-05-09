@@ -41,6 +41,7 @@ import WithTableSchema from './WithTableSchema'
 import renderCellDefault from './renderCellDefault'
 import PopupContainer from './PopupContainer'
 import withRequestLock from './withRequestLock'
+import useDelayedEffect from './useDelayedEffect'
 
 const DEFAULT_CONFIDENCE_THRESHOLD = 90
 
@@ -538,8 +539,6 @@ const FieldPrediction: React.FC<{
   threshold,
   canUpdate: hasPermissionToUpdate,
 }) => {
-  const delayedRequest = useRef<ReturnType<typeof setTimeout> | undefined>()
-
   const tableColumnMap = tableConfig.columns
   const aitoTableName = tableConfig.aitoTableName
 
@@ -547,16 +546,6 @@ const FieldPrediction: React.FC<{
   const isExternalField = [FieldType.EXTERNAL_SYNC_SOURCE].includes(selectedField.type)
   const canUpdate = hasPermissionToUpdate.hasPermission && !selectedField.isComputed && !isTextField && !isExternalField
   const cantUpdateReason = hasPermissionToUpdate.hasPermission ? undefined : hasPermissionToUpdate.reasonDisplayString
-
-  useEffect(() => {
-    // This is run once when the element is unmounted
-    return () => {
-      if (delayedRequest.current !== undefined) {
-        clearTimeout(delayedRequest.current)
-        delayedRequest.current = undefined
-      }
-    }
-  }, [delayedRequest])
 
   const hasAutomaticallySet = useRef(!_.isEmpty(record.getCellValue(selectedField.id)))
   useEffect(() => {
@@ -588,13 +577,7 @@ const FieldPrediction: React.FC<{
     : null
 
   const [prediction, setPrediction] = useState<PredictionHits | undefined | null>(undefined)
-  useEffect(() => {
-    if (delayedRequest.current !== undefined) {
-      return
-    }
-
-    // Start a new request
-    const delay = 50
+  useDelayedEffect(50, async (hasUnmounted) => {
     const fieldIdToName = tableColumnMap
 
     const columnName = fieldIdToName[selectedField.id]?.name
@@ -604,92 +587,78 @@ const FieldPrediction: React.FC<{
       return
     }
 
-    const hasUnmounted = () => delayedRequest.current === undefined
+    try {
+      await withRequestLock(async () => {
+        if (hasUnmounted()) {
+          return
+        }
 
-    delayedRequest.current = setTimeout(async () => {
-      if (hasUnmounted()) {
-        return
-      }
-      try {
-        await withRequestLock(async () => {
-          if (hasUnmounted()) {
+        const limit = 5
+
+        const isPredictQuery = queryType(selectedField) === 'predict'
+        const where = makeWhereClause(selectedField, fields, schema, record)
+        let query: string
+        if (isPredictQuery) {
+          const exclusiveness = !isMultipleSelectField(selectedField)
+          query = JSON.stringify({
+            from: aitoTableName,
+            predict: fieldIdToName[selectedField.id].name,
+            exclusiveness,
+            select: ['$p', 'field', 'feature', '$why'],
+            limit,
+          })
+        } else {
+          const linkConfig = tableConfig.links && tableConfig.links[selectedField.id]
+          if (!linkConfig) {
+            setPrediction(null)
+            setPredictionError('unknown-field')
             return
           }
-
-          const limit = 5
-
-          const isPredictQuery = queryType(selectedField) === 'predict'
-          const where = makeWhereClause(selectedField, fields, schema, record)
-          let query: string
-          if (isPredictQuery) {
-            const exclusiveness = !isMultipleSelectField(selectedField)
-            query = JSON.stringify({
-              from: aitoTableName,
-              predict: fieldIdToName[selectedField.id].name,
-              exclusiveness,
-              select: ['$p', 'field', 'feature', '$why'],
-              limit,
-            })
-          } else {
-            const linkConfig = tableConfig.links && tableConfig.links[selectedField.id]
-            if (!linkConfig) {
-              setPrediction(null)
-              setPredictionError('unknown-field')
-              return
-            }
-            query = JSON.stringify({
-              from: linkConfig.aitoTableName,
-              match: 'to',
-              select: ['$p', 'id', '$why'],
-              limit,
-            })
-          }
-
-          // HACK: enforce decimal points
-          let whereString = JSON.stringify(where)
-          Object.entries(schema.columns).forEach(([columnName, columnSchema]) => {
-            if (columnSchema.type.toLowerCase() === 'decimal') {
-              const fieldName = JSON.stringify(columnName)
-              whereString = whereString.replace(
-                new RegExp(`([{,]${fieldName}:(?:{"\\$numeric":)?)(-?\\d+)([,}])`),
-                `$1$2.0$3`,
-              )
-            }
+          query = JSON.stringify({
+            from: linkConfig.aitoTableName,
+            match: 'to',
+            select: ['$p', 'id', '$why'],
+            limit,
           })
-          query = query.replace(/}$/, `,"where":${whereString}}`)
+        }
 
-          const prediction = isPredictQuery ? await client.predict(query) : await client.match(query)
-
-          if (!hasUnmounted()) {
-            if (isAitoError(prediction)) {
-              setPrediction(null)
-              if (prediction === 'quota-exceeded') {
-                setPredictionError('quota-exceeded')
-              } else {
-                setPredictionError('error')
-              }
-            } else {
-              if (prediction.hits.length === 0) {
-                setPredictionError('empty-field')
-              }
-              setPrediction(prediction)
-            }
+        // HACK: enforce decimal points
+        let whereString = JSON.stringify(where)
+        Object.entries(schema.columns).forEach(([columnName, columnSchema]) => {
+          if (columnSchema.type.toLowerCase() === 'decimal') {
+            const fieldName = JSON.stringify(columnName)
+            whereString = whereString.replace(
+              new RegExp(`([{,]${fieldName}:(?:{"\\$numeric":)?)(-?\\d+)([,}])`),
+              `$1$2.0$3`,
+            )
           }
         })
-      } catch {
-        if (!hasUnmounted()) {
-          setPrediction(null)
-        }
-      }
-    }, delay)
+        query = query.replace(/}$/, `,"where":${whereString}}`)
 
-    return () => {
-      if (delayedRequest.current) {
-        clearTimeout(delayedRequest.current)
-        delayedRequest.current = undefined
+        const prediction = isPredictQuery ? await client.predict(query) : await client.match(query)
+
+        if (!hasUnmounted()) {
+          if (isAitoError(prediction)) {
+            setPrediction(null)
+            if (prediction === 'quota-exceeded') {
+              setPredictionError('quota-exceeded')
+            } else {
+              setPredictionError('error')
+            }
+          } else {
+            if (prediction.hits.length === 0) {
+              setPredictionError('empty-field')
+            }
+            setPrediction(prediction)
+          }
+        }
+      })
+    } catch {
+      if (!hasUnmounted()) {
+        setPrediction(null)
       }
     }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  })
 
   interface ConfirmParameters {
     confirm: 'replace' | 'add-choice'
