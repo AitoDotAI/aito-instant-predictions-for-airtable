@@ -387,12 +387,21 @@ const FieldValueRelations: React.FC<{
 }> = ({ field, cellValue, allFields, visibleFields, mode, schema, client, tableConfig }) => {
   const aitoTableName = tableConfig.aitoTableName
 
-  type PredictionError = 'quota-exceeded' | 'empty-table' | 'error'
+  type PredictionError = 'quota-exceeded' | 'empty-table' | 'unknown-field' | 'error'
 
   const [predictionError, setPredictionError] = useState<PredictionError | null>(null)
 
   const [prediction, setPrediction] = useState<RelateHits | undefined | null>(undefined)
   useDelayedEffect(50, async (hasUnmounted) => {
+    const fieldIdToName = tableConfig.columns
+
+    const columnName = fieldIdToName[field.id]?.name
+    if (!(columnName in schema.columns)) {
+      setPrediction(null)
+      setPredictionError('unknown-field')
+      return
+    }
+
     try {
       await withRequestLock(async () => {
         if (hasUnmounted()) {
@@ -461,7 +470,19 @@ const FieldValueRelations: React.FC<{
               <Text variant="paragraph">It seems there are no records in the training set.</Text>
             )}
             {predictionError === 'quota-exceeded' && <QueryQuotaExceeded />}
-            {predictionError === 'error' && <Text variant="paragraph">Unable to predict.</Text>}
+            {predictionError === 'unknown-field' &&
+              ((field.type === FieldType.BUTTON && (
+                <Text variant="paragraph">Button fields can not be predicted.</Text>
+              )) ||
+                (field.type === FieldType.MULTIPLE_LOOKUP_VALUES && (
+                  <Text variant="paragraph">Lookup fields can not be predicted.</Text>
+                )) ||
+                (field.type === FieldType.MULTIPLE_ATTACHMENTS && (
+                  <Text variant="paragraph">Attachment fields can not be predicted.</Text>
+                )) || (
+                  <Text variant="paragraph">This field is not part of the training set and cannot be predicted.</Text>
+                ))}
+            {predictionError === 'error' && <Text variant="paragraph">Unable to predict {field.name}.</Text>}
           </Box>
         )}
 
