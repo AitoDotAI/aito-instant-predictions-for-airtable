@@ -130,7 +130,7 @@ const makeTableConfig = (
   }
 }
 
-const AitoUploaderApp: React.FC = () => {
+const AitoExtension: React.FC = () => {
   return (
     <React.Suspense fallback={<Spinner />}>
       <RootView />
@@ -175,9 +175,10 @@ const RootView: React.FC = () => {
 const MainView: React.FC<{
   globalConfig: GlobalConfig
 }> = ({ globalConfig }) => {
-  // useBase will re-render the app whenever the base's configuration changes: this includes
-  // updates to names, descriptions and field options, as well as tables/fields being added or
-  // removed. This means the app will always show the latest structure.
+  // useBase will re-render the extension whenever the base's configuration
+  // changes: this includes updates to names, descriptions and field options, as
+  // well as tables/fields being added or removed. This means the extension will
+  // always show the latest structure.
   const base = useBase()
   const cursor = useCursor()
   const aitoUrl = asString(globalConfig.get(GlobalConfigKeys.AITO_URL))
@@ -406,4 +407,4 @@ const MainView: React.FC<{
   }
 }
 
-export default AitoUploaderApp
+export default AitoExtension

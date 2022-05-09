@@ -488,13 +488,7 @@ const renderCellDefault = (field: Field) => {
   return RenderCell
 }
 
-const makeWhereClause = (
-  selectedField: Field,
-  fields: Field[],
-  aitoTableName: string,
-  schema: TableSchema,
-  record: Record,
-) => {
+const makeWhereClause = (selectedField: Field, fields: Field[], schema: TableSchema, record: Record) => {
   const fieldIdToName = mapColumnNames(fields)
   const inputFields = fields.reduce<globalThis.Record<string, unknown>>((acc, field) => {
     const conversion = AcceptedFields[field.type]
@@ -516,7 +510,7 @@ const makeWhereClause = (
   }, {})
   if (queryType(selectedField) === 'match') {
     return {
-      [aitoTableName]: inputFields,
+      from: inputFields,
     }
   } else {
     return inputFields
@@ -673,7 +667,7 @@ const FieldPrediction: React.FC<{
         const limit = 5
 
         const isPredictQuery = queryType(selectedField) === 'predict'
-        const where = makeWhereClause(selectedField, fields, aitoTableName, schema, record)
+        const where = makeWhereClause(selectedField, fields, schema, record)
         let query: string
         if (isPredictQuery) {
           const exclusiveness = !isMultipleSelectField(selectedField)
@@ -691,16 +685,9 @@ const FieldPrediction: React.FC<{
             setPredictionError('unknown-field')
             return
           }
-          const targetColumn = Object.keys(linkConfig.columns).find((key) => key !== aitoTableName)
-          if (!targetColumn) {
-            setPrediction(null)
-            setPredictionError('unknown-field')
-            return
-          }
-
           query = JSON.stringify({
             from: linkConfig.aitoTableName,
-            match: targetColumn,
+            match: 'to',
             select: ['$p', 'id', '$why'],
             limit,
           })

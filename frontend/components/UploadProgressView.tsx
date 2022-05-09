@@ -177,8 +177,8 @@ const UploadProgressView: React.FC<{
         <Box data-message="uploading">
           <Heading size="small">Synchronizing</Heading>
           <Text variant="paragraph">
-            Synchronizing records{hasLinks && ' and links'} to <strong>{client.name}</strong>. Please keep this app
-            window open until the upload has finished or the sync may fail.
+            Synchronizing records{hasLinks && ' and links'} to <strong>{client.name}</strong>. Please keep this
+            extension window open until the upload has finished or the sync may fail.
           </Text>
           <ProgressBar progress={progress} />
           <Task mainView={view} task={currentTask} />

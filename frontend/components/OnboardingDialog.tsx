@@ -83,7 +83,7 @@ const OnboardingDialog: React.FC<{
   }, [isSaving, setIsSaving, aitoUrl, aitoKey, globalConfig, viewport])
 
   if (!canSetup) {
-    return <>Somebody who has permissions needs to setup the application first</>
+    return <>Somebody who has permissions needs to setup the extension first</>
   } else if (viewport.isFullscreen) {
     // Render popup
     return (
@@ -96,8 +96,8 @@ const OnboardingDialog: React.FC<{
             <Box padding={3}>
               <Heading size="xlarge">Welcome to Aito Instant Predictions</Heading>
               <Text variant="paragraph" textColor="light" size="large">
-                This app can predict a value for a cell in your table, using the existing data as training material for
-                machine learning. No data science skill required. First, we need to set a few things up.
+                This extension can predict a value for a cell in your table, using the existing data as training
+                material for machine learning. No data science skill required. First, we need to set a few things up.
               </Text>
               <Box as="ol" marginRight={3} paddingLeft={3}>
                 <li>
@@ -171,7 +171,7 @@ const OnboardingDialog: React.FC<{
       </ViewportConstraint>
     )
   } else {
-    // Render in app box
+    // Render in extension box
     return (
       <Box display="flex" height="100vh" flexDirection="column" alignItems="center" justifyContent="center">
         <Button onClick={openDialog}>Click here to setup Aito.ai</Button>

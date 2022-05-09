@@ -24,12 +24,12 @@ const makeLinkTableSchema = (fromTableName: string, toTableName: string): TableS
   return {
     type: 'table',
     columns: {
-      [fromTableName]: {
+      from: {
         type: 'String',
         nullable: false,
         link: `${fromTableName}.id`,
       },
-      [toTableName]: {
+      to: {
         type: 'String',
         nullable: false,
         link: `${toTableName}.id`,
@@ -38,15 +38,15 @@ const makeLinkTableSchema = (fromTableName: string, toTableName: string): TableS
   }
 }
 
-const makeLinkTableColumnMap = (fromTableName: string, toTableName: string): TableColumnMap => {
+const makeLinkTableColumnMap = (): TableColumnMap => {
   return {
-    [fromTableName]: {
+    from: {
       type: FieldType.MULTIPLE_RECORD_LINKS,
-      name: fromTableName,
+      name: 'from',
     },
-    [toTableName]: {
+    to: {
       type: FieldType.MULTIPLE_RECORD_LINKS,
-      name: toTableName,
+      name: 'to',
     },
   }
 }
@@ -214,7 +214,7 @@ export async function describeTasks(
       const tableInfo: TableInfo = {
         aitoTable: aitoTable + '_' + field.id,
         schema: makeLinkTableSchema(aitoTable, aitoTableLink),
-        fieldIdToName: makeLinkTableColumnMap(aitoTable, aitoTableLink),
+        fieldIdToName: makeLinkTableColumnMap(),
       }
 
       createLinkTasks.push({
@@ -378,19 +378,17 @@ export async function runUploadTasks(
       }
 
       case 'upload-link': {
-        const { tableId, viewId, linkFieldId, toAitoTable, fromAitoTable } = task
+        const { tableId, viewId, linkFieldId } = task
         const tableName = task.tableInfo.aitoTable
 
         try {
-          const uploadResponse = await fetchRecordLinkssAndUpload(
+          const uploadResponse = await fetchRecordLinksAndUpload(
             client,
             base,
             tableId,
             viewId,
             linkFieldId,
             tableName,
-            fromAitoTable,
-            toAitoTable,
             (progress) => {
               task.progress = progress
               report()
@@ -533,15 +531,13 @@ async function fetchRecordsAndUpload(
 
 const isArrayOfIds = isArrayOf(isObjectOf({ id: isString }))
 
-async function fetchRecordLinkssAndUpload(
+async function fetchRecordLinksAndUpload(
   client: AitoClient,
   base: Base,
   tableId: string,
   viewId: string,
   linkFieldId: string,
   linkAitoTable: string,
-  fromAitoTable: string,
-  toAitoTable: string,
   onProgress: (progress: number) => unknown,
 ): Promise<AitoError | undefined> {
   const table = base.getTableById(tableId)
@@ -560,8 +556,8 @@ async function fetchRecordLinkssAndUpload(
         for (const link of linkedRecords) {
           const { id } = link
           dataArray.push({
-            [fromAitoTable]: recordId,
-            [toAitoTable]: id,
+            from: recordId,
+            to: id,
           })
 
           if (dataArray.length % 100 === 0) {

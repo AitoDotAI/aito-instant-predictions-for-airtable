@@ -1,5 +1,5 @@
 import { initializeBlock } from '@airtable/blocks/ui'
 import React from 'react'
-import AitoUploaderApp from './components/AitoUploaderApp'
+import AitoExtension from './components/AitoExtension'
 
-initializeBlock(() => <AitoUploaderApp />)
+initializeBlock(() => <AitoExtension />)
