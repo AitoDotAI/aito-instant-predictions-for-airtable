@@ -20,7 +20,6 @@ import AcceptedFields from '../AcceptedFields'
 import AitoClient, { isAitoError, RelateHits } from '../AitoClient'
 import { TableSchema } from '../schema/aito'
 import { TableConfig } from '../schema/config'
-import Semaphore from 'semaphore-async-await'
 import QueryQuotaExceeded from './QueryQuotaExceeded'
 import { isDocumentProposition, isHasProposition, isIsProposition, isSimpleProposition } from '../explanations'
 import { FlexItemSetProps } from '@airtable/blocks/dist/types/src/ui/system'
@@ -30,10 +29,7 @@ import WithTableSchema from './WithTableSchema'
 import { isArrayOf, isObjectOf, isString, ValidatedType } from '../validator/validation'
 import renderCellDefault from './renderCellDefault'
 import PopupContainer from './PopupContainer'
-
-const PARALLEL_REQUESTS = 10
-const REQUEST_TIME = 750
-const RequestLocks = new Semaphore(PARALLEL_REQUESTS)
+import withRequestLock from './withRequestLock'
 
 type Mode = 'relate-out' | 'relate-in'
 
@@ -407,67 +403,59 @@ const FieldValueRelations: React.FC<{
     const hasUnmounted = () => delayedRequest.current === undefined
 
     delayedRequest.current = setTimeout(async () => {
-      let start: Date | undefined
+      if (hasUnmounted()) {
+        return
+      }
+
       try {
-        await RequestLocks.acquire()
-
-        if (hasUnmounted()) {
-          return
-        }
-
-        const limit = 6
-
-        const fieldProposition = {
-          [tableConfig.columns[field.id].name]: AcceptedFields[field.type].toAitoValue(cellValue, field.config),
-        }
-
-        const otherFieldsProposition = {
-          $exists: visibleFields
-            .map((f) => (f.id !== field.id && tableConfig.columns[f.id] ? tableConfig.columns[f.id].name : null))
-            .filter(Boolean),
-        }
-
-        const query = JSON.stringify({
-          from: aitoTableName,
-          where: mode === 'relate-in' ? otherFieldsProposition : fieldProposition,
-          select: ['related', 'condition', 'lift', 'fs', 'ps', 'info'],
-          relate: mode === 'relate-in' ? fieldProposition : otherFieldsProposition,
-          limit,
-          orderBy: 'info.miTrue',
-        })
-
-        start = new Date()
-        const result = await client.relate(query)
-
-        if (!hasUnmounted()) {
-          if (isAitoError(result)) {
-            setPrediction(null)
-            if (result === 'quota-exceeded') {
-              setPredictionError('quota-exceeded')
-            } else {
-              setPredictionError('error')
-            }
-          } else {
-            if (result.hits.length === 0) {
-              setPredictionError('empty-table')
-            }
-            setPrediction(result)
+        await withRequestLock(async () => {
+          if (hasUnmounted()) {
+            return
           }
-        }
+
+          const limit = 6
+
+          const fieldProposition = {
+            [tableConfig.columns[field.id].name]: AcceptedFields[field.type].toAitoValue(cellValue, field.config),
+          }
+
+          const otherFieldsProposition = {
+            $exists: visibleFields
+              .map((f) => (f.id !== field.id && tableConfig.columns[f.id] ? tableConfig.columns[f.id].name : null))
+              .filter(Boolean),
+          }
+
+          const query = JSON.stringify({
+            from: aitoTableName,
+            where: mode === 'relate-in' ? otherFieldsProposition : fieldProposition,
+            select: ['related', 'condition', 'lift', 'fs', 'ps', 'info'],
+            relate: mode === 'relate-in' ? fieldProposition : otherFieldsProposition,
+            limit,
+            orderBy: 'info.miTrue',
+          })
+
+          const result = await client.relate(query)
+
+          if (!hasUnmounted()) {
+            if (isAitoError(result)) {
+              setPrediction(null)
+              if (result === 'quota-exceeded') {
+                setPredictionError('quota-exceeded')
+              } else {
+                setPredictionError('error')
+              }
+            } else {
+              if (result.hits.length === 0) {
+                setPredictionError('empty-table')
+              }
+              setPrediction(result)
+            }
+          }
+        })
       } catch (e) {
         if (!hasUnmounted()) {
           setPrediction(null)
         }
-      } finally {
-        // Delay releasing the request lock until
-        if (start) {
-          const elapsed = new Date().valueOf() - start.valueOf()
-          const remaining = Math.min(REQUEST_TIME, REQUEST_TIME - elapsed)
-          if (remaining > 0) {
-            await new Promise((resolve) => setTimeout(() => resolve(undefined), remaining))
-          }
-        }
-        RequestLocks.release()
       }
     }, delay)
 

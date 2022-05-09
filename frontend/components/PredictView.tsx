@@ -29,7 +29,6 @@ import { TableColumnMap, TableConfig } from '../schema/config'
 import { useLocalConfig } from '../LocalConfig'
 import { isArrayOf, isMissing, isObjectOf, isString, isTupleOf } from '../validator/validation'
 import { Cell, Row } from './table'
-import Semaphore from 'semaphore-async-await'
 import QueryQuotaExceeded from './QueryQuotaExceeded'
 import { Why } from '../explanations'
 import { DefaultExplanationBox, ExplanationBox, MatchExplanationBox } from './ExplanationBox'
@@ -41,12 +40,9 @@ import { BORDER_STYLE, InlineFieldIcon, InlineIcon } from './ui'
 import WithTableSchema from './WithTableSchema'
 import renderCellDefault from './renderCellDefault'
 import PopupContainer from './PopupContainer'
+import withRequestLock from './withRequestLock'
 
 const DEFAULT_CONFIDENCE_THRESHOLD = 90
-
-const PARALLEL_REQUESTS = 10
-const REQUEST_TIME = 750
-const RequestLocks = new Semaphore(PARALLEL_REQUESTS)
 
 const EditThresholdDialog: React.FC<{
   threshold: number
@@ -611,88 +607,79 @@ const FieldPrediction: React.FC<{
     const hasUnmounted = () => delayedRequest.current === undefined
 
     delayedRequest.current = setTimeout(async () => {
-      let start: Date | undefined
+      if (hasUnmounted()) {
+        return
+      }
       try {
-        await RequestLocks.acquire()
-
-        if (hasUnmounted()) {
-          return
-        }
-
-        const limit = 5
-
-        const isPredictQuery = queryType(selectedField) === 'predict'
-        const where = makeWhereClause(selectedField, fields, schema, record)
-        let query: string
-        if (isPredictQuery) {
-          const exclusiveness = !isMultipleSelectField(selectedField)
-          query = JSON.stringify({
-            from: aitoTableName,
-            predict: fieldIdToName[selectedField.id].name,
-            exclusiveness,
-            select: ['$p', 'field', 'feature', '$why'],
-            limit,
-          })
-        } else {
-          const linkConfig = tableConfig.links && tableConfig.links[selectedField.id]
-          if (!linkConfig) {
-            setPrediction(null)
-            setPredictionError('unknown-field')
+        await withRequestLock(async () => {
+          if (hasUnmounted()) {
             return
           }
-          query = JSON.stringify({
-            from: linkConfig.aitoTableName,
-            match: 'to',
-            select: ['$p', 'id', '$why'],
-            limit,
-          })
-        }
 
-        // HACK: enforce decimal points
-        let whereString = JSON.stringify(where)
-        Object.entries(schema.columns).forEach(([columnName, columnSchema]) => {
-          if (columnSchema.type.toLowerCase() === 'decimal') {
-            const fieldName = JSON.stringify(columnName)
-            whereString = whereString.replace(
-              new RegExp(`([{,]${fieldName}:(?:{"\\$numeric":)?)(-?\\d+)([,}])`),
-              `$1$2.0$3`,
-            )
+          const limit = 5
+
+          const isPredictQuery = queryType(selectedField) === 'predict'
+          const where = makeWhereClause(selectedField, fields, schema, record)
+          let query: string
+          if (isPredictQuery) {
+            const exclusiveness = !isMultipleSelectField(selectedField)
+            query = JSON.stringify({
+              from: aitoTableName,
+              predict: fieldIdToName[selectedField.id].name,
+              exclusiveness,
+              select: ['$p', 'field', 'feature', '$why'],
+              limit,
+            })
+          } else {
+            const linkConfig = tableConfig.links && tableConfig.links[selectedField.id]
+            if (!linkConfig) {
+              setPrediction(null)
+              setPredictionError('unknown-field')
+              return
+            }
+            query = JSON.stringify({
+              from: linkConfig.aitoTableName,
+              match: 'to',
+              select: ['$p', 'id', '$why'],
+              limit,
+            })
+          }
+
+          // HACK: enforce decimal points
+          let whereString = JSON.stringify(where)
+          Object.entries(schema.columns).forEach(([columnName, columnSchema]) => {
+            if (columnSchema.type.toLowerCase() === 'decimal') {
+              const fieldName = JSON.stringify(columnName)
+              whereString = whereString.replace(
+                new RegExp(`([{,]${fieldName}:(?:{"\\$numeric":)?)(-?\\d+)([,}])`),
+                `$1$2.0$3`,
+              )
+            }
+          })
+          query = query.replace(/}$/, `,"where":${whereString}}`)
+
+          const prediction = isPredictQuery ? await client.predict(query) : await client.match(query)
+
+          if (!hasUnmounted()) {
+            if (isAitoError(prediction)) {
+              setPrediction(null)
+              if (prediction === 'quota-exceeded') {
+                setPredictionError('quota-exceeded')
+              } else {
+                setPredictionError('error')
+              }
+            } else {
+              if (prediction.hits.length === 0) {
+                setPredictionError('empty-field')
+              }
+              setPrediction(prediction)
+            }
           }
         })
-        query = query.replace(/}$/, `,"where":${whereString}}`)
-
-        start = new Date()
-        const prediction = isPredictQuery ? await client.predict(query) : await client.match(query)
-
-        if (!hasUnmounted()) {
-          if (isAitoError(prediction)) {
-            setPrediction(null)
-            if (prediction === 'quota-exceeded') {
-              setPredictionError('quota-exceeded')
-            } else {
-              setPredictionError('error')
-            }
-          } else {
-            if (prediction.hits.length === 0) {
-              setPredictionError('empty-field')
-            }
-            setPrediction(prediction)
-          }
-        }
-      } catch (e) {
+      } catch {
         if (!hasUnmounted()) {
           setPrediction(null)
         }
-      } finally {
-        // Delay releasing the request lock until
-        if (start) {
-          const elapsed = new Date().valueOf() - start.valueOf()
-          const remaining = Math.min(REQUEST_TIME, REQUEST_TIME - elapsed)
-          if (remaining > 0) {
-            await new Promise((resolve) => setTimeout(() => resolve(undefined), remaining))
-          }
-        }
-        RequestLocks.release()
       }
     }, delay)
 

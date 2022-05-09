@@ -19,17 +19,13 @@ import AitoClient, { AitoValue, isAitoError } from '../AitoClient'
 import { mapColumnNames } from '../functions/inferAitoSchema'
 import { TableSchema } from '../schema/aito'
 import { TableConfig } from '../schema/config'
-import Semaphore from 'semaphore-async-await'
 import QueryQuotaExceeded from './QueryQuotaExceeded'
 import { Why } from '../explanations'
 import { FlexItemSetProps } from '@airtable/blocks/dist/types/src/ui/system'
 import Spinner from './Spinner'
 import { InlineIcon } from './ui'
 import WithTableSchema from './WithTableSchema'
-
-const PARALLEL_REQUESTS = 10
-const REQUEST_TIME = 750
-const RequestLocks = new Semaphore(PARALLEL_REQUESTS)
+import withRequestLock from './withRequestLock'
 
 const SimilarityView: React.FC<
   {
@@ -229,68 +225,60 @@ const RecordSimilarity: React.FC<{
     const hasUnmounted = () => delayedRequest.current === undefined
 
     delayedRequest.current = setTimeout(async () => {
-      let start: Date | undefined
+      if (hasUnmounted()) {
+        return
+      }
+
       try {
-        await RequestLocks.acquire()
-
-        if (hasUnmounted()) {
-          return
-        }
-
-        const limit = 6
-
-        const where = makeWhereClause(fields, schema, record)
-        let query = JSON.stringify({
-          from: aitoTableName,
-          select: ['$score', 'id', '$why'],
-          limit,
-        })
-
-        // HACK: enforce decimal points
-        let whereString = JSON.stringify(where)
-        Object.entries(schema.columns).forEach(([columnName, columnSchema]) => {
-          if (columnSchema.type.toLowerCase() === 'decimal') {
-            const fieldName = JSON.stringify(columnName)
-            whereString = whereString.replace(
-              new RegExp(`([{,]${fieldName}:(?:{"\\$numeric":)?)(-?\\d+)([,}])`),
-              `$1$2.0$3`,
-            )
+        withRequestLock(async () => {
+          if (hasUnmounted()) {
+            return
           }
-        })
-        query = query.replace(/}$/, `,"similarity":${whereString}}`)
 
-        start = new Date()
-        const result = await client.similarity(query)
+          const limit = 6
 
-        if (!hasUnmounted()) {
-          if (isAitoError(result)) {
-            setPrediction(null)
-            if (result === 'quota-exceeded') {
-              setPredictionError('quota-exceeded')
+          const where = makeWhereClause(fields, schema, record)
+          let query = JSON.stringify({
+            from: aitoTableName,
+            select: ['$score', 'id', '$why'],
+            limit,
+          })
+
+          // HACK: enforce decimal points
+          let whereString = JSON.stringify(where)
+          Object.entries(schema.columns).forEach(([columnName, columnSchema]) => {
+            if (columnSchema.type.toLowerCase() === 'decimal') {
+              const fieldName = JSON.stringify(columnName)
+              whereString = whereString.replace(
+                new RegExp(`([{,]${fieldName}:(?:{"\\$numeric":)?)(-?\\d+)([,}])`),
+                `$1$2.0$3`,
+              )
+            }
+          })
+          query = query.replace(/}$/, `,"similarity":${whereString}}`)
+
+          const result = await client.similarity(query)
+
+          if (!hasUnmounted()) {
+            if (isAitoError(result)) {
+              setPrediction(null)
+              if (result === 'quota-exceeded') {
+                setPredictionError('quota-exceeded')
+              } else {
+                setPredictionError('error')
+              }
             } else {
-              setPredictionError('error')
+              if (result.hits.length === 0) {
+                setPredictionError('empty-table')
+              }
+              setPrediction(result)
             }
-          } else {
-            if (result.hits.length === 0) {
-              setPredictionError('empty-table')
-            }
-            setPrediction(result)
           }
-        }
+        })
       } catch (e) {
         if (!hasUnmounted()) {
           setPrediction(null)
         }
-      } finally {
-        // Delay releasing the request lock until
-        if (start) {
-          const elapsed = new Date().valueOf() - start.valueOf()
-          const remaining = Math.min(REQUEST_TIME, REQUEST_TIME - elapsed)
-          if (remaining > 0) {
-            await new Promise((resolve) => setTimeout(() => resolve(undefined), remaining))
-          }
-        }
-        RequestLocks.release()
       }
     }, delay)
 
