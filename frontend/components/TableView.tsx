@@ -6,6 +6,7 @@ import AitoClient from '../AitoClient'
 import { TableConfig } from '../schema/config'
 import AitoLogo from './AitoLogo'
 import PredictView from './PredictView'
+import RelateView from './RelateView'
 import SimilarityView from './SimilarityView'
 import Spinner from './Spinner'
 import { isTab, Tab } from './Tab'
@@ -67,11 +68,15 @@ const TableView: React.FC<{
             flexShrink={1}
           />
         ) : tab === 'insights' ? (
-          <Box flexGrow={1} display="flex" justifyContent="center" alignItems="center">
-            <Text textColor="light">
-              <em>Coming soon</em>
-            </Text>
-          </Box>
+          <RelateView
+            client={client}
+            table={table}
+            cursor={cursor}
+            tableConfig={tableConfig}
+            hasUploaded={hasUploaded}
+            flexGrow={1}
+            flexShrink={1}
+          />
         ) : (
           <Box flexGrow={1} />
         )}
@@ -103,7 +108,7 @@ const navOptions: TabOption<Tab>[] = [
   },
   {
     key: 'insights',
-    label: 'Discover Insights',
+    label: 'Explain',
   },
 ]
 

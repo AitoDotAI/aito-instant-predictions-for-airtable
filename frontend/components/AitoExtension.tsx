@@ -3,8 +3,10 @@ import {
   useBase,
   useCursor,
   useGlobalConfig,
+  useLoadable,
   useSession,
   useSettingsButton,
+  useWatchable,
   ViewportConstraint,
 } from '@airtable/blocks/ui'
 import React, { useCallback, useEffect, useState } from 'react'
@@ -183,6 +185,9 @@ const MainView: React.FC<{
   const cursor = useCursor()
   const aitoUrl = asString(globalConfig.get(GlobalConfigKeys.AITO_URL))
   const aitoKey = asString(globalConfig.get(GlobalConfigKeys.AITO_KEY))
+
+  useLoadable(cursor)
+  useWatchable(cursor, ['activeTableId', 'activeViewId'])
 
   const canUpdateSettings = globalConfig.hasPermissionToSet()
   const tablesConfig = asRecord(globalConfig.get(GlobalConfigKeys.TABLE_SETTINGS))
