@@ -1016,7 +1016,7 @@ const PredictionHitsList: React.FC<{
                 <Cell flexGrow={1} flexShrink={1}>
                   <Box display="flex" height="100%" overflow="hidden">
                     <PredictionCellRenderer
-                      marginLeft={2}
+                      marginLeft={3}
                       flexGrow={1}
                       alignSelf="center"
                       field={selectedField}
