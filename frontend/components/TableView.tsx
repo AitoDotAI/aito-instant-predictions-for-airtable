@@ -1,11 +1,16 @@
+import { FlexItemSetProps } from '@airtable/blocks/dist/types/src/ui/system'
 import { Cursor, Table } from '@airtable/blocks/models'
 import { Box, Text, Button, Tooltip } from '@airtable/blocks/ui'
 import React from 'react'
 import AitoClient from '../AitoClient'
 import { TableConfig } from '../schema/config'
+import AitoLogo from './AitoLogo'
 import PredictView from './PredictView'
+import RelateView from './RelateView'
+import SimilarityView from './SimilarityView'
 import Spinner from './Spinner'
-import { Tab } from './Tab'
+import { isTab, Tab } from './Tab'
+import { TabGroup, TabOption } from './TabGroup'
 import { BORDER_STYLE, GRAY_BACKGROUND, InlineIcon } from './ui'
 import UploadConfigView, { UploadJob } from './UploadConfigView'
 
@@ -27,25 +32,11 @@ const TableView: React.FC<{
   const linkedRowCount = (tableConfig.views || []).reduce((acc, view) => acc + view.lastRowCount, 0)
   const linkCount = Object.values(tableConfig.links || {}).reduce((acc, table) => acc + table.lastRowCount, 0)
 
-  const footer = (
-    <Footer
-      viewName={viewName}
-      lastRowCount={rowCount && rowCount + linkedRowCount}
-      lastLinkCount={rowCount && linkCount}
-      buttonVariant={tab === 'predict' ? 'primary' : 'secondary'}
-      lastUpdated={lastUpdated ? new Date(lastUpdated) : undefined}
-      lastUploadedBy={tableConfig.lastUpdatedBy?.name}
-      buttonDisabled={tab === 'predict' && !canUpdateSettings}
-      buttonText={tab === 'predict' ? `${hasUploaded ? 'Retrain' : 'Train'} Aito` : 'Cancel'}
-      onButtonClick={tab === 'predict' ? () => setTab('train') : () => setTab('predict')}
-      buttonKey={tab}
-    />
-  )
-
-  if (tab === 'train') {
-    return (
-      <Box display="flex" flexDirection="column" height="100vh">
-        <React.Suspense fallback={<Spinner />}>
+  return (
+    <Box display="flex" flexDirection="column" height="100vh">
+      <Header tab={tab} setTab={setTab} flex="none" />
+      <React.Suspense fallback={<Spinner />}>
+        {tab === 'train' ? (
           <UploadConfigView
             key={table.id}
             table={table}
@@ -55,15 +46,7 @@ const TableView: React.FC<{
             client={client}
             flexGrow={1}
           />
-        </React.Suspense>
-        {footer}
-      </Box>
-    )
-  } else {
-    // tab === 'predict
-    return (
-      <Box display="flex" flexDirection="column" height="100vh">
-        <React.Suspense fallback={<Spinner />}>
+        ) : tab === 'predict' ? (
           <PredictView
             key={table.id}
             table={table}
@@ -72,12 +55,90 @@ const TableView: React.FC<{
             client={client}
             hasUploaded={hasUploaded}
             flexGrow={1}
+            flexShrink={1}
           />
-        </React.Suspense>
-        {footer}
+        ) : tab === 'search' ? (
+          <SimilarityView
+            client={client}
+            table={table}
+            cursor={cursor}
+            tableConfig={tableConfig}
+            hasUploaded={hasUploaded}
+            flexGrow={1}
+            flexShrink={1}
+          />
+        ) : tab === 'insights' ? (
+          <RelateView
+            client={client}
+            table={table}
+            cursor={cursor}
+            tableConfig={tableConfig}
+            hasUploaded={hasUploaded}
+            flexGrow={1}
+            flexShrink={1}
+          />
+        ) : (
+          <Box flexGrow={1} />
+        )}
+      </React.Suspense>
+      <Footer
+        viewName={viewName}
+        lastRowCount={rowCount && rowCount + linkedRowCount}
+        lastLinkCount={rowCount && linkCount}
+        buttonVariant={tab === 'predict' ? 'primary' : 'secondary'}
+        lastUpdated={lastUpdated ? new Date(lastUpdated) : undefined}
+        lastUploadedBy={tableConfig.lastUpdatedBy?.name}
+        buttonDisabled={tab === 'predict' && !canUpdateSettings}
+        buttonText={tab === 'train' ? 'Cancel' : `${hasUploaded ? 'Retrain' : 'Train'} model`}
+        onButtonClick={tab === 'predict' ? () => setTab('train') : () => setTab('predict')}
+        buttonKey={tab}
+      />
+    </Box>
+  )
+}
+
+const navOptions: TabOption<Tab>[] = [
+  {
+    key: 'predict',
+    label: 'Predict',
+  },
+  {
+    key: 'search',
+    label: 'Search',
+  },
+  {
+    key: 'insights',
+    label: 'Explain',
+  },
+]
+
+const Header: React.FC<
+  {
+    tab: Tab
+    setTab: (tab: Tab) => unknown
+  } & FlexItemSetProps
+> = ({ tab, setTab, ...flexItem }) => {
+  return (
+    <Box
+      display="flex"
+      flexDirection="row"
+      {...flexItem}
+      textColor="white"
+      backgroundColor="#205341"
+      borderBottom={BORDER_STYLE}
+    >
+      <TabGroup
+        flexGrow={1}
+        value={tab}
+        onChange={(newValue) => isTab(newValue) && setTab(newValue)}
+        options={navOptions}
+      />
+
+      <Box flex="none" marginX={1}>
+        <AitoLogo padding={1} />
       </Box>
-    )
-  }
+    </Box>
+  )
 }
 
 const Footer: React.FC<{

@@ -29,38 +29,22 @@ import { TableColumnMap, TableConfig } from '../schema/config'
 import { useLocalConfig } from '../LocalConfig'
 import { isArrayOf, isMissing, isObjectOf, isString, isTupleOf } from '../validator/validation'
 import { Cell, Row } from './table'
-import Semaphore from 'semaphore-async-await'
 import QueryQuotaExceeded from './QueryQuotaExceeded'
 import { Why } from '../explanations'
 import { DefaultExplanationBox, ExplanationBox, MatchExplanationBox } from './ExplanationBox'
-import styled from 'styled-components'
 import { PermissionCheckResult } from '@airtable/blocks/dist/types/src/types/mutations'
 import { FlexItemSetProps, SpacingSetProps } from '@airtable/blocks/dist/types/src/ui/system'
 import Spinner from './Spinner'
 import useEqualValue from './useEqualValue'
-import { BORDER_STYLE, GRAY_BACKGROUND, InlineFieldIcon, InlineIcon } from './ui'
+import { BORDER_STYLE, InlineFieldIcon, InlineIcon } from './ui'
+import WithTableSchema from './WithTableSchema'
+import renderCellDefault from './renderCellDefault'
+import PopupContainer from './PopupContainer'
+import withRequestLock from './withRequestLock'
+import useDelayedEffect from './useDelayedEffect'
+import ExpandableList from './ExpandableList'
 
 const DEFAULT_CONFIDENCE_THRESHOLD = 90
-
-const PARALLEL_REQUESTS = 10
-const REQUEST_TIME = 750
-const RequestLocks = new Semaphore(PARALLEL_REQUESTS)
-
-const PopupContainer = styled.div`
-  height: 100%;
-
-  & .popup {
-    opacity: 0;
-    visibility: hidden;
-    transition: opacity 0.15s ease-in-out;
-  }
-
-  &:hover .popup {
-    z-index: 1000;
-    opacity: 1;
-    visibility: visible;
-  }
-`
 
 const EditThresholdDialog: React.FC<{
   threshold: number
@@ -109,7 +93,7 @@ const PredictionSettingsToolbar: React.FC<
   const hideEditThresholdModal = (): void => setEditModalOpen(false)
 
   return (
-    <Box borderBottom={BORDER_STYLE} display="flex" backgroundColor={GRAY_BACKGROUND} flexDirection="row" {...flexItem}>
+    <Box borderBottom={BORDER_STYLE} display="flex" backgroundColor="#f7f7f7" flexDirection="row" {...flexItem}>
       <Tooltip
         shouldHideTooltipOnClick={true}
         placementX={Tooltip.placements.CENTER}
@@ -120,9 +104,10 @@ const PredictionSettingsToolbar: React.FC<
         <Switch
           flexBasis="auto"
           flexShrink={1}
-          paddingX={3}
+          paddingX={2}
           disabled={disabled}
           value={autoFill}
+          size="small"
           onChange={saveAutoFill}
           label={<>Auto-fill cells when confidence &gt; {threshold}%</>}
           backgroundColor="transparent"
@@ -130,6 +115,7 @@ const PredictionSettingsToolbar: React.FC<
       </Tooltip>
       <Button
         icon="edit"
+        size="small"
         flexShrink={0}
         flexGrow={1}
         alignSelf="start"
@@ -181,11 +167,6 @@ const PredictView: React.FC<
   } catch (e) {
     console.error(e)
   }
-
-  const aitoTableName = tableConfig.aitoTableName
-  const tableColumnMap = tableConfig.columns
-
-  const schema = useAitoSchema(aitoTableName, client)
 
   const [autoFill, setAutoFill] = useState(savedAutoFill)
   const [threshold, setThreshold] = useState(savedThreshold)
@@ -256,73 +237,6 @@ const PredictView: React.FC<
     }
   }, [])
 
-  if (schema === 'quota-exceeded') {
-    return (
-      <Box padding={3} {...flexItem}>
-        <QueryQuotaExceeded />
-      </Box>
-    )
-  }
-
-  if (!schema || !hasUploaded) {
-    if (schema === null || !hasUploaded) {
-      // No table with that name
-      return (
-        <Box padding={3} {...flexItem}>
-          <Text variant="paragraph" textColor="light">
-            There doesn&apos;t seem to be any training data for <em>{table.name}</em> in your Aito instance. Please
-            upload training data first by clicking on the button at the bottom.
-          </Text>
-        </Box>
-      )
-    } else {
-      // Still loading table, show nothing
-      return <Spinner />
-    }
-  }
-
-  if (view?.type !== ViewType.GRID) {
-    return (
-      <Box padding={3} {...flexItem}>
-        <Text variant="paragraph" textColor="light">
-          Predictions are only available in <em>grid views</em>.
-        </Text>
-      </Box>
-    )
-  }
-
-  if (!hasSelection) {
-    return (
-      <Box padding={3} display="flex" alignItems="center" justifyContent="center" flexBasis="100%" {...flexItem}>
-        <Box>
-          <Text variant="paragraph" textColor="#bbb" size="xlarge" fontWeight="bold" margin={0} flexGrow={0}>
-            Please select an empty cell
-          </Text>
-        </Box>
-      </Box>
-    )
-  }
-
-  const currentTableColumnMap = metadata ? mapColumnNames(metadata.visibleFields) : {}
-  const isSchemaOutOfSync = !!Object.entries(currentTableColumnMap).find(([fieldId, { type }]) => {
-    const uploaded = tableColumnMap[fieldId]
-    return uploaded && uploaded.type !== type
-  })
-
-  if (isSchemaOutOfSync) {
-    return (
-      <Box padding={3} display="flex" {...flexItem}>
-        <Text variant="paragraph" flexGrow={0}>
-          <InlineIcon flexGrow={0} name="warning" aria-label="Warning" fillColor="#aaa" />
-        </Text>
-
-        <Text variant="paragraph" flexGrow={1}>
-          The fields have changed since training data was last uploaded to Aito. Please retrain the model.
-        </Text>
-      </Box>
-    )
-  }
-
   return (
     <Box display="flex" flexDirection="column" {...flexItem}>
       <PredictionSettingsToolbar
@@ -332,76 +246,72 @@ const PredictView: React.FC<
         threshold={threshold}
         saveThreshold={saveThreshold}
         flex="none"
+        flexGrow={0}
       />
-      <Box height="0px" overflow="auto" flexGrow={1} flexShrink={1}>
-        {selectedRecordCount > maxRecords && (
-          <Text fontStyle="oblique" textColor="light" variant="paragraph" marginX={3} marginTop={3}>
-            Showing predictions for {maxRecords} of the {selectedRecordCount} selected records.
-          </Text>
-        )}
-        {recordIdsToPredict.map((recordId) => (
-          <RecordPrediction
-            key={recordId}
-            recordId={recordId}
-            selectedRecords={selectedRecords}
-            viewFields={visibleFields}
-            tableConfig={tableConfig}
-            fieldsToPredict={fieldsToPredict}
-            client={client}
-            recordsQuery={recordsQuery}
-            schema={schema}
-            setCellValue={setCellValue}
-            canUpdate={canUpdate}
-            autoFill={autoFill && canUpdate.hasPermission}
-            threshold={threshold}
-          />
-        ))}
+      <Box display="flex" flexDirection="column" flexGrow={1} flexShrink={1}>
+        <WithTableSchema client={client} hasUploaded={hasUploaded} table={table} view={view} tableConfig={tableConfig}>
+          {({ schema }) => {
+            if (!hasSelection) {
+              return (
+                <Box flexGrow={1} display="flex" alignItems="center" justifyContent="center" flexBasis="100%">
+                  <Box>
+                    <Text
+                      className="aito-ui"
+                      variant="paragraph"
+                      textColor="#bbb"
+                      size="xlarge"
+                      fontWeight="bold"
+                      margin={0}
+                      flexGrow={0}
+                    >
+                      Please select an empty cell
+                    </Text>
+                  </Box>
+                </Box>
+              )
+            }
+
+            if (view?.type !== ViewType.GRID) {
+              return (
+                <Box flexGrow={1} display="flex" alignItems="center" justifyContent="center" flexBasis="100%">
+                  <Text variant="paragraph" textColor="light">
+                    Predictions are only available in <em>grid views</em>.
+                  </Text>
+                </Box>
+              )
+            }
+
+            return (
+              <Box flexGrow={1} flexShrink={1} display="flex" flexDirection="column" height="0px" overflow="auto">
+                {selectedRecordCount > maxRecords && (
+                  <Text fontStyle="oblique" textColor="light" variant="paragraph" marginX={3} marginTop={3}>
+                    Showing predictions for {maxRecords} of the {selectedRecordCount} selected records.
+                  </Text>
+                )}
+                {recordIdsToPredict.map((recordId) => (
+                  <RecordPrediction
+                    key={recordId}
+                    recordId={recordId}
+                    selectedRecords={selectedRecords}
+                    viewFields={visibleFields}
+                    tableConfig={tableConfig}
+                    fieldsToPredict={fieldsToPredict}
+                    client={client}
+                    recordsQuery={recordsQuery}
+                    schema={schema}
+                    setCellValue={setCellValue}
+                    canUpdate={canUpdate}
+                    autoFill={autoFill && canUpdate.hasPermission}
+                    threshold={threshold}
+                  />
+                ))}
+              </Box>
+            )
+          }}
+        </WithTableSchema>
       </Box>
     </Box>
   )
-}
-
-const useAitoSchema = (
-  aitoTableName: string,
-  client: AitoClient,
-): TableSchema | undefined | null | 'quota-exceeded' => {
-  // Load aito schema after brief delay
-
-  const [schema, setSchema] = useState<TableSchema | undefined | null | 'quota-exceeded'>(undefined)
-  useEffect(() => {
-    let cancel = false
-    const loadSchema = async () => {
-      try {
-        const response = await client.getSchema()
-        if (!cancel) {
-          if (isAitoError(response)) {
-            if (response === 'quota-exceeded') {
-              setSchema('quota-exceeded')
-            } else {
-              setSchema(null)
-            }
-          } else {
-            const tableSchema = response[aitoTableName] || null
-            setSchema(tableSchema)
-          }
-        }
-      } catch (e) {
-        if (!cancel) {
-          setSchema(null)
-        }
-      }
-    }
-
-    const delay = 100
-    const timeout = setTimeout(loadSchema, delay)
-
-    return () => {
-      cancel = true
-      clearTimeout(timeout)
-    }
-  }, [aitoTableName, setSchema, client])
-
-  return schema
 }
 
 const RecordPrediction: React.FC<{
@@ -531,45 +441,15 @@ const isMultipleSelectField = (field: Field): boolean => Boolean(AcceptedFields[
 type QueryType = 'predict' | 'match'
 const queryType = (field: Field): QueryType => (field.type === FieldType.MULTIPLE_RECORD_LINKS ? 'match' : 'predict')
 
-const renderCellDefault = (field: Field) => {
-  const RenderCell = (cellValue: unknown): React.ReactElement => {
-    if (field.type === FieldType.SINGLE_COLLABORATOR || field.type === FieldType.MULTIPLE_COLLABORATORS) {
-      return (
-        <Box marginLeft={2}>
-          <i>Unknown collaborator</i>
-        </Box>
-      )
-    }
-    if (field.type === FieldType.MULTIPLE_RECORD_LINKS) {
-      return (
-        <Box marginLeft={2}>
-          <i>Unknown record</i>
-        </Box>
-      )
-    }
-    let value: string = String(cellValue)
-    try {
-      const af = AcceptedFields[field.type]
-      if (af) {
-        value = af.cellValueToText(cellValue, field.config)
-      }
-    } catch {
-      // Ignore
-    }
-    return <i>{value}</i>
-  }
-  return RenderCell
-}
-
 const makeWhereClause = (selectedField: Field, fields: Field[], schema: TableSchema, record: Record) => {
   const fieldIdToName = mapColumnNames(fields)
   const inputFields = fields.reduce<globalThis.Record<string, unknown>>((acc, field) => {
     const conversion = AcceptedFields[field.type]
     const columnName = fieldIdToName[field.id].name
     if (field.id !== selectedField.id && conversion && columnName in schema.columns) {
-      const isEmpty = record.getCellValueAsString(field) === '' && field.type !== FieldType.CHECKBOX
-      const aitoValue = conversion.toAitoValue(field, record)
-      if (aitoValue === null || aitoValue === undefined || isEmpty) {
+      const cellValue = record.getCellValue(field)
+      const aitoValue = conversion.toAitoValue(cellValue, field.config)
+      if (aitoValue === null || aitoValue === undefined || aitoValue === false) {
         return acc
       } else {
         return {
@@ -629,6 +509,8 @@ const addFieldChoice = async (field: Field, name: string): Promise<void> => {
 }
 
 interface PredictionHits {
+  offset: number
+  total: number
   hits: {
     $p: number
     feature?: number | string | boolean | null
@@ -660,8 +542,6 @@ const FieldPrediction: React.FC<{
   threshold,
   canUpdate: hasPermissionToUpdate,
 }) => {
-  const delayedRequest = useRef<ReturnType<typeof setTimeout> | undefined>()
-
   const tableColumnMap = tableConfig.columns
   const aitoTableName = tableConfig.aitoTableName
 
@@ -669,16 +549,6 @@ const FieldPrediction: React.FC<{
   const isExternalField = [FieldType.EXTERNAL_SYNC_SOURCE].includes(selectedField.type)
   const canUpdate = hasPermissionToUpdate.hasPermission && !selectedField.isComputed && !isTextField && !isExternalField
   const cantUpdateReason = hasPermissionToUpdate.hasPermission ? undefined : hasPermissionToUpdate.reasonDisplayString
-
-  useEffect(() => {
-    // This is run once when the element is unmounted
-    return () => {
-      if (delayedRequest.current !== undefined) {
-        clearTimeout(delayedRequest.current)
-        delayedRequest.current = undefined
-      }
-    }
-  }, [delayedRequest])
 
   const hasAutomaticallySet = useRef(!_.isEmpty(record.getCellValue(selectedField.id)))
   useEffect(() => {
@@ -710,13 +580,7 @@ const FieldPrediction: React.FC<{
     : null
 
   const [prediction, setPrediction] = useState<PredictionHits | undefined | null>(undefined)
-  useEffect(() => {
-    if (delayedRequest.current !== undefined) {
-      return
-    }
-
-    // Start a new request
-    const delay = 50
+  useDelayedEffect(50, async (hasUnmounted) => {
     const fieldIdToName = tableColumnMap
 
     const columnName = fieldIdToName[selectedField.id]?.name
@@ -726,18 +590,13 @@ const FieldPrediction: React.FC<{
       return
     }
 
-    const hasUnmounted = () => delayedRequest.current === undefined
-
-    delayedRequest.current = setTimeout(async () => {
-      let start: Date | undefined
-      try {
-        await RequestLocks.acquire()
-
+    try {
+      await withRequestLock(async () => {
         if (hasUnmounted()) {
           return
         }
 
-        const limit = 5
+        const limit = 10
 
         const isPredictQuery = queryType(selectedField) === 'predict'
         const where = makeWhereClause(selectedField, fields, schema, record)
@@ -779,7 +638,6 @@ const FieldPrediction: React.FC<{
         })
         query = query.replace(/}$/, `,"where":${whereString}}`)
 
-        start = new Date()
         const prediction = isPredictQuery ? await client.predict(query) : await client.match(query)
 
         if (!hasUnmounted()) {
@@ -797,30 +655,13 @@ const FieldPrediction: React.FC<{
             setPrediction(prediction)
           }
         }
-      } catch (e) {
-        if (!hasUnmounted()) {
-          setPrediction(null)
-        }
-      } finally {
-        // Delay releasing the request lock until
-        if (start) {
-          const elapsed = new Date().valueOf() - start.valueOf()
-          const remaining = Math.min(REQUEST_TIME, REQUEST_TIME - elapsed)
-          if (remaining > 0) {
-            await new Promise((resolve) => setTimeout(() => resolve(undefined), remaining))
-          }
-        }
-        RequestLocks.release()
-      }
-    }, delay)
-
-    return () => {
-      if (delayedRequest.current) {
-        clearTimeout(delayedRequest.current)
-        delayedRequest.current = undefined
+      })
+    } catch {
+      if (!hasUnmounted()) {
+        setPrediction(null)
       }
     }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  })
 
   interface ConfirmParameters {
     confirm: 'replace' | 'add-choice'
@@ -1143,135 +984,149 @@ const PredictionHitsList: React.FC<{
   const linkedRecords = useRecordIds((linkedRecordsQuery || null)!) || []
   useWatchable(linkedTable, 'fields')
 
+  const uniformProbability = 1 / prediction.total
+  const badIndex = prediction.hits.findIndex((value) => value.$p < uniformProbability)
+  const headSize = Math.min(5, badIndex < 0 ? 5 : badIndex)
+
   return (
-    <>
-      {prediction.hits.map(({ $p, feature, id, $why }, i) => {
-        const featureOrId = feature || id
-        const conversion = AcceptedFields[selectedField.type]
-        let value = conversion ? conversion.toCellValue(featureOrId, selectedField.config) : featureOrId
+    <ExpandableList list={prediction.hits} headSize={headSize}>
+      {({ list }) =>
+        list.map(({ $p, feature, id, $why }, i) => {
+          const featureOrId = feature || id
+          const conversion = AcceptedFields[selectedField.type]
+          let value = conversion ? conversion.toCellValue(featureOrId, selectedField.config) : featureOrId
 
-        const hitCount = prediction.hits.length
-        const hitsBoxHeight = 16 + 49.5 * hitCount
-        const beforeFraction = (16 + 49.5 * i) / hitsBoxHeight
-        const afterFraction = (hitsBoxHeight - (i + 1) * 49.5) / hitsBoxHeight
-        const disallowedReason = whyIsFieldChoiceNotAllowed(selectedField, String(featureOrId))
-        const fieldHasFeature = hasFeature(record, selectedField, value)
+          const hitCount = list.length
+          const hitsBoxHeight = 16 + 49.5 * hitCount
+          const beforeFraction = (16 + 49.5 * i) / hitsBoxHeight
+          const afterFraction = (hitsBoxHeight - (i + 1) * 49.5) / hitsBoxHeight
+          const disallowedReason = whyIsFieldChoiceNotAllowed(selectedField, String(featureOrId))
+          const fieldHasFeature = hasFeature(record, selectedField, value)
 
-        const canRemove = true
+          const canRemove = true
 
-        const recordWasRemoved = isLink && id && !linkedRecords.includes(id)
-        const canUse = !recordWasRemoved
-        const isRemoveAction = fieldHasFeature && canRemove
+          const recordWasRemoved = isLink && id && !linkedRecords.includes(id)
+          const canUse = !recordWasRemoved
+          const isRemoveAction = fieldHasFeature && canRemove
 
-        return (
-          <Row key={i} highlight={fieldHasFeature}>
-            <Cell flexGrow={1} flexShrink={1}>
-              <Box display="flex" height="100%" overflow="hidden">
-                <PredictionCellRenderer
-                  marginLeft={2}
-                  flexGrow={1}
-                  alignSelf="center"
-                  field={selectedField}
-                  linkedRecordsQuery={linkedRecordsQuery}
-                  cellValue={value}
-                  renderInvalidCellValue={renderFallback}
-                />
-              </Box>
-            </Cell>
-            <Cell width="60px" flexGrow={0}>
-              <PopupContainer>
-                <Box display="flex" height="100%" justifyContent="right" marginBottom={1}>
-                  <Text textColor="light" alignSelf="center">
-                    {Math.round($p * 100)}%
-                  </Text>
-                  <InlineIcon
-                    alignSelf="center"
-                    name="help"
-                    aria-label="Info"
-                    fillColor="#aaa"
-                    marginLeft={2}
-                    marginRight={0}
-                  />
-                  <Box
-                    className="popup"
-                    position="absolute"
-                    marginTop={3}
-                    top={0}
-                    marginLeft={3}
-                    minWidth="200px"
-                    right={0}
-                    marginRight="125px"
-                  >
-                    <Box display="flex" flexDirection="column" minHeight={`${hitsBoxHeight}px`}>
-                      <Box flexShrink={beforeFraction} flexGrow={beforeFraction}></Box>
-                      <Box
-                        flexShrink={0}
-                        flexGrow={0}
-                        flexBasis="auto"
-                        textColor="white"
-                        backgroundColor="dark"
-                        borderRadius="default"
-                      >
-                        {$why ? (
-                          linkedTable ? (
-                            <MatchExplanationBox
-                              $p={$p}
-                              $why={$why}
-                              contextFields={fields}
-                              hitFields={linkedTable.fields}
-                            />
-                          ) : (
-                            <ExplanationBox
-                              $p={$p}
-                              $why={$why}
-                              fields={fields}
-                              tableColumnMap={tableColumnMap}
-                              linkedTables={linkedTables}
-                            />
-                          )
-                        ) : (
-                          <DefaultExplanationBox />
-                        )}
-                      </Box>
-                      <Box flexShrink={afterFraction} flexGrow={afterFraction}></Box>
-                    </Box>
-                  </Box>
-                </Box>
-              </PopupContainer>
-            </Cell>
-            <Cell width="62px" flexGrow={0}>
-              <Box display="flex" height="100%" justifyContent="right">
-                <Tooltip disabled={!disallowedReason && canUpdate} content={cantUpdateReason || disallowedReason || ''}>
-                  {isMultipleSelectField(selectedField) ? (
-                    <Button
-                      marginX={2}
-                      icon={isRemoveAction ? 'minus' : 'plus'}
-                      onClick={() => onClick(featureOrId)}
-                      size="small"
+          return (
+            <React.Fragment key={i}>
+              {i === badIndex && <Box marginX={4} borderBottom="thin dashed lightgray" />}
+              <Row highlight={fieldHasFeature}>
+                <Cell flexGrow={1} flexShrink={1}>
+                  <Box display="flex" height="100%" overflow="hidden">
+                    <PredictionCellRenderer
+                      marginLeft={3}
+                      flexGrow={1}
                       alignSelf="center"
-                      disabled={!canUse || !canUpdate || Boolean(disallowedReason) || (fieldHasFeature && !canRemove)}
-                      aria-label="Toggle feature"
-                      variant={isRemoveAction ? 'danger' : 'primary'}
+                      field={selectedField}
+                      linkedRecordsQuery={linkedRecordsQuery}
+                      cellValue={value}
+                      renderInvalidCellValue={renderFallback}
                     />
-                  ) : (
-                    <Button
-                      onClick={() => onClick(featureOrId)}
-                      size="small"
-                      alignSelf="center"
-                      variant="default"
-                      disabled={!canUpdate || fieldHasFeature || Boolean(disallowedReason)}
-                      marginX={2}
+                  </Box>
+                </Cell>
+                <Cell width="60px" flexGrow={0}>
+                  <PopupContainer>
+                    <Box display="flex" height="100%" justifyContent="right" marginBottom={1}>
+                      <Text textColor="light" alignSelf="center">
+                        {Math.round($p * 100)}%
+                      </Text>
+                      <InlineIcon
+                        alignSelf="center"
+                        name="help"
+                        aria-label="Info"
+                        fillColor="#aaa"
+                        marginLeft={2}
+                        marginRight={0}
+                      />
+                      <Box
+                        className="popup"
+                        position="absolute"
+                        marginTop={3}
+                        top={0}
+                        marginLeft={3}
+                        minWidth="200px"
+                        right={0}
+                        marginRight="125px"
+                      >
+                        <Box display="flex" flexDirection="column" minHeight={`${hitsBoxHeight}px`}>
+                          <Box flexShrink={beforeFraction} flexGrow={beforeFraction}></Box>
+                          <Box
+                            flexShrink={0}
+                            flexGrow={0}
+                            flexBasis="auto"
+                            textColor="white"
+                            backgroundColor="dark"
+                            borderRadius="default"
+                          >
+                            {$why ? (
+                              linkedTable ? (
+                                <MatchExplanationBox
+                                  $p={$p}
+                                  $why={$why}
+                                  contextFields={fields}
+                                  hitFields={linkedTable.fields}
+                                />
+                              ) : (
+                                <ExplanationBox
+                                  $p={$p}
+                                  $why={$why}
+                                  fields={fields}
+                                  tableColumnMap={tableColumnMap}
+                                  linkedTables={linkedTables}
+                                />
+                              )
+                            ) : (
+                              <DefaultExplanationBox />
+                            )}
+                          </Box>
+                          <Box flexShrink={afterFraction} flexGrow={afterFraction}></Box>
+                        </Box>
+                      </Box>
+                    </Box>
+                  </PopupContainer>
+                </Cell>
+                <Cell width="62px" flexGrow={0}>
+                  <Box display="flex" height="100%" justifyContent="right">
+                    <Tooltip
+                      disabled={!disallowedReason && canUpdate}
+                      content={cantUpdateReason || disallowedReason || ''}
                     >
-                      Use
-                    </Button>
-                  )}
-                </Tooltip>
-              </Box>
-            </Cell>
-          </Row>
-        )
-      })}
-    </>
+                      {isMultipleSelectField(selectedField) ? (
+                        <Button
+                          marginX={2}
+                          icon={isRemoveAction ? 'minus' : 'plus'}
+                          onClick={() => onClick(featureOrId)}
+                          size="small"
+                          alignSelf="center"
+                          disabled={
+                            !canUse || !canUpdate || Boolean(disallowedReason) || (fieldHasFeature && !canRemove)
+                          }
+                          aria-label="Toggle feature"
+                          variant={isRemoveAction ? 'danger' : 'primary'}
+                        />
+                      ) : (
+                        <Button
+                          onClick={() => onClick(featureOrId)}
+                          size="small"
+                          alignSelf="center"
+                          variant="default"
+                          disabled={!canUpdate || fieldHasFeature || Boolean(disallowedReason)}
+                          marginX={2}
+                        >
+                          Use
+                        </Button>
+                      )}
+                    </Tooltip>
+                  </Box>
+                </Cell>
+              </Row>
+            </React.Fragment>
+          )
+        })
+      }
+    </ExpandableList>
   )
 }
 
