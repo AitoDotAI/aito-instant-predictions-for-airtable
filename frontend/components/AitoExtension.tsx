@@ -28,7 +28,7 @@ import GlobalConfig from '@airtable/blocks/dist/types/src/global_config'
 import { useMemo } from 'react'
 import AitoClient, { AitoError } from '../AitoClient'
 import { Tab } from './Tab'
-import { LocalConfig, readLocalConfig, writeLocalConfig } from '../LocalConfig'
+import { clearLocalConfig, LocalConfig, readLocalConfig, writeLocalConfig } from '../LocalConfig'
 import { normalizeAitoUrl } from '../credentials'
 import UploadProgressView from './UploadProgressView'
 import { UploadJob } from './UploadConfigView'
@@ -325,6 +325,21 @@ const MainView: React.FC<{
     [globalConfig, setIsShowingSettings, aitoUrl],
   )
 
+  const onClearSettings = useCallback(
+    async (): Promise<void> => {
+      clearLocalConfig()
+      await globalConfig.setPathsAsync([
+        { path: [GlobalConfigKeys.AITO_URL], value: undefined },
+        { path: [GlobalConfigKeys.AITO_KEY], value: undefined },
+        { path: [GlobalConfigKeys.HAS_SETUP_ONCE], value: undefined },
+        { path: [GlobalConfigKeys.TABLE_SETTINGS], value: undefined },
+      ])
+    },
+    [globalConfig, clearLocalConfig],
+  )
+
+  const onCloseSettings = useCallback(() => setIsShowingSettings(false), [setIsShowingSettings])
+
   if (isShowingSettings || !client) {
     const settings: Settings = {
       aitoUrl: aitoUrl || '',
@@ -338,6 +353,8 @@ const MainView: React.FC<{
         canUpdateSettings={canUpdateSettings}
         isAuthenticationError={isAuthenticationError}
         onDoneClick={onSaveSettings}
+        onCloseClick={onCloseSettings}
+        onClearSettings={onClearSettings}
       />
     )
   }

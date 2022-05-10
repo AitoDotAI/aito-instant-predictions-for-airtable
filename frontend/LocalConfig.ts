@@ -35,3 +35,5 @@ export const writeLocalConfig = _.debounce((config: UserConfig): void => {
     console.error(e)
   }
 }, 100)
+
+export const clearLocalConfig = () => writeLocalConfig(EmptyUserConfig)
