@@ -325,6 +325,8 @@ const MainView: React.FC<{
     [globalConfig, setIsShowingSettings, aitoUrl],
   )
 
+  const onCloseSettings = useCallback(() => setIsShowingSettings(false), [setIsShowingSettings])
+
   if (isShowingSettings || !client) {
     const settings: Settings = {
       aitoUrl: aitoUrl || '',
@@ -338,6 +340,7 @@ const MainView: React.FC<{
         canUpdateSettings={canUpdateSettings}
         isAuthenticationError={isAuthenticationError}
         onDoneClick={onSaveSettings}
+        onCloseClick={onCloseSettings}
       />
     )
   }

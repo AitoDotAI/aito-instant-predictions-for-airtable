@@ -29,8 +29,9 @@ const SettingsMenu: React.FC<{
   canUpdateSettings: boolean
   isAuthenticationError: boolean
   onDoneClick: (settings: Settings) => void
+  onCloseClick: () => unknown
 }> = (props) => {
-  const { canUpdateSettings, settings, onDoneClick, isAuthenticationError } = props
+  const { canUpdateSettings, settings, onDoneClick, onCloseClick, isAuthenticationError } = props
 
   const [stagedChanges, setStagedChanges] = useState(settings)
   const [isSaving, setIsSaving] = useState(false)
@@ -86,7 +87,12 @@ const SettingsMenu: React.FC<{
         </Box>
       )}
       <Box marginX={3} marginBottom={3} marginTop={2} flexGrow={1}>
-        <Heading size="small">Settings</Heading>
+        <Box display="flex">
+          <Heading size="small" flexGrow={1}>
+            Settings
+          </Heading>
+          <Button icon="x" aria-label="close" variant="secondary" onClick={onCloseClick} />
+        </Box>
 
         <Text variant="paragraph">
           Login to{' '}
