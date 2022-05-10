@@ -113,6 +113,12 @@ const barcode: SupportedField = {
   removeFeature: (cell) => cell,
 }
 
+export const isNumeric = (config: FieldConfig): boolean =>
+  config.type === FieldType.COUNT ||
+  config.type === FieldType.PERCENT ||
+  config.type === FieldType.CURRENCY ||
+  (config.type === FieldType.NUMBER && config.options.precision > 0)
+
 /**
  *  Numeric field conversion.
  *
@@ -122,7 +128,7 @@ const barcode: SupportedField = {
  * @param convert convert the string-valued field to a number-format
  * @returns
  */
-const numberConversion = (t: 'Decimal' | 'Int', alwaysNumeric: boolean = false): SupportedField => ({
+const numberConversion = (t: 'Decimal' | 'Int'): SupportedField => ({
   toAitoType: () => t,
   toAitoValue: (value) => {
     if (typeof value === 'number') {
@@ -138,20 +144,12 @@ const numberConversion = (t: 'Decimal' | 'Int', alwaysNumeric: boolean = false):
   toAitoAnalyzer: () => undefined,
   toCellValue: (v) => Number(v),
   cellValueToText: (v) => String(v),
-  toAitoQuery: alwaysNumeric
-    ? (v) => ({ $numeric: v })
-    : (v, config) => {
-        if (
-          config.type === FieldType.NUMBER ||
-          config.type === FieldType.PERCENT ||
-          config.type === FieldType.CURRENCY
-        ) {
-          if (config.options.precision > 0) {
-            return { $numeric: v }
-          }
-        }
-        return v
-      },
+  toAitoQuery: (v: unknown, config: FieldConfig) => {
+    if (isNumeric(config)) {
+      return { $numeric: v }
+    }
+    return v
+  },
   hasFeature: (cell: unknown, feature: unknown): boolean => cell === feature,
   addFeature: (cell) => cell,
   removeFeature: (cell) => cell,
@@ -537,11 +535,11 @@ const AcceptedFields: globalThis.Record<FieldType, SupportedField> = {
    * Numeric fields
    */
   [FieldType.AUTO_NUMBER]: numberConversion('Int'),
-  [FieldType.COUNT]: numberConversion('Int', true),
+  [FieldType.COUNT]: numberConversion('Int'),
   [FieldType.RATING]: numberConversion('Int'),
   [FieldType.NUMBER]: numberConversion('Decimal'),
-  [FieldType.CURRENCY]: numberConversion('Decimal', true),
-  [FieldType.PERCENT]: numberConversion('Decimal', true),
+  [FieldType.CURRENCY]: numberConversion('Decimal'),
+  [FieldType.PERCENT]: numberConversion('Decimal'),
 
   [FieldType.DATE]: dateTimeConversion(
     (d) => parse(d, DateFormat, referenceDate),
