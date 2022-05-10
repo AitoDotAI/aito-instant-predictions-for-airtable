@@ -1,7 +1,7 @@
 import { FlexItemSetProps } from '@airtable/blocks/dist/types/src/ui/system'
 import { Cursor, Table } from '@airtable/blocks/models'
 import { Box, Text, Button, Tooltip } from '@airtable/blocks/ui'
-import React from 'react'
+import React, { useState } from 'react'
 import AitoClient from '../AitoClient'
 import { TableConfig } from '../schema/config'
 import AitoLogo from './AitoLogo'
@@ -32,11 +32,13 @@ const TableView: React.FC<{
   const linkedRowCount = (tableConfig.views || []).reduce((acc, view) => acc + view.lastRowCount, 0)
   const linkCount = Object.values(tableConfig.links || {}).reduce((acc, table) => acc + table.lastRowCount, 0)
 
+  const [showUploadView, setShowUploadView] = useState(false)
+
   return (
     <Box display="flex" flexDirection="column" height="100vh">
-      <Header tab={tab} setTab={setTab} flex="none" />
+      <Header tab={showUploadView ? null : tab} setTab={(tab) => (setShowUploadView(false), setTab(tab))} flex="none" />
       <React.Suspense fallback={<Spinner />}>
-        {tab === 'train' ? (
+        {showUploadView ? (
           <UploadConfigView
             key={table.id}
             table={table}
@@ -85,12 +87,12 @@ const TableView: React.FC<{
         viewName={viewName}
         lastRowCount={rowCount && rowCount + linkedRowCount}
         lastLinkCount={rowCount && linkCount}
-        buttonVariant={tab === 'predict' ? 'primary' : 'secondary'}
+        buttonVariant="primary"
         lastUpdated={lastUpdated ? new Date(lastUpdated) : undefined}
         lastUploadedBy={tableConfig.lastUpdatedBy?.name}
-        buttonDisabled={tab === 'predict' && !canUpdateSettings}
-        buttonText={tab === 'train' ? 'Cancel' : `${hasUploaded ? 'Retrain' : 'Train'} model`}
-        onButtonClick={tab === 'predict' ? () => setTab('train') : () => setTab('predict')}
+        buttonDisabled={showUploadView || !canUpdateSettings}
+        buttonText={`${hasUploaded ? 'Retrain' : 'Train'} model`}
+        onButtonClick={() => setShowUploadView(true)}
         buttonKey={tab}
       />
     </Box>
@@ -114,7 +116,7 @@ const navOptions: TabOption<Tab>[] = [
 
 const Header: React.FC<
   {
-    tab: Tab
+    tab: Tab | null
     setTab: (tab: Tab) => unknown
   } & FlexItemSetProps
 > = ({ tab, setTab, ...flexItem }) => {
@@ -147,6 +149,7 @@ const Footer: React.FC<{
   lastLinkCount?: number | undefined
   lastUploadedBy?: string | undefined
   viewName?: string | undefined
+  showButton?: boolean
   buttonText: string
   buttonDisabled: boolean
   buttonVariant: 'primary' | 'secondary'
@@ -163,12 +166,13 @@ const Footer: React.FC<{
   buttonDisabled,
   onButtonClick,
   buttonKey,
+  showButton,
 }) => (
   <Box
-    padding={1}
     borderTop={BORDER_STYLE}
+    padding={1}
     display="flex"
-    backgroundColor={GRAY_BACKGROUND}
+    backgroundColor="#f7f7f7"
     justifyContent="space-between"
     flex="none"
   >
@@ -186,8 +190,8 @@ const Footer: React.FC<{
         </Text>
       )}
     >
-      <Box flexGrow={0}>
-        <Text variant="paragraph" size="default" padding={1} margin={0}>
+      <Box flexGrow={0} alignSelf="center">
+        <Text size="default" paddingX={1} margin={0}>
           {lastUpdated ? (
             <>
               <InlineIcon name="info" fillColor="#aaa" />
@@ -202,7 +206,6 @@ const Footer: React.FC<{
     <Button
       flexGrow={0}
       size="small"
-      style={{ height: 'auto' }}
       alignSelf="stretch"
       onClick={onButtonClick}
       variant={buttonVariant}

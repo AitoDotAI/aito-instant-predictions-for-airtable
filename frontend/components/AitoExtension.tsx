@@ -325,18 +325,15 @@ const MainView: React.FC<{
     [globalConfig, setIsShowingSettings, aitoUrl],
   )
 
-  const onClearSettings = useCallback(
-    async (): Promise<void> => {
-      clearLocalConfig()
-      await globalConfig.setPathsAsync([
-        { path: [GlobalConfigKeys.AITO_URL], value: undefined },
-        { path: [GlobalConfigKeys.AITO_KEY], value: undefined },
-        { path: [GlobalConfigKeys.HAS_SETUP_ONCE], value: undefined },
-        { path: [GlobalConfigKeys.TABLE_SETTINGS], value: undefined },
-      ])
-    },
-    [globalConfig, clearLocalConfig],
-  )
+  const onClearSettings = useCallback(async (): Promise<void> => {
+    clearLocalConfig()
+    await globalConfig.setPathsAsync([
+      { path: [GlobalConfigKeys.AITO_URL], value: undefined },
+      { path: [GlobalConfigKeys.AITO_KEY], value: undefined },
+      { path: [GlobalConfigKeys.HAS_SETUP_ONCE], value: undefined },
+      { path: [GlobalConfigKeys.TABLE_SETTINGS], value: undefined },
+    ])
+  }, [globalConfig, clearLocalConfig])
 
   const onCloseSettings = useCallback(() => setIsShowingSettings(false), [setIsShowingSettings])
 
