@@ -1,5 +1,16 @@
-import { Box, Text, Button, FormField, Heading, Input, useGlobalConfig, Loader, Link } from '@airtable/blocks/ui'
-import React, { useCallback, useState } from 'react'
+import {
+  Box,
+  Text,
+  Button,
+  FormField,
+  Heading,
+  Input,
+  useGlobalConfig,
+  Loader,
+  Link,
+  ConfirmationDialog,
+} from '@airtable/blocks/ui'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import styled from 'styled-components'
 import _ from 'lodash'
 import { areValidCredentials, normalizeAitoUrl } from '../credentials'
@@ -7,6 +18,8 @@ import StatusMessage from './StatusMessage'
 import Footer from './Footer'
 
 type GlobalConfig = ReturnType<typeof useGlobalConfig>
+
+const FACTORY_RESET_SEQUENCE = 'Please reset my aito settings'
 
 export interface Settings {
   aitoUrl: string
@@ -30,8 +43,9 @@ const SettingsMenu: React.FC<{
   isAuthenticationError: boolean
   onDoneClick: (settings: Settings) => void
   onCloseClick: () => unknown
+  onClearSettings: () => unknown
 }> = (props) => {
-  const { canUpdateSettings, settings, onDoneClick, onCloseClick, isAuthenticationError } = props
+  const { canUpdateSettings, settings, onDoneClick, onCloseClick, onClearSettings, isAuthenticationError } = props
 
   const [stagedChanges, setStagedChanges] = useState(settings)
   const [isSaving, setIsSaving] = useState(false)
@@ -77,8 +91,51 @@ const SettingsMenu: React.FC<{
     },
   )
 
+  interface FactoryResetState {
+    eventListener?: any
+    offset: number
+  }
+
+  const factoryReset = useRef<FactoryResetState>({ offset: 0 })
+
+  const [showResetDialog, setShowResetDialog] = useState(false)
+
+  useEffect(() => {
+    const state = factoryReset.current
+    if (state.eventListener) {
+      document.body.removeEventListener('keypress', state.eventListener)
+    }
+    state.eventListener = (e: KeyboardEvent) => {
+      const expected = FACTORY_RESET_SEQUENCE[state.offset]
+      if (e.key === expected) {
+        state.offset++
+        if (state.offset === FACTORY_RESET_SEQUENCE.length) {
+          setShowResetDialog(true)
+          state.offset = 0
+        }
+      } else {
+        state.offset = e.key === FACTORY_RESET_SEQUENCE[0] ? 1 : 0
+      }
+    }
+    document.body.addEventListener('keypress', state.eventListener)
+
+    return () => {
+      document.body.removeEventListener('keypress', state.eventListener)
+    }
+  }, [setShowResetDialog])
+
   return (
     <Box display="flex" flexDirection="column" height="100vh">
+      {showResetDialog && (
+        <ConfirmationDialog
+          onCancel={() => setShowResetDialog(false)}
+          onConfirm={() => (onClearSettings(), setShowResetDialog(false))}
+          body="Do you want to clear local settings"
+          title="Clear settings"
+          confirmButtonText="Clear"
+        />
+      )}
+
       {isAuthenticationError && (
         <Box backgroundColor="#f82b60" borderColor="#404040" borderWidth="thick" width="100%" padding={3}>
           <Text variant="paragraph" size="large" textColor="white" margin={0} padding={0}>
@@ -91,7 +148,7 @@ const SettingsMenu: React.FC<{
           <Heading size="small" flexGrow={1}>
             Settings
           </Heading>
-          <Button icon="x" aria-label="close" variant="secondary" onClick={onCloseClick} />
+          <Button icon="x" aria-label="close" variant="secondary" onClick={onCloseClick} marginRight={-2} />
         </Box>
 
         <Text variant="paragraph">
