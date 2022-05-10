@@ -17,7 +17,7 @@ import {
 } from '@airtable/blocks/ui'
 import _ from 'lodash'
 import React, { useEffect, useState } from 'react'
-import { isAcceptedField, isDataField, isIgnoredField } from '../AcceptedFields'
+import { isAcceptedField, isDataField, isIgnoredField, isNumeric } from '../AcceptedFields'
 import AitoClient from '../AitoClient'
 import { describeTasks, UploadTask } from '../functions/uploadView'
 import { TableConfig } from '../schema/config'
@@ -25,6 +25,13 @@ import Footer from './Footer'
 import Spinner from './Spinner'
 import { InlineFieldIcon, InlineIcon, InlineLink } from './ui'
 import useEqualValue from './useEqualValue'
+
+const isNumericalField = (field: Field): boolean => isNumeric(field.config)
+
+const isTextField = (field: Field): boolean =>
+  field.type === FieldType.MULTILINE_TEXT || field.type === FieldType.RICH_TEXT
+
+const isCategoricalField = (field: Field): boolean => !isNumericalField(field) && !isTextField(field)
 
 interface TableViewMapping {
   fieldId: string
@@ -176,7 +183,7 @@ const UploadConfigView: React.FC<
               />
             </React.Suspense>
           )}
-          <Box marginTop={2}>
+          <Box marginTop={3}>
             <Label>Aito.ai instance</Label>
             <Text>{client.name}</Text>
           </Box>
@@ -199,27 +206,28 @@ const InlineFieldList: React.FC<
     fields: Field[]
   } & MarginProps
 > = ({ fields, ...marginProps }) => (
-  <Text
-    overflow="hidden"
-    variant="default"
-    style={{
-      lineHeight: '24px',
-      paddingTop: '-4px',
-      paddingBottom: '-4px',
-      textOverflow: 'break-word',
-    }}
-    {...marginProps}
-  >
-    {fields.map((field, i) => (
-      <React.Fragment key={field.id}>
-        <span style={{ whiteSpace: 'nowrap', overflowWrap: 'break-word' }}>
-          <InlineFieldIcon fillColor="gray" field={field} />
-          &nbsp;{field.name}
-        </span>
-        {i + 1 < fields.length && <span style={{ letterSpacing: '24px' }}> </span>}
-      </React.Fragment>
-    ))}
-  </Text>
+  <Box {...marginProps}>
+    <Text
+      overflow="hidden"
+      variant="default"
+      style={{
+        lineHeight: '24px',
+        marginTop: '-4px',
+        marginBottom: '-4px',
+        textOverflow: 'break-word',
+      }}
+    >
+      {fields.map((field, i) => (
+        <React.Fragment key={field.id}>
+          <span style={{ whiteSpace: 'nowrap', overflowWrap: 'break-word' }}>
+            <InlineFieldIcon fillColor="gray" field={field} />
+            &nbsp;{field.name}
+          </span>
+          {i + 1 < fields.length && <span style={{ letterSpacing: '24px' }}> </span>}
+        </React.Fragment>
+      ))}
+    </Text>
+  </Box>
 )
 
 const LinkedTableDataSourcePicker: React.FC<{
@@ -273,6 +281,9 @@ const LinkedTableDataSourcePicker: React.FC<{
 
   const acceptedFields = viewMetadata.visibleFields.filter(isAcceptedField)
   const includedFields = acceptedFields.filter((x) => !isIgnoredField(x))
+  const textFields = includedFields.filter(isTextField)
+  const categoricalFields = includedFields.filter(isCategoricalField)
+  const numericalFields = includedFields.filter(isNumericalField)
   const excludedFields = acceptedFields.filter(isIgnoredField)
 
   const recordCount = records.length
@@ -326,15 +337,17 @@ const LinkedTableDataSourcePicker: React.FC<{
         aitoTableName={aitoTableName}
         table={table}
         ignoredFields={excludedFields}
-        viewFields={includedFields}
+        categoricalFields={categoricalFields}
+        numericalFields={numericalFields}
+        textFields={textFields}
         linkCount={linkCount}
         recordCount={recordCount}
       />
 
       {linkFields.length > 0 && (
         <>
-          <Heading size="small" marginTop={2}>
-            Training data for linked views
+          <Heading size="xsmall" marginTop={3}>
+            Choose training data for linked views
           </Heading>
 
           <Box paddingLeft={2} borderLeft="thick" marginBottom={2}>
@@ -401,6 +414,9 @@ const LinkedTableView: React.FC<{
 
   const acceptedFields = viewMetadata.visibleFields.filter(isAcceptedField)
   const includedFields = acceptedFields.filter(isDataField)
+  const textFields = includedFields.filter(isTextField)
+  const categoricalFields = includedFields.filter(isCategoricalField)
+  const numericalFields = includedFields.filter(isNumericalField)
   const excludedFields = acceptedFields.filter(isIgnoredField)
 
   const recordCount = records.length
@@ -437,7 +453,9 @@ const LinkedTableView: React.FC<{
   return (
     <TableSource
       aitoTableName={aitoTableName}
-      viewFields={includedFields}
+      categoricalFields={categoricalFields}
+      numericalFields={numericalFields}
+      textFields={textFields}
       ignoredFields={excludedFields}
       table={table}
       recordCount={recordCount}
@@ -450,14 +468,16 @@ const TableSource: React.FC<{
   aitoTableName: string
   recordCount?: number
   linkCount?: number
-  viewFields: Field[]
+  categoricalFields: Field[]
+  numericalFields: Field[]
+  textFields: Field[]
   ignoredFields: Field[]
-}> = ({ aitoTableName, recordCount, linkCount, viewFields, ignoredFields }) => {
+}> = ({ aitoTableName, recordCount, linkCount, categoricalFields, numericalFields, textFields, ignoredFields }) => {
   return (
-    <Box marginTop={2} display="flex" flexDirection="row" flexWrap="wrap">
+    <Box marginTop={3} display="flex" flexDirection="row" flexWrap="wrap">
       <Box flexGrow={0.5} flexShrink={0.5} flexBasis="50%">
         <Label>Content</Label>
-        <Text variant="paragraph">
+        <Text>
           {recordCount || 0} records{linkCount && linkCount > 0 ? `, ${linkCount} links` : null}
         </Text>
       </Box>
@@ -472,16 +492,77 @@ const TableSource: React.FC<{
             <InlineIcon name="help" marginLeft={1} marginRight={0} />
           </Tooltip>
         </Label>
-        <Text variant="paragraph" style={{ overflowWrap: 'break-word' }}>
-          {aitoTableName}
-        </Text>
+        <Text style={{ overflowWrap: 'break-word' }}>{aitoTableName}</Text>
       </Box>
-      <Box flexGrow={1} flexShrink={0} flexBasis="100%">
-        <Label>Fields</Label>
-        <InlineFieldList fields={viewFields} />
+      <Box flexGrow={1} flexShrink={0} flexBasis="100%" marginTop={3}>
+        <Label>
+          Categorical fields
+          <Tooltip
+            placementY={Tooltip.placements.TOP}
+            style={{ height: 'auto', width: '300px', maxWidth: '300px', whiteSpace: 'normal' }}
+            content={() => (
+              <Text padding={1} textColor="white">
+                Categorical fields, like <strong>select</strong> and <strong>link</strong> fields, can be predicted.
+                Please note that <strong>number fields</strong> that are displayed without a decimal point and{' '}
+                <strong>auto-numbers</strong>, e.g. record IDs, will be treated as categorical.
+              </Text>
+            )}
+          >
+            <InlineIcon name="help" marginLeft={1} marginRight={0} />
+          </Tooltip>
+        </Label>
+        {categoricalFields.length === 0 ? (
+          <Text>
+            <em>No categorical fields</em>
+          </Text>
+        ) : (
+          <InlineFieldList fields={categoricalFields} />
+        )}
       </Box>
+      {numericalFields.length > 0 && (
+        <Box flexGrow={1} flexShrink={0} flexBasis="100%" marginTop={3}>
+          <Label>
+            Numerical fields
+            <Tooltip
+              placementY={Tooltip.placements.TOP}
+              style={{ height: 'auto', width: '300px', maxWidth: '300px', whiteSpace: 'normal' }}
+              content={() => (
+                <Text padding={1} textColor="white">
+                  Numerical fields can improve the predictions of other fields when similar records have numbers in the
+                  same range. Please note that support for predicting the contents of <strong>number</strong> fields
+                  themselves is currently poor.
+                </Text>
+              )}
+            >
+              <InlineIcon name="help" marginLeft={1} marginRight={0} />
+            </Tooltip>
+          </Label>
+          <InlineFieldList fields={numericalFields} />
+        </Box>
+      )}
+      {textFields.length > 0 && (
+        <Box flexGrow={1} flexShrink={0} flexBasis="100%" marginTop={3}>
+          <Label>
+            Text fields
+            <Tooltip
+              style={{ height: 'auto', width: '300px', maxWidth: '300px', whiteSpace: 'normal' }}
+              content={() => (
+                <Text padding={1} textColor="white">
+                  <strong>Long text</strong> fields can improve the predictions of other fields. Words and combinations
+                  of words informs the predictions. Please note that you cannot predict the entire contents of text
+                  fields themselves.
+                </Text>
+              )}
+            >
+              <InlineIcon name="help" marginLeft={1} marginRight={0} />
+            </Tooltip>
+          </Label>
+          <InlineFieldList fields={textFields} />
+        </Box>
+      )}
+
       {ignoredFields.length > 0 && (
-        <Box flexGrow={1} flexShrink={0} flexBasis="100%" marginTop={2}>
+        <Box flexGrow={1} flexShrink={0} flexBasis="100%" marginTop={3}>
           <Label>
             Excluded fields
             <Tooltip
