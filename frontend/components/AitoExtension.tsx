@@ -32,7 +32,7 @@ import { clearLocalConfig, LocalConfig, readLocalConfig, writeLocalConfig } from
 import { normalizeAitoUrl } from '../credentials'
 import UploadProgressView from './UploadProgressView'
 import { UploadJob } from './UploadConfigView'
-import { CreateLinkTask, CreateTableTask, runUploadTasks, UploadTask } from '../functions/uploadView'
+import { CreateLinkTask, CreateTableTask, runUploadTasks, UploadTableTask, UploadTask } from '../functions/uploadView'
 import Spinner from './Spinner'
 
 const VIEWPORT_MIN_WIDTH = 345
@@ -68,7 +68,7 @@ const makeTableConfig = (
   mainTableId: string,
   mainViewId: string,
   tasks: UploadTask[],
-): Pick<TableConfig, 'lastRowCount' | 'columns' | 'views' | 'links'> => {
+): Pick<TableConfig, 'lastRowCount' | 'columns' | 'views' | 'links' | 'clusters'> => {
   const findTask = <T extends UploadTask['type']>(
     type: T,
     f: (task: UploadTask & { type: T }) => boolean,
@@ -80,6 +80,11 @@ const makeTableConfig = (
   const columns: TableColumnMap =
     findTask('create-table', ({ viewId, tableId }) => tableId === mainTableId && viewId === mainViewId)?.tableInfo
       .fieldIdToName || {}
+
+  const clusters = findTask(
+    'upload-table',
+    ({ viewId, tableId }) => tableId === mainTableId && viewId === mainViewId,
+  )?.clusters
 
   const views = tasks
     .filter(
@@ -129,6 +134,7 @@ const makeTableConfig = (
     columns,
     views,
     links,
+    clusters,
   }
 }
 
@@ -264,6 +270,7 @@ const MainView: React.FC<{
         },
         links: undefined,
         views: undefined,
+        clusters: undefined,
       }
 
       setCurrentUpload(job)
@@ -289,7 +296,7 @@ const MainView: React.FC<{
         } else {
           const updatedConfig = makeTableConfig(mainTableId, mainViewId, result.tasks)
 
-          setTableConfig(mainTableId, {
+          await setTableConfig(mainTableId, {
             ...newTableConfig,
             lastUpdateStatus: undefined,
             ...updatedConfig,
@@ -405,6 +412,7 @@ const MainView: React.FC<{
       links: undefined,
       views: undefined,
       aitoTableName: `airtable_${table.id}`,
+      clusters: undefined,
       ...tableConfig,
     }
 

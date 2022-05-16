@@ -21,7 +21,7 @@ describe('GaussianMixtureModel', () => {
 
     losses.forEach((loss, i) => {
       if (i > 0) {
-        expect(losses[i-1]).toBeLessThan(loss)
+        expect(losses[i - 1]).toBeLessThan(loss)
       }
     })
   })

@@ -11,6 +11,7 @@ export const LAST_UPDATED_BY = 'lastUpdatedBy' as const
 export const TABLE_COLUMN_MAP = 'columns' as const
 export const TABLE_LINKS = 'links' as const
 export const TABLE_VIEWS = 'views' as const
+export const TABLE_CLUSTERS = 'clusters' as const
 export const TABLE_SETTINGS = 'tables' as const
 export const USER_SETTINGS = 'users' as const
 export const PER_TABLE_SETTINGS = 'tables' as const

@@ -1,7 +1,8 @@
 import { Base, Field, FieldType, ViewMetadataQueryResult } from '@airtable/blocks/models'
 import _ from 'lodash'
-import AcceptedFields, { isDataField, isIgnoredField } from '../AcceptedFields'
+import AcceptedFields, { isDataField, isIgnoredField, isNumeric } from '../AcceptedFields'
 import AitoClient, { AitoError, AitoValue, isAitoError, Value } from '../AitoClient'
+import GaussianMixtureModel, { GaussianMixture } from '../math/GaussianMixtureModel'
 import { TableSchema } from '../schema/aito'
 import { TableColumnMap } from '../schema/config'
 import { isArrayOf, isObjectOf, isString } from '../validator/validation'
@@ -85,6 +86,7 @@ export interface UploadTableTask extends TaskCommon {
   tableId: string
   viewId: string
   recordCount?: number
+  clusters?: ClusterParameters
 }
 
 export interface UploadLinkTask extends TaskCommon {
@@ -368,6 +370,9 @@ export async function runUploadTasks(
             report()
             return { type: 'error', tasks, error: response }
           }
+          if (uploadResponse) {
+            task.clusters = uploadResponse
+          }
         } catch (e) {
           task.status = 'error'
           report()
@@ -458,6 +463,11 @@ async function uploadInBatches(
   }
 }
 
+export interface ClusterParameters {
+  fieldIds: string[]
+  clusters: GaussianMixture[]
+}
+
 async function fetchRecordsAndUpload(
   client: AitoClient,
   base: Base,
@@ -466,7 +476,7 @@ async function fetchRecordsAndUpload(
   fieldIdToName: TableColumnMap,
   aitoTable: string,
   onProgress: (progress: number) => unknown,
-): Promise<AitoError | undefined> {
+): Promise<AitoError | ClusterParameters | null> {
   const table = base.getTableById(tableId)
   const view = table.getViewById(viewId)
   const queryResult = await view.selectRecordsAsync()
@@ -475,8 +485,43 @@ async function fetchRecordsAndUpload(
     const metadata = await view.selectMetadataAsync()
 
     try {
+      let clusterModel: GaussianMixtureModel | null = null
+      let clusterParameters: ClusterParameters | null = null
       const dataArray: any[] = []
+
+      const numericFields = metadata.visibleFields.filter((field) => isNumeric(field.config))
+      if (numericFields.length > 0) {
+        const N = queryResult.records.length
+        const k = Math.max(1, Math.floor(Math.log(N) / Math.log(3)))
+        const model = new GaussianMixtureModel(k, numericFields.length)
+
+        const samples = queryResult.records.map((record) =>
+          numericFields.map((field) => Number(record.getCellValue(field))),
+        )
+
+        for (let i = 0; i < 100 && !model.hasCoverged; i++) {
+          model.train(samples)
+          model.maximizeParameters()
+          await new Promise((resolve) => setTimeout(resolve, 1))
+          console.log('Training', i)
+        }
+        clusterModel = model
+
+        const numericFieldIds = numericFields.map((field) => field.id)
+        const clusters = model.mixtures
+
+        clusterParameters = {
+          fieldIds: numericFieldIds,
+          clusters,
+        }
+
+        console.log('Result', clusterParameters)
+      }
+
       for (const record of queryResult.records) {
+        const vector = numericFields.map((field) => Number(record.getCellValue(field)))
+        const clusterId = clusterModel && clusterModel.getCluster(vector)
+
         const row = metadata.visibleFields.reduce<Record<string, Value>>(
           (row, field) => {
             if (!isDataField(field)) {
@@ -507,7 +552,7 @@ async function fetchRecordsAndUpload(
               }
             }
           },
-          { id: record.id },
+          { id: record.id, clusterId },
         )
         dataArray.push(row)
         if (dataArray.length % 100 === 0) {
@@ -516,10 +561,11 @@ async function fetchRecordsAndUpload(
         }
       }
 
-      const error = uploadInBatches(client, dataArray, aitoTable, onProgress)
+      const error = await uploadInBatches(client, dataArray, aitoTable, onProgress)
       if (error) {
         return error
       }
+      return clusterParameters
     } finally {
       metadata.unloadData()
     }

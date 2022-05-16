@@ -1,4 +1,5 @@
 import {
+  isAny,
   isArrayOf,
   isBoolean,
   isLiteral,
@@ -9,6 +10,7 @@ import {
   isString,
   isUndefined,
   ValidatedType,
+  Validator,
 } from '../validator/validation'
 
 import {
@@ -25,7 +27,9 @@ import {
   TABLE_LINKS,
   TABLE_VIEWS,
   AIRTABLE_TABLE_ID,
+  TABLE_CLUSTERS,
 } from '../GlobalConfigKeys'
+import { ClusterParameters } from '../functions/uploadView'
 
 const isCollaborator = isObjectOf({
   id: isString,
@@ -64,6 +68,7 @@ export const isTableConfig = isObjectOf({
   [TABLE_COLUMN_MAP]: isTableColumnMap,
   [TABLE_LINKS]: isSomeOf(isMapOf(isLinkFieldConfig), isUndefined),
   [TABLE_VIEWS]: isSomeOf(isArrayOf(isLinkViewConfig), isUndefined),
+  [TABLE_CLUSTERS]: isSomeOf(isAny, isUndefined),
 })
 export type TableConfig = ValidatedType<typeof isTableConfig>
 

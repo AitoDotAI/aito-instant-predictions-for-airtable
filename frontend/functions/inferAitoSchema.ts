@@ -55,6 +55,7 @@ export default function inferAitoSchema(fields: Field[], fieldIdToName: TableCol
     columns: Object.assign(
       {
         id: { type: 'String', nullable: false },
+        clusterId: { type: 'Int', nullable: true },
       },
       ...columns,
     ),
