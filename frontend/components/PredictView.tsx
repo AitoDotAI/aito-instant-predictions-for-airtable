@@ -25,7 +25,7 @@ import AcceptedFields from '../AcceptedFields'
 import AitoClient, { isAitoError } from '../AitoClient'
 import { mapColumnNames } from '../functions/inferAitoSchema'
 import { TableSchema } from '../schema/aito'
-import { TableColumnMap, TableConfig } from '../schema/config'
+import { TableConfig } from '../schema/config'
 import { useLocalConfig } from '../LocalConfig'
 import { isArrayOf, isMissing, isObjectOf, isString, isTupleOf } from '../validator/validation'
 import { Cell, Row } from './table'
@@ -43,6 +43,9 @@ import PopupContainer from './PopupContainer'
 import withRequestLock from './withRequestLock'
 import useDelayedEffect from './useDelayedEffect'
 import ExpandableList from './ExpandableList'
+import { ClusterParameters } from '../functions/uploadView'
+import GaussianMixtureModel from '../math/GaussianMixtureModel'
+import * as n from 'numeric'
 
 const DEFAULT_CONFIDENCE_THRESHOLD = 90
 
@@ -441,26 +444,56 @@ const isMultipleSelectField = (field: Field): boolean => Boolean(AcceptedFields[
 type QueryType = 'predict' | 'match'
 const queryType = (field: Field): QueryType => (field.type === FieldType.MULTIPLE_RECORD_LINKS ? 'match' : 'predict')
 
-const makeWhereClause = (selectedField: Field, fields: Field[], schema: TableSchema, record: Record) => {
-  const fieldIdToName = mapColumnNames(fields)
-  const inputFields = fields.reduce<globalThis.Record<string, unknown>>((acc, field) => {
-    const conversion = AcceptedFields[field.type]
-    const columnName = fieldIdToName[field.id].name
-    if (field.id !== selectedField.id && conversion && columnName in schema.columns) {
-      const cellValue = record.getCellValue(field)
-      const aitoValue = conversion.toAitoValue(cellValue, field.config)
-      if (aitoValue === null || aitoValue === undefined || aitoValue === false) {
-        return acc
-      } else {
-        return {
-          [columnName]: aitoValue === null ? null : conversion.toAitoQuery(aitoValue, field.config),
-          ...acc,
-        }
-      }
-    } else {
-      return acc
+const makeWhereClause = (
+  selectedField: Field,
+  fields: Field[],
+  schema: TableSchema,
+  record: Record,
+  tableConfig: TableConfig,
+) => {
+  const clusterParameters: ClusterParameters | undefined = tableConfig.clusters
+  let clusterId: number | null = null
+
+  if (clusterParameters) {
+    const clusterFields = clusterParameters.fieldIds.filter(
+      (fieldId) =>
+        fieldId !== selectedField.id && fields.find((f) => f.id === fieldId) && record.getCellValue(fieldId) !== null,
+    )
+    const sample = clusterFields.map((fieldId) => Number(record.getCellValue(fieldId)))
+    const proj = clusterFields.map((id) => clusterParameters.fieldIds.indexOf(id))
+    console.log('proj', proj, sample)
+    if (clusterParameters.fieldIds.indexOf(selectedField.id) < 0) {
+      const model = new GaussianMixtureModel(clusterParameters.clusters)
+      clusterId = model.getMarginalCluster(proj, sample)
+      console.log('clusterId', clusterId)
     }
-  }, {})
+  }
+
+  const fieldIdToName = mapColumnNames(fields)
+  const inputFields = fields.reduce<globalThis.Record<string, unknown>>(
+    (acc, field) => {
+      const conversion = AcceptedFields[field.type]
+      const columnName = fieldIdToName[field.id].name
+
+      const isClusterField = clusterParameters && Boolean(clusterParameters.fieldIds.find((fId) => fId === field.id))
+
+      if (!isClusterField && field.id !== selectedField.id && conversion && columnName in schema.columns) {
+        const cellValue = record.getCellValue(field)
+        const aitoValue = conversion.toAitoValue(cellValue, field.config)
+        if (aitoValue === null || aitoValue === undefined || aitoValue === false) {
+          return acc
+        } else {
+          return {
+            [columnName]: aitoValue === null ? null : conversion.toAitoQuery(aitoValue, field.config),
+            ...acc,
+          }
+        }
+      } else {
+        return acc
+      }
+    },
+    clusterId ? { clusterId } : {},
+  )
   if (queryType(selectedField) === 'match') {
     return {
       from: inputFields,
@@ -598,14 +631,17 @@ const FieldPrediction: React.FC<{
 
         const limit = 10
 
+        const clusterParameters: ClusterParameters | undefined = tableConfig.clusters
+        const isClusterPrediction = clusterParameters && clusterParameters.fieldIds.indexOf(selectedField.id) >= 0
+
         const isPredictQuery = queryType(selectedField) === 'predict'
-        const where = makeWhereClause(selectedField, fields, schema, record)
+        const where = makeWhereClause(selectedField, fields, schema, record, tableConfig)
         let query: string
         if (isPredictQuery) {
           const exclusiveness = !isMultipleSelectField(selectedField)
           query = JSON.stringify({
             from: aitoTableName,
-            predict: fieldIdToName[selectedField.id].name,
+            predict: isClusterPrediction ? 'clusterId' : fieldIdToName[selectedField.id].name,
             exclusiveness,
             select: ['$p', 'field', 'feature', '$why'],
             limit,
@@ -656,7 +692,8 @@ const FieldPrediction: React.FC<{
           }
         }
       })
-    } catch {
+    } catch (e) {
+      console.error(e)
       if (!hasUnmounted()) {
         setPrediction(null)
       }
@@ -868,7 +905,7 @@ const FieldPrediction: React.FC<{
                 selectedField={selectedField}
                 onClick={onClick}
                 renderFallback={renderFallback}
-                tableColumnMap={tableColumnMap}
+                tableConfig={tableConfig}
                 canUpdate={canUpdate}
                 cantUpdateReason={cantUpdateReason}
               />
@@ -881,21 +918,112 @@ const FieldPrediction: React.FC<{
 
 const isIdArray = isTupleOf([isObjectOf({ id: isString })])
 
-const PredictionCellRenderer: React.FC<
+const RegressionCellRenderer: React.FC<
   {
     field: Field
     cellValue: unknown
-    linkedRecordsQuery: TableOrViewQueryResult | null
+    record: Record
     renderInvalidCellValue: (value: unknown, field: Field) => React.ReactElement
+    visibleFields: Field[]
+    clusterParameters: ClusterParameters
   } & SpacingSetProps &
     FlexItemSetProps
-> = ({ field, cellValue, linkedRecordsQuery, renderInvalidCellValue, ...other }) => {
+> = ({ record, field, cellValue, visibleFields, renderInvalidCellValue, clusterParameters, ...other }) => {
+  const clusterId = Number(cellValue)
+
+  const cluster = clusterParameters.clusters[clusterId]
+  console.log('cluster:', cellValue, clusterId, cluster)
+
+  if (!cluster) {
+    return null
+  }
+
+  const [inputFields, inputValues] = visibleFields.reduce<[number[], number[]]>(
+    ([indexes, values], f) => {
+      if (f.id === field.id) {
+        return [indexes, values]
+      }
+      const index = clusterParameters.fieldIds.indexOf(f.id)
+      const value = record.getCellValue(f)
+      if (index >= 0 && typeof value === 'number' && Number.isFinite(value)) {
+        return [
+          [...indexes, index],
+          [...values, value],
+        ]
+      }
+      return [indexes, values]
+    },
+    [[], []],
+  )
+
+  const outputField = clusterParameters.fieldIds.indexOf(field.id)
+
+  const cov = inputFields.map((i) => inputFields.map((j) => cluster.covariance[i][j]))
+  const x = inputFields.map((i) => cluster.covariance[i][outputField])
+
+  const invCov = n.inv(cov)
+  const b = n.dotMV(invCov, x)
+
+  const b0 = cluster.mean[outputField] - inputFields.reduce((acc, i, j) => acc + cluster.mean[i] * b[j], 0)
+
+  console.log(inputFields, inputValues, b)
+
+  const y = b0 + inputValues.reduce((acc, value, i) => acc + value * b[i], 0)
+
+  return (
+    <CellRenderer
+      {...other}
+      field={field}
+      cellValue={y}
+      renderInvalidCellValue={renderInvalidCellValue}
+      cellStyle={{ margin: 0 }}
+    />
+  )
+}
+
+const PredictionCellRenderer: React.FC<
+  {
+    record: Record
+    field: Field
+    visibleFields: Field[]
+    cellValue: unknown
+    linkedRecordsQuery: TableOrViewQueryResult | null
+    renderInvalidCellValue: (value: unknown, field: Field) => React.ReactElement
+    tableConfig: TableConfig
+  } & SpacingSetProps &
+    FlexItemSetProps
+> = ({
+  record,
+  field,
+  visibleFields,
+  cellValue,
+  linkedRecordsQuery,
+  renderInvalidCellValue,
+  tableConfig,
+  ...other
+}) => {
   const isLinkedRecord = queryType(field) === 'match'
   const linkedRecordId = (isLinkedRecord && isIdArray(cellValue) && cellValue[0].id) || ''
 
   const linkedRecord = useRecordById((linkedRecordsQuery || null)!, linkedRecordId)
 
-  if (isLinkedRecord) {
+  const clusterParameters: ClusterParameters | undefined = tableConfig.clusters
+
+  const isClusterField = clusterParameters && clusterParameters.fieldIds.find((id) => id === field.id)
+
+  if (isClusterField && typeof cellValue === 'number') {
+    return (
+      <RegressionCellRenderer
+        record={record}
+        field={field}
+        visibleFields={visibleFields}
+        cellValue={cellValue}
+        renderInvalidCellValue={renderInvalidCellValue}
+        clusterParameters={clusterParameters}
+        {...other}
+      />
+    )
+  } else if (isLinkedRecord) {
     if (linkedRecord) {
       return (
         <span style={{ cursor: 'pointer', whiteSpace: 'nowrap' }} onClick={() => expandRecord(linkedRecord)}>
@@ -939,7 +1067,7 @@ const PredictionHitsList: React.FC<{
   record: Record
   selectedField: Field
   fields: Field[]
-  tableColumnMap: TableColumnMap
+  tableConfig: TableConfig
   canUpdate: boolean
   cantUpdateReason: string | undefined
   renderFallback: (value: unknown, field: Field) => React.ReactElement
@@ -953,10 +1081,12 @@ const PredictionHitsList: React.FC<{
   cantUpdateReason,
   onClick,
   fields,
-  tableColumnMap,
+  tableConfig,
 }) => {
   const base = useBase()
   let isLink = queryType(selectedField) === 'match'
+
+  const tableColumnMap = tableConfig.columns
 
   const commonFieldList = useEqualValue(fields, (a, b) => !a.find((v, i) => v !== b[i]))
   const linkedTables = useMemo(() => {
@@ -992,7 +1122,7 @@ const PredictionHitsList: React.FC<{
     <ExpandableList list={prediction.hits} headSize={headSize}>
       {({ list }) =>
         list.map(({ $p, feature, id, $why }, i) => {
-          const featureOrId = feature || id
+          const featureOrId = feature === undefined ? id : feature
           const conversion = AcceptedFields[selectedField.type]
           let value = conversion ? conversion.toCellValue(featureOrId, selectedField.config) : featureOrId
 
@@ -1016,6 +1146,9 @@ const PredictionHitsList: React.FC<{
                 <Cell flexGrow={1} flexShrink={1}>
                   <Box display="flex" height="100%" overflow="hidden">
                     <PredictionCellRenderer
+                      record={record}
+                      visibleFields={fields}
+                      tableConfig={tableConfig}
                       marginLeft={3}
                       flexGrow={1}
                       alignSelf="center"

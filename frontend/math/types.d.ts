@@ -8,3 +8,8 @@ declare module 'multivariate-gaussian' {
   }
   export = Gaussian
 }
+
+declare module 'numeric' {
+  export function inv(mat: number[][]): number[][]
+  export function dotMV(A: number[][], x: number[]): number[]
+}
