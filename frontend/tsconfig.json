@@ -3,6 +3,7 @@
     "module": "commonjs",
     "target": "es2018",
     "sourceMap": true,
+    "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "jsx": "react",
     "strict": true,

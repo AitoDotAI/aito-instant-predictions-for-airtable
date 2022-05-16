@@ -140,6 +140,17 @@ export class SampleStatistics {
     return C
   }
 
+  public clear(): void {
+    for (let i = 0; i < this.sums.length; i++) {
+      this.sums[i] = 0
+    }
+    for (let i = 0; i < this.moments.length; i++) {
+      this.moments[i] = 0
+      this.weightSums[i] = 0
+      this.squaredWeightSums[i] = 0
+    }
+  }
+
   public debug(): string {
     const d = this.d
     const moments = [...Array(d + 1).keys()].map(() => '')
