@@ -1,4 +1,5 @@
 import { normalizeAitoUrl } from './credentials'
+import { Why } from './explanations'
 import { isTableSchema, TableSchema } from './schema/aito'
 
 export type Value = null | boolean | number | string
@@ -18,6 +19,7 @@ export interface Hits<Hit = AitoRow> {
 export interface PredictionHit {
   $p: number
   feature: Value
+  $why?: Why
 }
 
 export interface MatchHit {

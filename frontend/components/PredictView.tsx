@@ -22,7 +22,7 @@ import React, { useCallback, useEffect, useState } from 'react'
 import { useMemo } from 'react'
 import { useRef } from 'react'
 import AcceptedFields from '../AcceptedFields'
-import AitoClient, { isAitoError } from '../AitoClient'
+import AitoClient, { AitoError, Hits, isAitoError, PredictionHit } from '../AitoClient'
 import { mapColumnNames } from '../functions/inferAitoSchema'
 import { TableSchema } from '../schema/aito'
 import { TableConfig } from '../schema/config'
@@ -674,7 +674,16 @@ const FieldPrediction: React.FC<{
         })
         query = query.replace(/}$/, `,"where":${whereString}}`)
 
-        const prediction = isPredictQuery ? await client.predict(query) : await client.match(query)
+        let prediction: PredictionHits | AitoError | undefined | null
+
+        if (isPredictQuery) {
+          prediction = await client.predict(query)
+          if (isClusterPrediction && !isAitoError(prediction)) {
+            prediction = applyLinearRegression(prediction, record, selectedField, fields, clusterParameters)
+          }
+        } else {
+          prediction = await client.match(query)
+        }
 
         if (!hasUnmounted()) {
           if (isAitoError(prediction)) {
@@ -929,6 +938,7 @@ const RegressionCellRenderer: React.FC<
   } & SpacingSetProps &
     FlexItemSetProps
 > = ({ record, field, cellValue, visibleFields, renderInvalidCellValue, clusterParameters, ...other }) => {
+  /*
   const clusterId = Number(cellValue)
 
   const cluster = clusterParameters.clusters[clusterId]
@@ -969,12 +979,13 @@ const RegressionCellRenderer: React.FC<
   console.log(inputFields, inputValues, b)
 
   const y = b0 + inputValues.reduce((acc, value, i) => acc + value * b[i], 0)
+  */
 
   return (
     <CellRenderer
       {...other}
       field={field}
-      cellValue={y}
+      cellValue={cellValue}
       renderInvalidCellValue={renderInvalidCellValue}
       cellStyle={{ margin: 0 }}
     />
@@ -1011,7 +1022,7 @@ const PredictionCellRenderer: React.FC<
 
   const isClusterField = clusterParameters && clusterParameters.fieldIds.find((id) => id === field.id)
 
-  if (isClusterField && typeof cellValue === 'number') {
+  if (isClusterField) {
     return (
       <RegressionCellRenderer
         record={record}
@@ -1261,6 +1272,93 @@ const PredictionHitsList: React.FC<{
       }
     </ExpandableList>
   )
+}
+
+function applyLinearRegression(
+  prediction: PredictionHits,
+  record: Record,
+  field: Field,
+  visibleFields: Field[],
+  clusterParameters: ClusterParameters,
+) {
+  const outputField = clusterParameters.fieldIds.indexOf(field.id)
+  const [inputFields, inputValues] = visibleFields.reduce<[number[], number[]]>(
+    ([indexes, values], f) => {
+      if (f.id === field.id) {
+        return [indexes, values]
+      }
+      const index = clusterParameters.fieldIds.indexOf(f.id)
+      const value = record.getCellValue(f)
+      if (index >= 0 && typeof value === 'number' && Number.isFinite(value)) {
+        return [
+          [...indexes, index],
+          [...values, value],
+        ]
+      }
+      return [indexes, values]
+    },
+    [[], []],
+  )
+
+  const model = new GaussianMixtureModel(clusterParameters.clusters)
+
+  const densities = clusterParameters.clusters.map((cluster) =>
+    model.clusterDensity(cluster.id, inputFields, inputValues),
+  )
+  const totalDensity = densities.reduce((acc, density) => acc + density, 0)
+  densities.forEach((density, i) => (densities[i] = density / totalDensity))
+
+  console.log('Densities:', densities)
+
+  console.log(model)
+
+  const fixedHits = prediction.hits
+    .filter((hit) => {
+      const clusterId = Number(hit.feature)
+      const cluster = clusterParameters.clusters[clusterId]
+
+      if (!cluster || cluster.weight === 0 || !hit.$why) {
+        console.log('Bad cluster:', hit, cluster)
+        return false
+      }
+      return true
+    })
+    .map((hit) => {
+      const clusterId = Number(hit.feature)
+
+      const cluster = clusterParameters.clusters[clusterId]
+      const why = hit.$why!
+
+      if (why.type === 'product') {
+        const baseP = why.factors.find((factor) => factor.type === 'baseP') as Why & { type: 'baseP' }
+        hit.$p /= baseP.value
+        hit.$p *= densities[clusterId]
+        baseP.value = densities[clusterId]
+      }
+
+      console.log(cluster)
+
+      const cov = inputFields.map((i) => inputFields.map((j) => cluster.covariance[i][j]))
+      const x = inputFields.map((i) => cluster.covariance[i][outputField])
+
+      const invCov = n.inv(cov)
+      const b = n.dotMV(invCov, x)
+
+      const b0 = cluster.mean[outputField] - inputFields.reduce((acc, i, j) => acc + cluster.mean[i] * b[j], 0)
+
+      console.log(inputFields, inputValues, b)
+
+      const y = b0 + inputValues.reduce((acc, value, i) => acc + value * b[i], 0)
+      hit.feature = y
+
+      return hit
+    })
+    .sort((a, b) => b.$p - a.$p)
+
+  return {
+    ...prediction,
+    hits: fixedHits,
+  }
 }
 
 export default PredictView

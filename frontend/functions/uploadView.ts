@@ -519,8 +519,10 @@ async function fetchRecordsAndUpload(
       }
 
       for (const record of queryResult.records) {
-        const vector = numericFields.map((field) => Number(record.getCellValue(field)))
-        const clusterId = clusterModel && clusterModel.getCluster(vector)
+        const vector = numericFields.map((field) => record.getCellValue(field) as number | null)
+        const variables = vector.map((value, i) => i).filter((i) => vector[i] !== null)
+        const nonNullFields = vector.filter((value): value is number => value !== null)
+        const clusterId = clusterModel ? clusterModel.getMarginalCluster(variables, nonNullFields) : null
 
         const row = metadata.visibleFields.reduce<Record<string, Value>>(
           (row, field) => {
@@ -552,7 +554,7 @@ async function fetchRecordsAndUpload(
               }
             }
           },
-          { id: record.id, clusterId },
+          { id: record.id, clusterId: typeof clusterId === 'number' && clusterId >= 0 ? clusterId : null },
         )
         dataArray.push(row)
         if (dataArray.length % 100 === 0) {

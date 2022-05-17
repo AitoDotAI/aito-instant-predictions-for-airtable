@@ -207,6 +207,10 @@ class GaussianMixtureModel {
     return index
   }
 
+  public clusterDensity(cluster: number, variables: number[], sample: Vector): number {
+    return this.mixtures_[cluster].marginalWeightedPdf(variables, sample)
+  }
+
   public getMarginalCluster(variables: number[], sample: Vector): number {
     let maxDensity = 0
     let index = -1
